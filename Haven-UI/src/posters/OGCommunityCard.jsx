@@ -27,7 +27,7 @@ export default function OGCommunityCard({ routeKey }) {
     ]).then(([_, j]) => {
       if (cancelled) return
       const list = j?.communities || []
-      const match = list.find(c => (c.tag || '').toLowerCase() === tag.toLowerCase())
+      const match = list.find(c => (c.discord_tag || '').toLowerCase() === tag.toLowerCase())
       setOverview(match || null)
       markPosterReady()
     }).catch(() => { if (!cancelled) markPosterReady() })
@@ -52,10 +52,10 @@ export default function OGCommunityCard({ routeKey }) {
           <div style={s.url}>havenmap.online/community-stats/{tag}</div>
         </div>
         <div style={s.rightCol}>
-          <Stat label="STAR SYSTEMS" value={overview?.systems?.toLocaleString() || '—'} accent={tagColor} />
-          <Stat label="DISCOVERIES" value={overview?.discoveries?.toLocaleString() || '—'} />
-          <Stat label="MEMBERS" value={overview?.contributors?.toLocaleString() || '—'} />
-          <Stat label="MANUAL / EXTRACTOR" value={`${overview?.manual ?? '—'} / ${overview?.extractor ?? '—'}`} />
+          <Stat label="STAR SYSTEMS" value={overview?.total_systems?.toLocaleString() || '—'} accent={tagColor} />
+          <Stat label="DISCOVERIES" value={overview?.total_discoveries?.toLocaleString() || '—'} />
+          <Stat label="MEMBERS" value={overview?.unique_contributors?.toLocaleString() || '—'} />
+          <Stat label="MANUAL / EXTRACTOR" value={`${overview?.manual_systems ?? '—'} / ${overview?.extractor_systems ?? '—'}`} />
         </div>
       </div>
     </PosterFrame>

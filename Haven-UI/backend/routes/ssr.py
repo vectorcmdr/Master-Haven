@@ -195,6 +195,74 @@ def build_community_og(tag: str) -> dict:
     }
 
 
+def build_discoveries_og() -> dict:
+    return {
+        'title': "Discoveries — Voyager's Haven",
+        'description': "Browse player-discovered creatures, plants, anomalies, and oddities of No Man's Sky.",
+        'image': _ogcard('landing_og', 'global'),
+        'image_w': 1200,
+        'image_h': 630,
+        'url': '/discoveries',
+    }
+
+
+def build_discovery_type_og(type_slug: str) -> dict:
+    pretty = type_slug.replace('-', ' ').replace('_', ' ').strip().title() or type_slug
+    return {
+        'title': f"{pretty} Discoveries — Voyager's Haven",
+        'description': f"Browse {pretty.lower()} discoveries logged by No Man's Sky players on havenmap.online.",
+        'image': _ogcard('landing_og', 'global'),
+        'image_w': 1200,
+        'image_h': 630,
+        'url': f'/discoveries/{quote(type_slug, safe="")}',
+    }
+
+
+def build_region_og(rx: str, ry: str, rz: str) -> dict:
+    return {
+        'title': f"Region {rx},{ry},{rz} — Voyager's Haven",
+        'description': f"Star systems and discoveries charted in this region of No Man's Sky.",
+        'image': _ogcard('landing_og', 'global'),
+        'image_w': 1200,
+        'image_h': 630,
+        'url': f'/regions/{rx}/{ry}/{rz}',
+    }
+
+
+def build_changelog_og() -> dict:
+    return {
+        'title': "Changelog — Voyager's Haven",
+        'description': "The Voyager's Haven story — releases, milestones, and what's still being built.",
+        'image': _ogcard('landing_og', 'global'),
+        'image_w': 1200,
+        'image_h': 630,
+        'url': '/changelog',
+    }
+
+
+def build_docs_index_og() -> dict:
+    return {
+        'title': "Docs — Voyager's Haven",
+        'description': "Documentation hub for members, leaders, and the technically curious.",
+        'image': _ogcard('landing_og', 'global'),
+        'image_w': 1200,
+        'image_h': 630,
+        'url': '/docs',
+    }
+
+
+def build_doc_page_og(slug: str) -> dict:
+    pretty = slug.replace('-', ' ').replace('_', ' ').strip().title() or slug
+    return {
+        'title': f"{pretty} — Voyager's Haven Docs",
+        'description': f"Voyager's Haven documentation — {pretty}.",
+        'image': _ogcard('landing_og', 'global'),
+        'image_w': 1200,
+        'image_h': 630,
+        'url': f'/docs/{quote(slug, safe="")}',
+    }
+
+
 # ============================================================================
 # HTML template
 # Minimal HTML that emits og/twitter meta tags + a JS redirect that takes a
@@ -363,5 +431,77 @@ async def og_community(tag: str, request: Request):
         return _render_og(build_community_og(tag), request)
     return RedirectResponse(
         url=f'/haven-ui/community-stats/{quote(tag, safe="")}',
+        status_code=302,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plural alias for the singular /voyager/ poster route. People hand-type both;
+# treat /voyagers/<user> as a permanent redirect to /voyager/<user> for both
+# bots and browsers — bots get redirected once and then scrape the canonical
+# URL's OG tags, browsers land on the clean URL.
+# ---------------------------------------------------------------------------
+@router.get('/voyagers/{username}', response_class=HTMLResponse)
+async def og_voyagers_alias(username: str, request: Request):
+    return RedirectResponse(
+        url=f'/voyager/{quote(username, safe="")}',
+        status_code=301,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Per-page OG meta tags for the rest of the public, shareable pages. The
+# image is the global landing_og card (cosmic-compass + wordmark + live
+# stats) — what changes per route is the title and description so Discord
+# previews stop showing the same generic "Voyager's Haven" line for every
+# linked page. Custom poster cards per page can be added later.
+# ---------------------------------------------------------------------------
+@router.get('/discoveries', response_class=HTMLResponse)
+async def og_discoveries(request: Request):
+    if is_bot_ua(request.headers.get('user-agent')):
+        return _render_og(build_discoveries_og(), request)
+    return RedirectResponse(url='/haven-ui/discoveries', status_code=302)
+
+
+@router.get('/discoveries/{type_slug}', response_class=HTMLResponse)
+async def og_discovery_type(type_slug: str, request: Request):
+    if is_bot_ua(request.headers.get('user-agent')):
+        return _render_og(build_discovery_type_og(type_slug), request)
+    return RedirectResponse(
+        url=f'/haven-ui/discoveries/{quote(type_slug, safe="")}',
+        status_code=302,
+    )
+
+
+@router.get('/regions/{rx}/{ry}/{rz}', response_class=HTMLResponse)
+async def og_region(rx: str, ry: str, rz: str, request: Request):
+    if is_bot_ua(request.headers.get('user-agent')):
+        return _render_og(build_region_og(rx, ry, rz), request)
+    return RedirectResponse(
+        url=f'/haven-ui/regions/{quote(rx, safe="")}/{quote(ry, safe="")}/{quote(rz, safe="")}',
+        status_code=302,
+    )
+
+
+@router.get('/changelog', response_class=HTMLResponse)
+async def og_changelog(request: Request):
+    if is_bot_ua(request.headers.get('user-agent')):
+        return _render_og(build_changelog_og(), request)
+    return RedirectResponse(url='/haven-ui/changelog', status_code=302)
+
+
+@router.get('/docs', response_class=HTMLResponse)
+async def og_docs(request: Request):
+    if is_bot_ua(request.headers.get('user-agent')):
+        return _render_og(build_docs_index_og(), request)
+    return RedirectResponse(url='/haven-ui/docs', status_code=302)
+
+
+@router.get('/docs/{slug}', response_class=HTMLResponse)
+async def og_doc_page(slug: str, request: Request):
+    if is_bot_ua(request.headers.get('user-agent')):
+        return _render_og(build_doc_page_og(slug), request)
+    return RedirectResponse(
+        url=f'/haven-ui/docs/{quote(slug, safe="")}',
         status_code=302,
     )

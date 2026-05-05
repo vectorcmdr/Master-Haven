@@ -149,7 +149,7 @@ REGISTRY: dict[str, PosterTemplate] = {
     ),
     'og_community': PosterTemplate(
         type='og_community',
-        version=1,
+        version=2,
         width=1200,
         height=630,
         spa_route='/poster/og_community/{key}',
