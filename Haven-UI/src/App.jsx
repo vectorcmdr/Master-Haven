@@ -38,6 +38,8 @@ const CommunityDetail = lazy(() => import('./pages/CommunityDetail'))
 const Profile = lazy(() => import('./pages/Profile'))
 const UserManagement = lazy(() => import('./pages/UserManagement'))
 const Changelog = lazy(() => import('./pages/Changelog'))
+const Docs = lazy(() => import('./pages/Docs'))
+const DocPage = lazy(() => import('./pages/DocPage'))
 
 // Heavy components with Three.js - load separately for better code splitting
 const WarRoom = lazy(() => import('./pages/WarRoom'))
@@ -136,6 +138,8 @@ function AppShell() {
               <Route path="/community-stats" element={<CommunityStats />} />
               <Route path="/community-stats/:tag" element={<CommunityDetail />} />
               <Route path="/changelog" element={<Changelog />} />
+              <Route path="/docs" element={<Docs />} />
+              <Route path="/docs/:slug" element={<DocPage />} />
               <Route path="/profile" element={<Profile />} />
 
               {/* Super admin only routes */}

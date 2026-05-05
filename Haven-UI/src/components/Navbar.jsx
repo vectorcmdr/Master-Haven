@@ -117,7 +117,7 @@ export default function Navbar() {
     { label: 'Events', to: '/events', visible: isAdmin && !isCorrespondent },
     { label: 'War Room', to: '/war-room', visible: canAccess(FEATURES.WAR_ROOM) || isCorrespondent,
       className: 'text-red-400 font-bold', badge: 'conflict' },
-    { label: 'Changelog', to: '/changelog', visible: true },
+    { label: 'Docs', to: '/docs', visible: true },
   ], [isAdmin, isCorrespondent, canAccess])
 
   // Dropdown groups
