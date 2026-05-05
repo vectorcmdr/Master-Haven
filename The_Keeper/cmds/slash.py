@@ -5,16 +5,16 @@ import requests
 import os, sys
 import logging
 from cogs import community
-
+log=logging.getlogger("commands")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
 sys.path.append(os.path.join(BASE_DIR, "cogs"))
+
 log = logging.getLogger("commands")
 
 from announcements import GoogleDocParser
-
 DOC_URL = "https://docs.google.com/document/d/1FRfxnmXdhU_O-OGTxG52lM0298zzKnGp7W2Qs5njBPo/export?format=txt"
 
 
@@ -55,7 +55,7 @@ class CommandsCog(commands.Cog):
 
 # ---------------- Community ----------------
     @app_commands.command(name="community", help="Look up a No Man's Sky civ or commmunity")    
-    async def community(self, ctx, *, search: str = None):
+    async def community(self, interaction: discord.interaction, *, search: str = None):
         if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
         community_cog = self.bot.get_cog("CommunityCog")
         
@@ -72,7 +72,7 @@ class CommandsCog(commands.Cog):
 
 # ---------------- Add Civ ----------------
     @app_commands.command(name="addciv", help="add a civ or community to our ever growing list!")
-    async def addciv(self, ctx: commands.Context):
+    async def addciv(self, interaction: discord.interaction):
         cog = self.bot.get_cog("CommunityCog")
 
         embed = discord.Embed(
