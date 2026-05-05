@@ -63,12 +63,12 @@ class CommandsCog(commands.Cog):
         if not community_cog:
             return await ctx.send("Community system not loaded.")
 
-        await ctx.send("Open search:", view=SearchView(community_cog))
+        await interaction.response.send_message("Open search:", view=SearchView(community_cog))
 
         if not search:
             return
 
-        await community_cog.run_search(ctx, search)
+        await community_cog.run_search(interaction, search)
 
 # ---------------- Add Civ ----------------
     @app_commands.command(name="addciv", help="add a civ or community to our ever growing list!")
@@ -81,7 +81,7 @@ class CommandsCog(commands.Cog):
             color=discord.Color.green()
         )
 
-        await ctx.send(embed=embed, view=AddCivView(cog))
+        await interaction.response.send_message(embed=embed, view=AddCivView(cog))
 
 
 async def setup(bot):
