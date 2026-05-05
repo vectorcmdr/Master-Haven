@@ -53,11 +53,26 @@ def get_db_path() -> Path:
 
 
 def get_db_connection():
-    """Create a properly configured database connection with timeout and WAL mode."""
+    """Create a properly configured database connection with timeout and WAL mode.
+
+    PRAGMA notes:
+    - synchronous=NORMAL trades one fsync per commit for ~2x write throughput.
+      Acceptable on the Pi 5 SSD with no power-event history; in WAL mode the
+      database is still safe across crashes (only a transaction-in-flight at
+      power loss can be lost). Do NOT downgrade back to FULL without a
+      power-loss incident to justify it — this is intentional.
+    - cache_size=-64000 sets a 64 MB page cache (negative means KiB).
+    - mmap_size=256 MB enables memory-mapped I/O for read-heavy workloads.
+    - temp_store=MEMORY keeps temp btrees off disk for the duration of a query.
+    """
     db_path = get_db_path()
     conn = sqlite3.connect(str(db_path), timeout=30.0)
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA busy_timeout=30000')
+    conn.execute('PRAGMA synchronous=NORMAL')
+    conn.execute('PRAGMA cache_size=-64000')
+    conn.execute('PRAGMA mmap_size=268435456')
+    conn.execute('PRAGMA temp_store=MEMORY')
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -155,7 +170,14 @@ def get_system_glyph(glyph_code: str) -> Optional[str]:
 
 
 def find_matching_system(cursor, glyph_code: str, galaxy: str, reality: str):
-    """Find an existing system that matches by glyph coordinates + galaxy + reality."""
+    """Find an existing system that matches by glyph coordinates + galaxy + reality.
+
+    Uses the indexed `glyph_code_suffix` column (auto-maintained by triggers in
+    migration 1.73.0). The previous `SUBSTR(glyph_code, -11) = ?` form defeated
+    idx_systems_glyph_code because the LHS was an expression — this function is
+    called inside the approval transaction and on every extractor upload, so it
+    needs to use the index.
+    """
     system_glyph = get_system_glyph(glyph_code)
     if not system_glyph:
         return None
@@ -163,7 +185,7 @@ def find_matching_system(cursor, glyph_code: str, galaxy: str, reality: str):
         SELECT id, name, glyph_code, glyph_planet, glyph_solar_system,
                discovered_by, discovered_at, contributors
         FROM systems
-        WHERE SUBSTR(glyph_code, -11) = ?
+        WHERE glyph_code_suffix = ?
           AND galaxy = ?
           AND reality = ?
     ''', (system_glyph, galaxy or 'Euclid', reality or 'Normal'))
@@ -178,7 +200,7 @@ def find_matching_pending_system(cursor, glyph_code: str, galaxy: str, reality: 
     cursor.execute('''
         SELECT id, system_name, glyph_code, system_data, status
         FROM pending_systems
-        WHERE SUBSTR(glyph_code, -11) = ?
+        WHERE glyph_code_suffix = ?
           AND galaxy = ?
           AND reality = ?
           AND status = 'pending'

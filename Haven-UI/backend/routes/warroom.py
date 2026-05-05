@@ -22,6 +22,7 @@ from services.auth_service import (
     _sessions as sessions,
     create_session,
 )
+from services.dispatch import fire_and_forget
 
 logger = logging.getLogger('control.room')
 
@@ -86,6 +87,42 @@ def get_war_room_partner_info(session: dict) -> dict:
         conn.close()
 
 
+async def _deliver_discord_webhook(webhook_url: str, partner_id: int, embed: dict):
+    """Deliver a Discord webhook in a background thread.
+
+    `requests` is synchronous and was previously called inline with a 5-second
+    timeout, blocking the event loop on every war-room notification. Wrapping
+    in asyncio.to_thread keeps the existing dependency (no httpx) and lets the
+    request handler return immediately.
+    """
+    import asyncio as _asyncio
+    import requests as req_lib
+    try:
+        await _asyncio.to_thread(
+            req_lib.post,
+            webhook_url,
+            json={"embeds": [embed]},
+            timeout=5,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send War Room webhook to partner {partner_id}: {e}")
+        return
+
+    # Mark the webhook as triggered. Open a fresh connection because we're now
+    # running detached from the original handler's connection.
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            'UPDATE discord_webhooks SET last_triggered_at = ? WHERE partner_id = ?',
+            (datetime.now(timezone.utc).isoformat(), partner_id),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"Failed to mark webhook last_triggered_at for partner {partner_id}: {e}")
+
+
 async def send_war_notification(
     partner_id: int,
     notification_type: str,
@@ -93,45 +130,40 @@ async def send_war_notification(
     message: str,
     conflict_id: int = None
 ):
-    """Create in-app notification and optionally send Discord webhook."""
+    """Create in-app notification and optionally send Discord webhook.
+
+    The in-app notification INSERT stays inline (it's the user-visible state
+    the response promises). The Discord webhook delivery fires AFTER the
+    response via fire_and_forget — see services/dispatch.py — so a slow or
+    failing Discord endpoint can't block a 5-second window on the event loop.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Create in-app notification
         cursor.execute('''
             INSERT INTO war_notifications (recipient_partner_id, notification_type, title, message, related_conflict_id)
             VALUES (?, ?, ?, ?, ?)
         ''', (partner_id, notification_type, title, message, conflict_id))
         conn.commit()
 
-        # Check for Discord webhook
         cursor.execute('''
             SELECT webhook_url FROM discord_webhooks
             WHERE partner_id = ? AND is_active = 1
         ''', (partner_id,))
         webhook_row = cursor.fetchone()
-
-        if webhook_row and webhook_row[0]:
-            webhook_url = webhook_row[0]
-            # Send webhook using requests (fire and forget)
-            import requests as req_lib
-            embed = {
-                "title": f"WAR ROOM: {title}",
-                "description": message,
-                "color": 15158332,  # Red
-                "footer": {"text": "Haven War Room"},
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-            try:
-                req_lib.post(webhook_url, json={"embeds": [embed]}, timeout=5)
-                cursor.execute('''
-                    UPDATE discord_webhooks SET last_triggered_at = ? WHERE partner_id = ?
-                ''', (datetime.now(timezone.utc).isoformat(), partner_id))
-                conn.commit()
-            except Exception as e:
-                logger.warning(f"Failed to send War Room webhook to partner {partner_id}: {e}")
     finally:
         conn.close()
+
+    if webhook_row and webhook_row[0]:
+        webhook_url = webhook_row[0]
+        embed = {
+            "title": f"WAR ROOM: {title}",
+            "description": message,
+            "color": 15158332,  # Red
+            "footer": {"text": "Haven War Room"},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        fire_and_forget(_deliver_discord_webhook, webhook_url, partner_id, embed)
 
 
 async def add_activity_feed_entry(

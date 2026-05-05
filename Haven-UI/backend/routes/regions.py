@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Cookie, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from constants import normalize_discord_username, resolve_source
@@ -17,11 +17,41 @@ from services.auth_service import (
     require_feature,
     verify_api_key,
 )
+from services.dispatch import fire_and_forget
 from services.restrictions import (
     get_restriction_for_system,
     can_bypass_restriction,
     apply_data_restrictions,
 )
+
+
+async def _invalidate_posters_for_region_change(galaxy: Optional[str], discord_tag: Optional[str] = None):
+    """Drop poster cache rows whose data depends on region naming.
+
+    Same set as system approval but no voyager card (region naming isn't
+    voyager-keyed). Each invalidate is independent — failures log but don't
+    block the others. See docs/centralization/dispatch.md.
+    """
+    try:
+        from services.poster_service import invalidate
+    except Exception as e:
+        logger.warning(f"Region poster invalidation skipped (import failed): {e}")
+        return
+
+    def _try(t, k):
+        try:
+            invalidate(t, k)
+        except Exception as e:
+            logger.warning(f"Poster invalidate {t}/{k} failed: {e}")
+
+    _try('landing_og', 'global')
+    _try('og_site', 'global')
+    if galaxy:
+        _try('atlas', galaxy)
+        _try('atlas_thumb', galaxy)
+        _try('og_atlas', galaxy)
+    if discord_tag:
+        _try('og_community', discord_tag)
 
 logger = logging.getLogger('control.room')
 
@@ -861,7 +891,11 @@ async def get_planet_3d_map(planet_id: int, session: Optional[str] = Cookie(None
 
 @router.put('/api/regions/{rx}/{ry}/{rz}')
 async def api_update_region(rx: int, ry: int, rz: int, payload: dict, session: Optional[str] = Cookie(None)):
-    """Update/set custom region name. Admin only. Scoped by reality+galaxy."""
+    """Update/set custom region name. Admin only. Scoped by reality+galaxy.
+
+    Direct admin update path. Poster cache invalidation fires after the
+    response — see services/dispatch.py.
+    """
     if not verify_session(session):
         raise HTTPException(status_code=401, detail='Admin authentication required')
 
@@ -901,6 +935,9 @@ async def api_update_region(rx: int, ry: int, rz: int, payload: dict, session: O
         ''', (rx, ry, rz, custom_name, reality, galaxy))
 
         conn.commit()
+
+        # Poster cache for the affected galaxy + global stats embeds is now stale.
+        fire_and_forget(_invalidate_posters_for_region_change, galaxy=galaxy)
 
         return {'status': 'ok', 'region_x': rx, 'region_y': ry, 'region_z': rz, 'custom_name': custom_name}
     except HTTPException:
@@ -1132,8 +1169,16 @@ async def api_list_pending_region_names(session: Optional[str] = Cookie(None)):
 
 
 @router.post('/api/pending_region_names/{submission_id}/approve')
-async def api_approve_region_name(submission_id: int, session: Optional[str] = Cookie(None)):
-    """Approve a pending region name submission. Admin only."""
+async def api_approve_region_name(
+    submission_id: int,
+    background_tasks: BackgroundTasks,
+    session: Optional[str] = Cookie(None),
+):
+    """Approve a pending region name submission. Admin only.
+
+    Side effects (activity log, broader poster invalidation) fire AFTER the
+    response — see services/dispatch.py.
+    """
     if not verify_session(session):
         raise HTTPException(status_code=401, detail='Admin authentication required')
     require_feature(get_session(session), 'approvals')
@@ -1181,16 +1226,8 @@ async def api_approve_region_name(submission_id: int, session: Optional[str] = C
             WHERE id = ?
         ''', (datetime.now(timezone.utc).isoformat(), submission_id))
 
-        conn.commit()
-
-        add_activity_log(
-            'region_approved',
-            f"Region name '{proposed_name}' approved",
-            details=f"Region: [{rx}, {ry}, {rz}]",
-            user_name='Admin'
-        )
-
-        # Audit log
+        # Audit log INSERT stays inline — same connection, same transaction
+        # as the regions UPSERT, so partial-failure semantics are preserved.
         try:
             s_data = get_session(session)
             cursor.execute('''
@@ -1210,18 +1247,27 @@ async def api_approve_region_name(submission_id: int, session: Optional[str] = C
                 submission.get('discord_tag'),
                 'manual'
             ))
-            conn.commit()
         except Exception as audit_err:
             logger.warning(f"Failed to add region audit log: {audit_err}")
 
-        # Invalidate atlas cache for the affected galaxy so the next
-        # request renders with the freshly-named region.
-        try:
-            from services.poster_service import invalidate
-            invalidate('atlas', galaxy)
-            invalidate('atlas_thumb', galaxy)
-        except Exception as inv_err:
-            logger.warning(f"Atlas invalidation failed (non-fatal): {inv_err}")
+        conn.commit()
+
+        # Side effects fire after the response. Activity log opens its own
+        # connection (sync → BackgroundTasks); poster invalidation runs on
+        # the event loop (async → fire_and_forget).
+        background_tasks.add_task(
+            add_activity_log,
+            'region_approved',
+            f"Region name '{proposed_name}' approved",
+            f"Region: [{rx}, {ry}, {rz}]",
+            'Admin',
+        )
+
+        fire_and_forget(
+            _invalidate_posters_for_region_change,
+            galaxy=galaxy,
+            discord_tag=submission.get('discord_tag'),
+        )
 
         return {'status': 'approved', 'region_x': rx, 'region_y': ry, 'region_z': rz, 'custom_name': proposed_name}
     except HTTPException:

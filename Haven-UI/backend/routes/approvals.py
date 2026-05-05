@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Cookie, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Cookie, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from constants import normalize_discord_username, validate_galaxy, validate_reality, GALAXY_BY_INDEX, resolve_source
@@ -44,6 +44,7 @@ from services.completeness import (
     calculate_completeness_score,
     update_completeness_score,
 )
+from services.dispatch import fire_and_forget
 
 logger = logging.getLogger('control.room')
 
@@ -97,6 +98,7 @@ def validate_system_data(system: dict) -> tuple[bool, str]:
 async def submit_system(
     payload: dict,
     request: Request,
+    background_tasks: BackgroundTasks,
     session: Optional[str] = Cookie(None),
     x_api_key: Optional[str] = Header(None, alias='X-API-Key')
 ):
@@ -274,11 +276,22 @@ async def submit_system(
         if mismatch_flags:
             payload['_mismatch_flags'] = mismatch_flags
 
+        # Compute username_normalized using the same chain the analytics leaderboard uses
+        # (submitted_by → personal_discord_username → discovered_by JSON → 'Unknown'),
+        # via the canonical normalize_username_for_dedup helper. Stored at write time
+        # so the leaderboard can GROUP BY an indexed column.
+        _raw_for_norm = (
+            submitter_identity['username'] if submitter_identity['username'] else submitted_by
+        )
+        if not _raw_for_norm or _raw_for_norm in ('Anonymous', 'anonymous'):
+            _raw_for_norm = personal_discord_username or payload.get('discovered_by') or 'Unknown'
+        username_normalized = normalize_username_for_dedup(_raw_for_norm)
+
         # Insert submission with source tracking, discord_tag, personal_discord_username, edit tracking, and submitter identity
         cursor.execute('''
             INSERT INTO pending_systems
-            (submitted_by, submitted_by_ip, submission_date, system_data, status, system_name, system_region, galaxy, source, api_key_name, discord_tag, personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type, submitter_profile_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (submitted_by, submitted_by_ip, submission_date, system_data, status, system_name, system_region, galaxy, source, api_key_name, discord_tag, personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type, submitter_profile_id, username_normalized)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             submitter_identity['username'] if submitter_identity['username'] else submitted_by,
             client_ip,
@@ -295,7 +308,8 @@ async def submit_system(
             edit_system_id,
             submitter_identity['account_id'],
             submitter_identity['type'] if submitter_identity['type'] != 'anonymous' else None,
-            submitter_identity.get('profile_id')
+            submitter_identity.get('profile_id'),
+            username_normalized,
         ))
 
         submission_id = cursor.lastrowid
@@ -304,20 +318,23 @@ async def submit_system(
         source_info = f" via {api_key_name}" if api_key_name else ""
         logger.info(f"New system submission: '{system_name}' (ID: {submission_id}) from {client_ip}{source_info}")
 
-        # Add activity log - differentiate watcher uploads from manual submissions
+        # Activity log fires after the response — opens its own DB connection,
+        # not part of the transactional guarantee. See services/dispatch.py.
         if source != 'manual':
-            add_activity_log(
+            background_tasks.add_task(
+                add_activity_log,
                 'watcher_upload',
                 f"System '{system_name}' uploaded via NMS Save Watcher",
-                details=f"Galaxy: {system_galaxy}" + (f", API Key: {api_key_name}" if api_key_name else ""),
-                user_name=submitted_by
+                f"Galaxy: {system_galaxy}" + (f", API Key: {api_key_name}" if api_key_name else ""),
+                submitted_by,
             )
         else:
-            add_activity_log(
+            background_tasks.add_task(
+                add_activity_log,
                 'system_submitted',
                 f"System '{system_name}' submitted for approval",
-                details=f"Galaxy: {system_galaxy}",
-                user_name=submitted_by
+                f"Galaxy: {system_galaxy}",
+                submitted_by,
             )
 
         response = {
@@ -518,60 +535,67 @@ async def get_pending_count(session: Optional[str] = Cookie(None)):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # For non-super-admins, we need to fetch rows and filter out self-submissions
+        # For non-super-admins, exclude self-submissions in SQL rather than loading
+        # every pending row into Python. This endpoint is polled every 60s by every
+        # admin's navbar; the previous implementation grew linearly with the queue.
         if is_super or not session_data:
-            # Super admin or not logged in sees all - simple count
             cursor.execute("SELECT COUNT(*) FROM pending_systems WHERE status = 'pending'")
             system_count = cursor.fetchone()[0]
         else:
-            # For sub-admins/partners, fetch rows to filter out self-submissions
-            if is_haven_sub_admin:
-                additional_tags = session_data.get('additional_discord_tags', []) if session_data else []
-                can_approve_personal = session_data.get('can_approve_personal_uploads', False) if session_data else False
-                all_tags = ['Haven'] + additional_tags
-                placeholders = ','.join(['?' for _ in all_tags])
-
-                if can_approve_personal:
-                    cursor.execute(f"""
-                        SELECT id, submitted_by, personal_discord_username, submitter_account_id, submitter_account_type
-                        FROM pending_systems
-                        WHERE status = 'pending' AND (discord_tag IN ({placeholders}) OR discord_tag = 'personal')
-                    """, all_tags)
-                else:
-                    cursor.execute(f"""
-                        SELECT id, submitted_by, personal_discord_username, submitter_account_id, submitter_account_type
-                        FROM pending_systems
-                        WHERE status = 'pending' AND discord_tag IN ({placeholders})
-                    """, all_tags)
-            elif partner_tag:
-                cursor.execute("""
-                    SELECT id, submitted_by, personal_discord_username, submitter_account_id, submitter_account_type
-                    FROM pending_systems
-                    WHERE status = 'pending' AND discord_tag = ?
-                """, (partner_tag,))
-            else:
-                cursor.execute("SELECT id FROM pending_systems WHERE 1=0")  # No results
-
-            rows = cursor.fetchall()
-
-            # Filter out self-submissions (normalize usernames to handle #XXXX discriminator)
             logged_in_username = normalize_discord_username(session_data.get('username', ''))
             logged_in_account_id = session_data.get('sub_admin_id') or session_data.get('partner_id')
             logged_in_account_type = session_data.get('user_type')
 
-            def is_self_submission(row):
-                sub = dict(row)
-                if sub.get('submitter_account_id') and sub.get('submitter_account_type'):
-                    if (sub['submitter_account_id'] == logged_in_account_id and
-                        sub['submitter_account_type'] == logged_in_account_type):
-                        return True
-                if sub.get('submitted_by') and normalize_discord_username(sub['submitted_by']) == logged_in_username:
-                    return True
-                if sub.get('personal_discord_username') and normalize_discord_username(sub['personal_discord_username']) == logged_in_username:
-                    return True
-                return False
+            # Mirror normalize_discord_username() in SQL: lower(trim(split_on_hash(value))).
+            # Re-used twice (submitted_by, personal_discord_username); duplicating the
+            # CASE keeps each match a sargable expression on its own column.
+            self_sub_clause = """
+                NOT (
+                    (submitter_account_id IS NOT NULL
+                     AND submitter_account_type IS NOT NULL
+                     AND submitter_account_id = ?
+                     AND submitter_account_type = ?)
+                    OR (submitted_by IS NOT NULL AND submitted_by != ''
+                        AND LOWER(TRIM(CASE
+                            WHEN INSTR(submitted_by, '#') > 0
+                            THEN SUBSTR(submitted_by, 1, INSTR(submitted_by, '#') - 1)
+                            ELSE submitted_by
+                        END)) = ?)
+                    OR (personal_discord_username IS NOT NULL AND personal_discord_username != ''
+                        AND LOWER(TRIM(CASE
+                            WHEN INSTR(personal_discord_username, '#') > 0
+                            THEN SUBSTR(personal_discord_username, 1, INSTR(personal_discord_username, '#') - 1)
+                            ELSE personal_discord_username
+                        END)) = ?)
+                )
+            """
+            self_params = [logged_in_account_id, logged_in_account_type,
+                           logged_in_username, logged_in_username]
 
-            system_count = sum(1 for row in rows if not is_self_submission(row))
+            if is_haven_sub_admin:
+                additional_tags = session_data.get('additional_discord_tags', []) or []
+                can_approve_personal = session_data.get('can_approve_personal_uploads', False)
+                all_tags = ['Haven'] + additional_tags
+                placeholders = ','.join(['?' for _ in all_tags])
+
+                if can_approve_personal:
+                    tag_clause = f"(discord_tag IN ({placeholders}) OR discord_tag = 'personal')"
+                else:
+                    tag_clause = f"discord_tag IN ({placeholders})"
+
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM pending_systems WHERE status = 'pending' AND {tag_clause} AND {self_sub_clause}",
+                    all_tags + self_params,
+                )
+                system_count = cursor.fetchone()[0]
+            elif partner_tag:
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM pending_systems WHERE status = 'pending' AND discord_tag = ? AND {self_sub_clause}",
+                    [partner_tag] + self_params,
+                )
+                system_count = cursor.fetchone()[0]
+            else:
+                system_count = 0
 
         # Count pending region names (these don't have discord_tag filtering yet)
         cursor.execute("SELECT COUNT(*) FROM pending_region_names WHERE status = 'pending'")
@@ -728,10 +752,18 @@ async def edit_pending_system(submission_id: int, request: Request, session: Opt
 
 
 @router.post('/api/approve_system/{submission_id}')
-async def approve_system(submission_id: int, session: Optional[str] = Cookie(None)):
+async def approve_system(
+    submission_id: int,
+    background_tasks: BackgroundTasks,
+    session: Optional[str] = Cookie(None),
+):
     """
     Approve a pending system submission and add it to the main database (admin only).
     Self-approval is blocked for non-super-admin users.
+
+    Side effects (activity log, poster cache invalidation) run AFTER the response
+    is returned — see services/dispatch.py. The audit_log INSERT inside the
+    transaction stays inline because it's part of the transactional guarantee.
     """
     # Verify admin session
     if not verify_session(session):
@@ -1407,19 +1439,24 @@ async def approve_system(submission_id: int, session: Optional[str] = Cookie(Non
         action = 'updated' if is_edit else 'added'
         logger.info(f"Approved system submission: '{system_data.get('name')}' (ID: {submission_id}) - {action} by {current_username}")
 
-        # Add activity log
-        add_activity_log(
+        # Side effects fire AFTER the response. add_activity_log is sync (opens its
+        # own connection) so it goes through FastAPI's BackgroundTasks; poster
+        # invalidation is async (event-loop-friendly) so it goes through
+        # fire_and_forget. Both are non-critical — failures log but don't surface
+        # to the user.
+        background_tasks.add_task(
+            add_activity_log,
             'system_approved',
             f"System '{system_data.get('name')}' approved and {action}",
-            details=f"Galaxy: {system_data.get('galaxy', 'Euclid')}, Approver: {current_username}",
-            user_name=current_username
+            f"Galaxy: {system_data.get('galaxy', 'Euclid')}, Approver: {current_username}",
+            current_username,
         )
 
-        # Invalidate poster cache for the affected user + galaxy
-        # so the next request renders fresh data instead of showing stale state.
-        _invalidate_posters_for_submission(
+        fire_and_forget(
+            _invalidate_posters_async,
             submitted_by=submission.get('submitted_by') or submission.get('personal_discord_username'),
             galaxy=system_data.get('galaxy', 'Euclid'),
+            discord_tag=submission.get('discord_tag'),
         )
 
         return {
@@ -1442,33 +1479,83 @@ async def approve_system(submission_id: int, session: Optional[str] = Cookie(Non
 
 
 # ============================================================================
-# Poster cache invalidation helper
-# Drops cached PNGs for the affected voyager + galaxy so next request renders
-# fresh data. Failure is non-fatal — TTL invalidation kicks in within 24h.
+# Poster cache invalidation
+# Event-driven first, TTL second. The set covers every poster type whose
+# rendered content depends on system-level facts (counts, per-galaxy lists,
+# per-community stats, voyager profile). Failure is non-fatal — TTL serves
+# as the safety net (1h on landing_og/og_site, 24h on the rest).
+#
+# This used to run inline in the request handler. It now fires after the
+# response via fire_and_forget — see services/dispatch.py.
 # ============================================================================
-def _invalidate_posters_for_submission(submitted_by: Optional[str], galaxy: Optional[str]):
+def _invalidate_posters_for_submission(
+    submitted_by: Optional[str],
+    galaxy: Optional[str],
+    discord_tag: Optional[str] = None,
+):
+    """Drop cached PNGs for everything the new system affects.
+
+    Always invalidates the global homepage embed and site-wide stats embed
+    (both poll system counts), the per-galaxy atlas (both forms), the
+    submitter's per-community card if present, and the submitter's voyager
+    cards. Each invalidate() call is independent — one failure does not
+    block the others.
+    """
     try:
         from services.poster_service import invalidate
-        if submitted_by:
-            # Same normalization as the share-link slug
-            clean = (submitted_by or '').replace('#', '').strip()
-            if (len(clean) > 4
-                    and clean[-4:].isdigit()
-                    and (len(clean) == 4 or not clean[-5].isdigit())):
-                clean = clean[:-4]
-            slug = clean.lower().strip()
-            if slug:
-                invalidate('voyager', slug)
-                invalidate('voyager_og', slug)
-        if galaxy:
-            invalidate('atlas', galaxy)
-            invalidate('atlas_thumb', galaxy)
     except Exception as e:
-        logger.warning(f"Poster invalidation failed (non-fatal): {e}")
+        logger.warning(f"Poster invalidation skipped (import failed): {e}")
+        return
+
+    def _try(poster_type: str, key: str):
+        try:
+            invalidate(poster_type, key)
+        except Exception as e:
+            logger.warning(f"Poster invalidate {poster_type}/{key} failed: {e}")
+
+    # Site-wide: homepage embed + global OG card
+    _try('landing_og', 'global')
+    _try('og_site', 'global')
+
+    # Per-galaxy atlas (regular + thumbnail) — both consume galaxy-level facts
+    if galaxy:
+        _try('atlas', galaxy)
+        _try('atlas_thumb', galaxy)
+        _try('og_atlas', galaxy)
+
+    # Per-community card — keyed by discord_tag (slug-clean it lightly)
+    if discord_tag:
+        _try('og_community', discord_tag)
+
+    # Per-voyager cards — slug derived from username with the share-link rules
+    if submitted_by:
+        clean = (submitted_by or '').replace('#', '').strip()
+        if (len(clean) > 4
+                and clean[-4:].isdigit()
+                and (len(clean) == 4 or not clean[-5].isdigit())):
+            clean = clean[:-4]
+        slug = clean.lower().strip()
+        if slug:
+            _try('voyager', slug)
+            _try('voyager_og', slug)
+
+
+async def _invalidate_posters_async(
+    submitted_by: Optional[str],
+    galaxy: Optional[str],
+    discord_tag: Optional[str] = None,
+):
+    """Async wrapper so fire_and_forget can schedule it as a coroutine."""
+    _invalidate_posters_for_submission(submitted_by, galaxy, discord_tag)
 
 
 @router.post('/api/reject_system/{submission_id}')
-async def reject_system(submission_id: int, payload: dict, session: Optional[str] = Cookie(None)):
+async def reject_system(
+    submission_id: int,
+    payload: dict,
+    background_tasks: BackgroundTasks,
+    session: Optional[str] = Cookie(None),
+):
     """
     Reject a pending system submission with reason (admin only).
     Self-rejection is blocked for non-super-admin users (same as approval).
@@ -1555,12 +1642,13 @@ async def reject_system(submission_id: int, payload: dict, session: Optional[str
 
         logger.info(f"Rejected system submission: '{system_name}' (ID: {submission_id}) by {current_username}. Reason: {reason}")
 
-        # Add activity log
-        add_activity_log(
+        # Activity log fires after the response. See services/dispatch.py.
+        background_tasks.add_task(
+            add_activity_log,
             'system_rejected',
             f"System '{system_name}' rejected",
-            details=f"Reason: {reason}, Reviewer: {current_username}",
-            user_name=current_username
+            f"Reason: {reason}, Reviewer: {current_username}",
+            current_username,
         )
 
         return {
@@ -1585,13 +1673,24 @@ async def reject_system(submission_id: int, payload: dict, session: Optional[str
 # =============================================================================
 
 @router.post('/api/approve_systems/batch')
-async def batch_approve_systems(payload: dict, session: Optional[str] = Cookie(None)):
+async def batch_approve_systems(
+    payload: dict,
+    background_tasks: BackgroundTasks,
+    session: Optional[str] = Cookie(None),
+):
     """
-    Batch approve multiple pending system submissions (admin only).
-    Requires 'batch_approvals' feature for non-super-admins.
-    Self-submissions are skipped (not failed) for non-super-admin users.
+    Submit a batch of pending systems for asynchronous approval.
+
+    Returns 202 + job_id immediately. Actual processing runs as a background
+    task; the frontend polls /api/batch_jobs/{job_id} for progress. Previously
+    this endpoint processed everything inline within one HTTP request and
+    blew through Nginx Proxy Manager's 60-second timeout for ~100-system
+    batches, leaving the queue in a half-processed state.
+
+    Idempotency: if a submission has already been approved or rejected by
+    the time the worker reaches it (status != 'pending'), it's recorded as
+    'skipped' rather than failing the batch.
     """
-    # Verify admin session
     if not verify_session(session):
         raise HTTPException(status_code=401, detail="Admin authentication required")
 
@@ -1600,65 +1699,137 @@ async def batch_approve_systems(payload: dict, session: Optional[str] = Cookie(N
     current_username = session_data.get('username')
     enabled_features = session_data.get('enabled_features', [])
 
-    # Permission check: super admin OR has both approvals AND batch_approvals features
     is_super = current_user_type == 'super_admin'
     require_feature(session_data, 'approvals')
     if not is_super and 'batch_approvals' not in enabled_features:
         raise HTTPException(status_code=403, detail="Batch approvals permission required")
 
-    current_account_id = None
-    if current_user_type == 'partner':
-        current_account_id = session_data.get('partner_id')
-    elif current_user_type == 'sub_admin':
-        current_account_id = session_data.get('sub_admin_id')
-
     submission_ids = payload.get('submission_ids', [])
-    if not submission_ids:
+    if not submission_ids or not isinstance(submission_ids, list):
         raise HTTPException(status_code=400, detail="No submission IDs provided")
+    if len(submission_ids) > 1000:
+        raise HTTPException(status_code=400, detail="Batch too large (>1000 submissions)")
 
-    results = {
-        'approved': [],
-        'failed': [],
-        'skipped': []
-    }
+    job_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
 
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO batch_jobs
+            (id, status, total_systems, processed_systems, failed_systems, failures,
+             submitted_by_username, created_at)
+            VALUES (?, 'pending', ?, 0, 0, '[]', ?, ?)
+        ''', (job_id, len(submission_ids), current_username, created_at))
+        conn.commit()
+    except Exception as e:
+        logger.exception(f"Failed to create batch job: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create batch job")
+    finally:
+        if conn:
+            conn.close()
 
-        for submission_id in submission_ids:
+    # Snapshot session into a plain dict so the worker doesn't depend on the
+    # request scope. The session itself stays alive for the user, but copying
+    # the fields the worker needs decouples job processing from the cookie.
+    session_snapshot = {
+        'user_type': current_user_type,
+        'username': current_username,
+        'enabled_features': list(enabled_features) if enabled_features else [],
+        'discord_tag': session_data.get('discord_tag'),
+        'partner_id': session_data.get('partner_id'),
+        'sub_admin_id': session_data.get('sub_admin_id'),
+        'is_haven_sub_admin': session_data.get('is_haven_sub_admin', False),
+        'additional_discord_tags': session_data.get('additional_discord_tags', []),
+        'profile_id': session_data.get('profile_id'),
+        'account_id': session_data.get('account_id'),
+        'can_approve_personal_uploads': session_data.get('can_approve_personal_uploads', False),
+    }
+
+    fire_and_forget(_run_batch_approval_job, job_id, list(submission_ids), session_snapshot)
+
+    logger.info(f"Batch approval job {job_id} queued by {current_username}: {len(submission_ids)} submissions")
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            'job_id': job_id,
+            'status': 'pending',
+            'total_systems': len(submission_ids),
+            'message': 'Batch approval queued. Poll /api/batch_jobs/{job_id} for progress.',
+        }
+    )
+
+
+def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_snapshot: dict):
+    """Synchronous worker that processes a batch approval job.
+
+    Runs in a thread (via asyncio.to_thread inside the async wrapper) so
+    sqlite3's blocking calls don't peg the event loop. Updates batch_jobs row
+    with progress every PROGRESS_FLUSH submissions and on completion.
+    """
+    PROGRESS_FLUSH = 5
+    current_user_type = session_snapshot.get('user_type')
+    current_username = session_snapshot.get('username')
+    current_account_id = None
+    if current_user_type == 'partner':
+        current_account_id = session_snapshot.get('partner_id')
+    elif current_user_type == 'sub_admin':
+        current_account_id = session_snapshot.get('sub_admin_id')
+
+    processed = 0
+    failed = 0
+    failures = []
+    approved_meta = []  # for post-job poster invalidation
+
+    def _update_progress(conn, status=None):
+        cur = conn.cursor()
+        if status:
+            cur.execute('''
+                UPDATE batch_jobs
+                SET status = ?, processed_systems = ?, failed_systems = ?, failures = ?
+                WHERE id = ?
+            ''', (status, processed, failed, json.dumps(failures), job_id))
+        else:
+            cur.execute('''
+                UPDATE batch_jobs
+                SET processed_systems = ?, failed_systems = ?, failures = ?
+                WHERE id = ?
+            ''', (processed, failed, json.dumps(failures), job_id))
+        conn.commit()
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        # Mark job as processing
+        _update_progress(conn, status='processing')
+        cursor = conn.cursor()
+
+        for idx, submission_id in enumerate(submission_ids):
             try:
-                # Get submission
                 cursor.execute('SELECT * FROM pending_systems WHERE id = ?', (submission_id,))
                 row = cursor.fetchone()
 
                 if not row:
-                    results['failed'].append({
-                        'id': submission_id,
-                        'name': None,
-                        'error': 'Submission not found'
-                    })
+                    failed += 1
+                    failures.append({'id': submission_id, 'index': idx, 'error': 'Submission not found'})
                     continue
 
                 submission = dict(row)
                 system_name = submission.get('system_name')
 
+                # Idempotency: already approved/rejected by another admin between
+                # job submission and processing? Count as processed (not failed)
+                # so the user can retry the same job ID safely.
                 if submission['status'] != 'pending':
-                    results['skipped'].append({
-                        'id': submission_id,
-                        'name': system_name,
-                        'reason': f"Already {submission['status']}"
-                    })
+                    processed += 1
                     continue
 
                 # Self-approval check: self-submissions are skipped (not failed)
-                if check_self_submission(submission, session_data):
-                    results['skipped'].append({
-                        'id': submission_id,
-                        'name': system_name,
-                        'reason': 'Self-submission'
-                    })
+                if check_self_submission(submission, session_snapshot):
+                    processed += 1
                     continue
 
                 # Parse and process system data
@@ -2057,7 +2228,7 @@ async def batch_approve_systems(payload: dict, session: Optional[str] = Cookie(N
                     current_username,
                     current_user_type,
                     current_account_id,
-                    session_data.get('discord_tag'),
+                    session_snapshot.get('discord_tag'),
                     submission.get('personal_discord_username') or submission.get('submitted_by'),
                     submission.get('submitter_account_id'),
                     submission.get('submitter_account_type'),
@@ -2065,63 +2236,155 @@ async def batch_approve_systems(payload: dict, session: Optional[str] = Cookie(N
                     submission.get('source', 'manual')
                 ))
 
-                results['approved'].append({
-                    'id': submission_id,
-                    'name': system_data.get('name'),
-                    'system_id': system_id,
-                    'is_edit': is_edit
-                })
+                # Commit per-submission so a later failure doesn't roll back
+                # successfully-approved earlier ones in the batch.
+                conn.commit()
 
-                # Invalidate poster cache for this submission's voyager + galaxy
-                _invalidate_posters_for_submission(
-                    submitted_by=submission.get('submitted_by') or submission.get('personal_discord_username'),
-                    galaxy=system_data.get('galaxy', 'Euclid'),
-                )
+                processed += 1
+                approved_meta.append({
+                    'submitted_by': submission.get('submitted_by') or submission.get('personal_discord_username'),
+                    'galaxy': system_data.get('galaxy', 'Euclid'),
+                    'discord_tag': submission.get('discord_tag'),
+                })
 
             except Exception as e:
-                logger.error(f"Batch approval: Error processing submission {submission_id}: {e}")
-                results['failed'].append({
+                logger.error(f"Batch job {job_id}: error processing submission {submission_id}: {e}")
+                logger.exception("Per-submission failure")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                failed += 1
+                failures.append({
                     'id': submission_id,
-                    'name': system_name if 'system_name' in dir() else None,
-                    'error': str(e)
+                    'index': idx,
+                    'error': str(e)[:500],
                 })
 
+            # Periodic progress flush so the polling endpoint sees movement.
+            if (idx + 1) % PROGRESS_FLUSH == 0:
+                try:
+                    _update_progress(conn)
+                except Exception as flush_err:
+                    logger.warning(f"Batch job {job_id}: progress flush failed: {flush_err}")
+
+        # Mark job complete
+        completed_at = datetime.now(timezone.utc).isoformat()
+        cursor.execute('''
+            UPDATE batch_jobs
+            SET status = 'completed', processed_systems = ?, failed_systems = ?,
+                failures = ?, completed_at = ?
+            WHERE id = ?
+        ''', (processed, failed, json.dumps(failures), completed_at, job_id))
         conn.commit()
 
-        # Add activity log for batch operation
-        add_activity_log(
-            'batch_approval',
-            f"Batch approved {len(results['approved'])} systems",
-            details=f"Approved: {len(results['approved'])}, Failed: {len(results['failed'])}, Skipped: {len(results['skipped'])}, Approver: {current_username}",
-            user_name=current_username
+        logger.info(
+            f"Batch job {job_id} completed: {processed} processed, {failed} failed, "
+            f"by {current_username}"
         )
 
-        logger.info(f"Batch approval completed by {current_username}: {len(results['approved'])} approved, {len(results['failed'])} failed, {len(results['skipped'])} skipped")
+    except Exception as e:
+        logger.exception(f"Batch job {job_id} catastrophic failure: {e}")
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE batch_jobs
+                    SET status = 'failed', processed_systems = ?, failed_systems = ?,
+                        failures = ?, completed_at = ?
+                    WHERE id = ?
+                ''', (
+                    processed, failed,
+                    json.dumps(failures + [{'error': f'Job worker failed: {str(e)[:500]}'}]),
+                    datetime.now(timezone.utc).isoformat(), job_id,
+                ))
+                conn.commit()
+            except Exception:
+                pass
+    finally:
+        if conn:
+            conn.close()
 
-        return {
-            'status': 'ok',
-            'results': results,
-            'summary': {
-                'total': len(submission_ids),
-                'approved': len(results['approved']),
-                'failed': len(results['failed']),
-                'skipped': len(results['skipped'])
-            }
-        }
+    # Post-job side effects: poster invalidation for every approved system,
+    # plus a single batch-level activity-log entry. These fire on the calling
+    # thread (already a worker thread); no need for fire_and_forget chain.
+    try:
+        for meta in approved_meta:
+            try:
+                _invalidate_posters_for_submission(
+                    submitted_by=meta['submitted_by'],
+                    galaxy=meta['galaxy'],
+                    discord_tag=meta['discord_tag'],
+                )
+            except Exception as inv_err:
+                logger.warning(f"Batch job {job_id}: poster invalidation for one submission failed: {inv_err}")
+    except Exception as e:
+        logger.warning(f"Batch job {job_id}: poster invalidation pass failed: {e}")
 
+    try:
+        add_activity_log(
+            'batch_approval',
+            f"Batch approval job {job_id}: {processed - failed} approved, {failed} failed",
+            f"Job ID: {job_id}, Processed: {processed}, Failed: {failed}, Approver: {current_username}",
+            current_username,
+        )
+    except Exception as e:
+        logger.warning(f"Batch job {job_id}: activity log write failed: {e}")
+
+
+async def _run_batch_approval_job(job_id: str, submission_ids: list, session_snapshot: dict):
+    """Async wrapper: offloads the synchronous worker to a thread so the
+    sqlite3 calls don't block the event loop."""
+    import asyncio as _asyncio
+    await _asyncio.to_thread(_process_batch_approvals_sync, job_id, submission_ids, session_snapshot)
+
+
+@router.get('/api/batch_jobs/{job_id}')
+async def get_batch_job_status(job_id: str, session: Optional[str] = Cookie(None)):
+    """Poll the status of an async batch-approval job.
+
+    Frontend polls this every 2-3 seconds until status == 'completed' or
+    'failed'. Returns 404 if the job doesn't exist.
+    """
+    if not verify_session(session):
+        raise HTTPException(status_code=401, detail="Admin authentication required")
+
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, status, total_systems, processed_systems, failed_systems,
+                   failures, submitted_by_username, created_at, completed_at
+            FROM batch_jobs WHERE id = ?
+        ''', (job_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        job = dict(row)
+        try:
+            job['failures'] = json.loads(job.get('failures') or '[]')
+        except (json.JSONDecodeError, TypeError):
+            job['failures'] = []
+        job['successful_systems'] = max(job['processed_systems'] - job['failed_systems'], 0)
+        return job
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Batch approval error: {e}")
-        logger.exception("Batch approval failed")
-        raise HTTPException(status_code=500, detail="Batch approval failed")
+        logger.exception(f"Failed to read batch job status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to read job status")
     finally:
         if conn:
             conn.close()
 
 
 @router.post('/api/reject_systems/batch')
-async def batch_reject_systems(payload: dict, session: Optional[str] = Cookie(None)):
+async def batch_reject_systems(
+    payload: dict,
+    background_tasks: BackgroundTasks,
+    session: Optional[str] = Cookie(None),
+):
     """
     Batch reject multiple pending system submissions with a shared reason (admin only).
     Requires 'batch_approvals' feature for non-super-admins.
@@ -2249,12 +2512,13 @@ async def batch_reject_systems(payload: dict, session: Optional[str] = Cookie(No
 
         conn.commit()
 
-        # Add activity log for batch operation
-        add_activity_log(
+        # Activity log fires after the response. See services/dispatch.py.
+        background_tasks.add_task(
+            add_activity_log,
             'batch_rejection',
             f"Batch rejected {len(results['rejected'])} systems",
-            details=f"Rejected: {len(results['rejected'])}, Failed: {len(results['failed'])}, Skipped: {len(results['skipped'])}, Reason: {reason}, Reviewer: {current_username}",
-            user_name=current_username
+            f"Rejected: {len(results['rejected'])}, Failed: {len(results['failed'])}, Skipped: {len(results['skipped'])}, Reason: {reason}, Reviewer: {current_username}",
+            current_username,
         )
 
         logger.info(f"Batch rejection completed by {current_username}: {len(results['rejected'])} rejected, {len(results['failed'])} failed, {len(results['skipped'])} skipped. Reason: {reason}")
@@ -2712,14 +2976,21 @@ async def receive_extraction(
         # authenticated buckets as 'haven_extractor'.
         submission_source = resolve_source(api_key_info.get('name') if api_key_info else None)
 
+        # Compute the indexed username_normalized column at write time.
+        username_normalized = normalize_username_for_dedup(
+            submitter_display if submitter_display and submitter_display != 'HavenExtractor'
+            else (discord_username or 'Unknown')
+        )
+
         cursor.execute('''
             INSERT INTO pending_systems (
                 system_name, glyph_code, galaxy, reality, x, y, z,
                 region_x, region_y, region_z,
                 submitter_name, submitted_by, submission_timestamp, submission_date, status, source,
                 raw_json, system_data, discord_tag, personal_discord_username, personal_id,
-                submitted_by_ip, api_key_name, edit_system_id, game_mode, submitter_profile_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                submitted_by_ip, api_key_name, edit_system_id, game_mode, submitter_profile_id,
+                username_normalized
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             submission_data['name'],
             glyph_code,
@@ -2746,7 +3017,8 @@ async def receive_extraction(
             api_key_name,
             edit_system_id,
             game_mode,
-            submitter_profile_id
+            submitter_profile_id,
+            username_normalized,
         ))
         conn.commit()
         submission_id = cursor.lastrowid

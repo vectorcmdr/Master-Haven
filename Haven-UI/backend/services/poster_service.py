@@ -126,7 +126,10 @@ REGISTRY: dict[str, PosterTemplate] = {
         width=1200,
         height=630,
         spa_route='/poster/og_site/global',
-        ttl_hours=168,  # weekly
+        # 1-hour belt-and-suspenders TTL. Event-driven invalidation (system
+        # approval, region naming) is the primary path; this catches CSV
+        # imports, direct DB edits, and other backdoor changes the hooks miss.
+        ttl_hours=1,
         description='Global Haven OG card — replaces static haven-preview.png',
     ),
     'landing_og': PosterTemplate(
@@ -135,7 +138,8 @@ REGISTRY: dict[str, PosterTemplate] = {
         width=1200,
         height=630,
         spa_route='/poster/landing_og/global',
-        ttl_hours=168,  # weekly
+        # See og_site comment — same 1-hour safety-net TTL.
+        ttl_hours=1,
         description='Landing-page OG card — cosmic-compass + wordmark + 3 live stats, served for havenmap.online/ embeds',
     ),
     'og_system': PosterTemplate(

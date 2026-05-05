@@ -94,13 +94,13 @@ async def get_submission_leaderboard(
                 source_filter = ' AND source = ?'
                 source_params = [source]
 
-        # Query for leaderboard from pending_systems (includes both approved and rejected)
-        # Extract username from multiple sources: submitted_by, personal_discord_username, or discovered_by from JSON
-        # Skip 'Anonymous' and 'anonymous' values to find the actual username
-        # Normalize usernames: remove #, strip trailing 4-digit Discord discriminators, lowercase
-        # This consolidates "Obliterated", "Obliterated#4519", "obliterated4519" as the same person
+        # Query for leaderboard from pending_systems (includes both approved and rejected).
+        # Uses the indexed `username_normalized` column populated at write time by the canonical
+        # services.auth_service.normalize_username_for_dedup helper (migration v1.72.0).
+        # Previously this GROUP BY ran a multi-step LOWER(TRIM(CASE WHEN SUBSTR(...) GLOB ...))
+        # expression that defeated every index and forced a full pending_systems scan.
 
-        # Define the raw username extraction
+        # Raw username display (we still need a representative original-form name to render)
         raw_username = '''COALESCE(
             NULLIF(NULLIF(submitted_by, 'Anonymous'), 'anonymous'),
             personal_discord_username,
@@ -108,29 +108,15 @@ async def get_submission_leaderboard(
             'Unknown'
         )'''
 
-        # Define normalization: trim whitespace, remove #, strip trailing 4-digit discriminator, lowercase
-        # This handles: "User#1234" -> "user", "User1234" -> "user", "User" -> "user", " User " -> "user"
-        # Step 1: TRIM and REPLACE # with empty string
-        trimmed_username = f'''TRIM(REPLACE({raw_username}, '#', ''))'''
-
-        normalized_username = f'''LOWER(TRIM(
-            CASE
-                WHEN LENGTH({trimmed_username}) > 4
-                    AND SUBSTR({trimmed_username}, -4) GLOB '[0-9][0-9][0-9][0-9]'
-                    AND (LENGTH({trimmed_username}) = 4
-                        OR SUBSTR({trimmed_username}, -5, 1) NOT GLOB '[0-9]')
-                THEN SUBSTR({trimmed_username}, 1, LENGTH({trimmed_username}) - 4)
-                ELSE {trimmed_username}
-            END
-        ))'''
-
         # Use COALESCE to convert NULL/empty discord_tag to 'Personal' for grouping
         tag_display = "COALESCE(NULLIF(discord_tag, ''), 'Personal')"
 
+        # Filter out rows with NULL or empty username_normalized (legacy rows the
+        # backfill couldn't resolve, and the explicit 'unknown' bucket).
         query = f'''
             SELECT
                 MAX({raw_username}) as username,
-                {normalized_username} as normalized_name,
+                username_normalized as normalized_name,
                 GROUP_CONCAT(DISTINCT {tag_display}) as discord_tags,
                 COUNT(*) as total_submissions,
                 SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
@@ -138,9 +124,11 @@ async def get_submission_leaderboard(
                 MIN(submission_date) as first_submission,
                 MAX(submission_date) as last_submission
             FROM pending_systems
-            WHERE 1=1 {tag_filter} {date_filter} {source_filter}
-            GROUP BY {normalized_username}
-            HAVING {normalized_username} != 'unknown'
+            WHERE username_normalized IS NOT NULL
+              AND username_normalized != ''
+              AND username_normalized != 'unknown'
+              {tag_filter} {date_filter} {source_filter}
+            GROUP BY username_normalized
             ORDER BY total_submissions DESC
             LIMIT ?
         '''
@@ -159,7 +147,6 @@ async def get_submission_leaderboard(
             # For users with multiple sources (discord communities or personal), fetch breakdown
             tags = [t.strip() for t in (entry.get('discord_tags') or '').split(',') if t.strip()]
             if len(tags) > 1:
-                # Use the normalized_name from the query for accurate matching
                 norm_name = entry.get('normalized_name', '').lower()
                 breakdown_query = f'''
                     SELECT
@@ -168,7 +155,7 @@ async def get_submission_leaderboard(
                         SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
                         SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
                     FROM pending_systems
-                    WHERE {normalized_username} = ?
+                    WHERE username_normalized = ?
                       {date_filter} {source_filter}
                     GROUP BY {tag_display}
                     ORDER BY total DESC

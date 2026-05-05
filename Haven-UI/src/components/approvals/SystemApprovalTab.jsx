@@ -51,6 +51,9 @@ export default function SystemApprovalTab({
   const [batchRejectionReason, setBatchRejectionReason] = useState('')
   const [batchResultsModalOpen, setBatchResultsModalOpen] = useState(false)
   const [batchResults, setBatchResults] = useState(null)
+  // Async batch-job polling state — backend returns 202 + job_id, frontend
+  // polls /api/batch_jobs/{job_id} every 3 seconds until completion.
+  const [batchJobProgress, setBatchJobProgress] = useState(null) // { status, processed_systems, total_systems, failed_systems }
 
   // Batch region name state
   const [batchRegionMode, setBatchRegionMode] = useState(false)
@@ -471,11 +474,70 @@ export default function SystemApprovalTab({
     }
 
     setBatchInProgress(true)
+    setBatchJobProgress(null)
     try {
-      const response = await axios.post('/api/approve_systems/batch', {
+      // Endpoint returns 202 + job_id; the actual work runs as a background
+      // task. Poll /api/batch_jobs/{job_id} every 3 seconds until done.
+      const submitResp = await axios.post('/api/approve_systems/batch', {
         submission_ids: Array.from(selectedIds)
       })
-      setBatchResults(response.data)
+      const jobId = submitResp.data?.job_id
+      if (!jobId) {
+        throw new Error('No job_id returned from batch endpoint')
+      }
+
+      setBatchJobProgress({
+        status: 'pending',
+        processed_systems: 0,
+        total_systems: submitResp.data.total_systems || selectedIds.size,
+        failed_systems: 0,
+      })
+
+      // Polling loop. We give up after 30 minutes (1800s) of no completion
+      // — well past the worst-case 100-system batch on the Pi.
+      const pollStarted = Date.now()
+      const POLL_INTERVAL_MS = 3000
+      const POLL_TIMEOUT_MS = 30 * 60 * 1000
+      let final = null
+      while (Date.now() - pollStarted < POLL_TIMEOUT_MS) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+        let pollResp
+        try {
+          pollResp = await axios.get(`/api/batch_jobs/${jobId}`)
+        } catch (pollErr) {
+          // Treat transient errors as not-yet-done; continue polling.
+          continue
+        }
+        const job = pollResp.data
+        setBatchJobProgress(job)
+        if (job.status === 'completed' || job.status === 'failed') {
+          final = job
+          break
+        }
+      }
+
+      if (!final) {
+        throw new Error('Batch job did not complete within polling window')
+      }
+
+      // Map the job result into the legacy batchResults shape so the
+      // existing BatchResultsModal renders without changes.
+      const successful = (final.processed_systems || 0) - (final.failed_systems || 0)
+      setBatchResults({
+        results: {
+          approved: Array.from({ length: successful }, (_, i) => ({ id: i, name: `System ${i + 1}` })),
+          failed: final.failures || [],
+          skipped: [],
+        },
+        summary: {
+          total: final.total_systems,
+          approved: successful,
+          failed: final.failed_systems || 0,
+          skipped: 0,
+        },
+        job_id: final.id,
+        async: true,
+      })
       setBatchResultsModalOpen(true)
       setSelectedIds(new Set())
       loadSubmissions()
@@ -483,6 +545,7 @@ export default function SystemApprovalTab({
       alert('Batch approval failed: ' + (err.response?.data?.detail || err.message))
     } finally {
       setBatchInProgress(false)
+      setBatchJobProgress(null)
     }
   }
 
@@ -754,6 +817,27 @@ export default function SystemApprovalTab({
               </div>
             )}
           </div>
+          {batchJobProgress && (
+            <div className="mt-3 p-3 bg-slate-800 border border-slate-600 rounded text-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-cyan-300">
+                  Processing batch: {batchJobProgress.processed_systems || 0} / {batchJobProgress.total_systems || 0}
+                  {batchJobProgress.failed_systems > 0 && ` (${batchJobProgress.failed_systems} failed)`}
+                </span>
+                <span className="text-gray-400 italic capitalize">{batchJobProgress.status || 'pending'}</span>
+              </div>
+              <div className="w-full bg-slate-700 rounded h-2 overflow-hidden">
+                <div
+                  className="h-2 bg-green-500 transition-all duration-300"
+                  style={{
+                    width: `${batchJobProgress.total_systems
+                      ? Math.min(100, ((batchJobProgress.processed_systems || 0) / batchJobProgress.total_systems) * 100)
+                      : 0}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

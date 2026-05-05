@@ -73,7 +73,10 @@ export const getPendingCount = () => axios.get('/api/pending_systems/count').the
 export const getPendingDetail = (id) => axios.get(`/api/pending_systems/${id}`).then(r => r.data)
 export const approvePendingSystem = (id) => axios.post(`/api/approve_system/${id}`).then(r => r.data)
 export const rejectPendingSystem = (id, data = {}) => axios.post(`/api/reject_system/${id}`, data).then(r => r.data)
+// Returns { job_id, status, total_systems } — caller polls getBatchJobStatus
+// every ~3s until status is 'completed' or 'failed'.
 export const batchApproveSystems = (ids) => axios.post('/api/approve_systems/batch', { submission_ids: ids }).then(r => r.data)
+export const getBatchJobStatus = (jobId) => axios.get(`/api/batch_jobs/${jobId}`).then(r => r.data)
 export const batchRejectSystems = (ids, reason) => axios.post('/api/reject_systems/batch', { submission_ids: ids, reason }).then(r => r.data)
 
 // --- Discoveries ---

@@ -5455,3 +5455,186 @@ def migration_1_71_0(conn):
 
     conn.commit()
     logger.info("Created hot-path indexes for activity_logs, approval_audit_log, and pending_systems")
+
+
+@register_migration("1.72.0", "Indexable username_normalized column on pending_systems for analytics leaderboard")
+def migration_1_72_0(conn):
+    """
+    Adds an indexable, denormalized `username_normalized` column to pending_systems
+    so the analytics leaderboard can GROUP BY a real column instead of the
+    LOWER(TRIM(CASE WHEN SUBSTR(...) GLOB ... ELSE ... END)) expression that
+    forces a full table scan on every request.
+
+    Backfill uses the canonical Python helper services.auth_service.normalize_username_for_dedup
+    rather than re-implementing the rule in SQL — the normalization rule has changed
+    twice (v1.55.0, v1.64.0) and a generated/computed column would lock it. New
+    INSERT sites populate the column at write time using the same helper.
+
+    The raw input mirrors the existing raw_username COALESCE chain in
+    routes/analytics.py so the leaderboard's grouping behavior stays identical:
+      submitted_by (excluding 'Anonymous'/'anonymous') → personal_discord_username
+      → JSON-extract discovered_by → 'Unknown'
+    """
+    cursor = conn.cursor()
+
+    cursor.execute("PRAGMA table_info(pending_systems)")
+    cols = {row[1] for row in cursor.fetchall()}
+    if 'username_normalized' not in cols:
+        cursor.execute("ALTER TABLE pending_systems ADD COLUMN username_normalized TEXT")
+        logger.info("Added username_normalized column to pending_systems")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_systems_username_normalized ON pending_systems(username_normalized)")
+
+    # Backfill using the canonical Python normalizer. Import lazily so this
+    # module remains importable even if services.auth_service has a circular dep
+    # at startup (it doesn't today, but we cross the import via a local import
+    # to be safe).
+    try:
+        import sys
+        from pathlib import Path as _P
+        backend_dir = _P(__file__).parent
+        if str(backend_dir) not in sys.path:
+            sys.path.insert(0, str(backend_dir))
+        from services.auth_service import normalize_username_for_dedup
+    except Exception as e:
+        logger.warning(f"Could not import normalize_username_for_dedup for backfill: {e}")
+        conn.commit()
+        return
+
+    cursor.execute("""
+        SELECT id, submitted_by, personal_discord_username, system_data
+        FROM pending_systems
+        WHERE username_normalized IS NULL
+    """)
+    rows = cursor.fetchall()
+    updated = 0
+    for row in rows:
+        sid, submitted_by, personal, system_data_json = row[0], row[1], row[2], row[3]
+        raw = None
+        if submitted_by and submitted_by not in ('Anonymous', 'anonymous'):
+            raw = submitted_by
+        elif personal:
+            raw = personal
+        else:
+            try:
+                if system_data_json:
+                    sd = json.loads(system_data_json)
+                    raw = sd.get('discovered_by')
+            except (json.JSONDecodeError, TypeError):
+                pass
+        if not raw:
+            raw = 'Unknown'
+        normalized = normalize_username_for_dedup(raw)
+        cursor.execute("UPDATE pending_systems SET username_normalized = ? WHERE id = ?", (normalized, sid))
+        updated += 1
+
+    conn.commit()
+    logger.info(f"Backfilled username_normalized for {updated} pending_systems rows")
+
+
+@register_migration("1.73.0", "Indexable glyph_code_suffix on systems and pending_systems via auto-maintained triggers")
+def migration_1_73_0(conn):
+    """
+    The glyph-coordinate dedup query in db.find_matching_system() does
+    `WHERE SUBSTR(glyph_code, -11) = ?`, which defeats idx_systems_glyph_code
+    because the LHS is an expression. Calling that function inside the approval
+    transaction and on every extractor upload makes it a hot path.
+
+    Solution: maintain a `glyph_code_suffix` column (last 11 chars) populated
+    by SQLite triggers so the rule lives in one place and is auto-maintained.
+    The "last 11 chars" rule is structurally stable (it encodes the planet+system
+    portion of the 12-char NMS portal address) so trigger-based maintenance is
+    safe — unlike the username normalization rules.
+
+    Adds the column + index + INSERT/UPDATE triggers on both `systems` and
+    `pending_systems`. Backfills existing rows.
+    """
+    cursor = conn.cursor()
+
+    for table in ('systems', 'pending_systems'):
+        cursor.execute(f"PRAGMA table_info({table})")
+        cols = {row[1] for row in cursor.fetchall()}
+        if 'glyph_code_suffix' not in cols:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN glyph_code_suffix TEXT")
+            logger.info(f"Added glyph_code_suffix column to {table}")
+
+        cursor.execute(f"""
+            CREATE INDEX IF NOT EXISTS idx_{table}_glyph_code_suffix
+            ON {table}(glyph_code_suffix)
+        """)
+
+        cursor.execute(f"DROP TRIGGER IF EXISTS trg_{table}_glyph_suffix_insert")
+        cursor.execute(f"""
+            CREATE TRIGGER trg_{table}_glyph_suffix_insert
+            AFTER INSERT ON {table}
+            FOR EACH ROW
+            WHEN NEW.glyph_code IS NOT NULL AND LENGTH(NEW.glyph_code) >= 11
+            BEGIN
+                UPDATE {table}
+                SET glyph_code_suffix = UPPER(SUBSTR(NEW.glyph_code, -11))
+                WHERE rowid = NEW.rowid;
+            END
+        """)
+
+        cursor.execute(f"DROP TRIGGER IF EXISTS trg_{table}_glyph_suffix_update")
+        cursor.execute(f"""
+            CREATE TRIGGER trg_{table}_glyph_suffix_update
+            AFTER UPDATE OF glyph_code ON {table}
+            FOR EACH ROW
+            WHEN NEW.glyph_code IS NOT NULL AND LENGTH(NEW.glyph_code) >= 11
+            BEGIN
+                UPDATE {table}
+                SET glyph_code_suffix = UPPER(SUBSTR(NEW.glyph_code, -11))
+                WHERE rowid = NEW.rowid;
+            END
+        """)
+
+        # Backfill rows whose suffix is NULL but whose glyph is populated.
+        cursor.execute(f"""
+            UPDATE {table}
+            SET glyph_code_suffix = UPPER(SUBSTR(glyph_code, -11))
+            WHERE glyph_code IS NOT NULL
+              AND LENGTH(glyph_code) >= 11
+              AND glyph_code_suffix IS NULL
+        """)
+        logger.info(f"Backfilled glyph_code_suffix on {table} ({cursor.rowcount} rows)")
+
+    conn.commit()
+    logger.info("glyph_code_suffix triggers + index installed on systems and pending_systems")
+
+
+@register_migration("1.74.0", "Async batch-approval job tracking")
+def migration_1_74_0(conn):
+    """
+    Backing table for the async batch-approval job queue (Phase 4 of the
+    May 2026 latency fix dispatch).
+
+    The /api/approve_systems/batch endpoint used to process every submission
+    inline within one HTTP request, which exceeded Nginx Proxy Manager's
+    60-second timeout for batches of ~100. The endpoint now returns 202 +
+    job_id immediately and runs the work in a background task. The frontend
+    polls /api/batch_jobs/{job_id} for progress.
+
+    No FK constraint on submission ids — failures get logged into the JSON
+    `failures` column rather than relying on referential integrity, since
+    pending submissions can legitimately disappear (be approved or rejected
+    out from under us by another admin) between job submission and
+    processing.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS batch_jobs (
+            id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            total_systems INTEGER NOT NULL,
+            processed_systems INTEGER NOT NULL DEFAULT 0,
+            failed_systems INTEGER NOT NULL DEFAULT 0,
+            failures TEXT,
+            submitted_by_username TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_jobs_status ON batch_jobs(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_jobs_created_at ON batch_jobs(created_at DESC)")
+    conn.commit()
+    logger.info("Created batch_jobs table for async batch-approval tracking")
