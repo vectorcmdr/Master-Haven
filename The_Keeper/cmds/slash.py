@@ -4,6 +4,8 @@ from discord import app_commands
 import requests
 import os, sys
 import logging
+from cogs import community
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
@@ -50,6 +52,36 @@ class CommandsCog(commands.Cog):
             f"Sent to {channel.mention}",
             ephemeral=True
         )
+
+# ---------------- Community ----------------
+    @app_commands.command(name="community", help="Look up a No Man's Sky civ or commmunity")    
+    async def community(self, ctx, *, search: str = None):
+        if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
+        community_cog = self.bot.get_cog("CommunityCog")
+        
+
+        if not community_cog:
+            return await ctx.send("Community system not loaded.")
+
+        await ctx.send("Open search:", view=SearchView(community_cog))
+
+        if not search:
+            return
+
+        await community_cog.run_search(ctx, search)
+
+# ---------------- Add Civ ----------------
+    @app_commands.command(name="addciv", help="add a civ or community to our ever growing list!")
+    async def addciv(self, ctx: commands.Context):
+        cog = self.bot.get_cog("CommunityCog")
+
+        embed = discord.Embed(
+            title="Add Entry",
+            description="Click below to create a new entry.",
+            color=discord.Color.green()
+        )
+
+        await ctx.send(embed=embed, view=AddCivView(cog))
 
 
 async def setup(bot):
