@@ -61,7 +61,7 @@ class CommandsCog(commands.Cog):
         
 
         if not community_cog:
-            return await ctx.send("Community system not loaded.")
+            return await interaction.response.send_message("Community system not loaded.")
 
         await interaction.response.send_message("Open search:", view=SearchView(community_cog))
 
@@ -85,4 +85,5 @@ class CommandsCog(commands.Cog):
 
 
 async def setup(bot):
+    await bot.add_cog("community")
     await bot.add_cog(CommandsCog(bot))
