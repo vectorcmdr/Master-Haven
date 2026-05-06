@@ -133,7 +133,7 @@ class AddCivModal(discord.ui.Modal, title="Add Entry"):
     view=EditConfirmView(self.cog, self.name.value),
     ephemeral=True
 )
-            return
+                return
 
         new_row = [""] * len(headers)
 
