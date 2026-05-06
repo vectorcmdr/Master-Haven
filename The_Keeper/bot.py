@@ -244,7 +244,10 @@ async def on_command_error(ctx, error):
 
 # -------------------- RUN --------------------
 async def main():
-    bot.setup_hook = lambda: bot.tree.sync(guild=discord.Object(id=YOUR_GUILD_ID))
+    async def setup_hook():
+        await bot.tree.sync(guild=discord.Object(id=1423941004230135851))
+
+    bot.setup_hook = setup_hook
 
     for cog in COGS:
         await bot.load_extension(cog)
