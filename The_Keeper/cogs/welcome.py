@@ -6,23 +6,6 @@ class WelcomeCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-#---------------call for cmds---------------    
-    async def send_welcome_embed(self, channel, member):
-        avatar = member.avatar.url if member.avatar else member.default_avatar.url
-
-        embed = discord.Embed(
-            title=f"We witness you, Voyager {member.display_name}!",
-            description=(
-                "Welcome to the Haven! Our mission is to chart the stars and archive discoveries. "
-                "We observe the history and universe of no man's sky in an attempt to learn and archive. "
-                "Our main project is the Voyager's Haven map: https://havenmap.online/map/latest"
-            ),
-            color=0x8A00C4
-        )
-
-        embed.set_thumbnail(url=avatar)
-        await channel.send(embed=embed)
-
     # -------------------- Welcome System --------------------
     @commands.Cog.listener()
     async def on_member_join(self, member):
