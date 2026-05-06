@@ -130,7 +130,12 @@ class AddCivModal(discord.ui.Modal, title="Add Entry"):
             if row and row[0].strip().lower() == new_name:
                 await interaction.followup.send(
     "⚠️ This community already has an entry. Would you like to edit it?",
-    view=EditConfirmView(self.cog, self.name.value),
+    view=EditConfirmView(
+    self.cog,
+    self.name.value,
+    self.description.value,
+    self.link.value
+),
     ephemeral=True
 )
                 return
@@ -181,40 +186,47 @@ class EditConfirmView(discord.ui.View):
             ephemeral=True
         )
 
-class EditCivModal(discord.ui.Modal, title="Edit Entry"):
-    description = discord.ui.TextInput(label="Description", style=discord.TextStyle.paragraph)
-    link = discord.ui.TextInput(label="Permanent Link", required=False)
-
-    def __init__(self, cog, name):
-        super().__init__()
+class EditConfirmView(discord.ui.View):
+    def __init__(self, cog, name, description, link):
+        super().__init__(timeout=60)
         self.cog = cog
         self.name = name
+        self.description = description
+        self.link = link
 
-    async def on_submit(self, interaction: discord.Interaction):
+    @discord.ui.button(label="Yes", style=discord.ButtonStyle.success)
+    async def yes(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
-    
+
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self.cog.setup_gsheet)
-    
+
         values = await loop.run_in_executor(None, self.cog.sheet.get_all_values)
-    
+
         target_row = None
         for i, row in enumerate(values[1:], start=2):
             if row and row[0].strip().lower() == self.name.lower():
-                target_row = i     
-                break          
-    
+                target_row = i
+                break
+
+        if not target_row:
+            await interaction.followup.send("Entry not found.", ephemeral=True)
+            return
+
         def update():
-            self.cog.sheet.update_cell(target_row, 4, self.description.value)
-            self.cog.sheet.update_cell(target_row, 5, self.link.value or "")
-    
+            self.cog.sheet.update_cell(target_row, 4, self.description)
+            self.cog.sheet.update_cell(target_row, 5, self.link or "")
+
         await loop.run_in_executor(None, update)
-    
+
         await interaction.followup.send(
-            f"✏ Editing **{self.name}** complete.",
+            f"✏ Updated **{self.name}** successfully.",
             ephemeral=True
         )
 
+    @discord.ui.button(label="No", style=discord.ButtonStyle.secondary)
+    async def no(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message("Cancelled.", ephemeral=True)
 
 # -------------------- SHEET --------------------
 SHEET_ID = "1P1DvL7sm4qt3vKInWhkqVdKOl20ui_aVaCJNEHtQS64"
