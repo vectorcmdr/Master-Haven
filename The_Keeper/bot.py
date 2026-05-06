@@ -210,7 +210,6 @@ channel_id = bot.CHANNELS.get("welcome")
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
     print("COMMANDS:", [cmd.name for cmd in bot.commands])
     print("[...The Keeper is watching...]")
 
@@ -245,6 +244,8 @@ async def on_command_error(ctx, error):
 
 # -------------------- RUN --------------------
 async def main():
+    bot.setup_hook = lambda: bot.tree.sync()
+
     for cog in COGS:
         await bot.load_extension(cog)
     
