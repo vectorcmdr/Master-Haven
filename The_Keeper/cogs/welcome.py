@@ -35,7 +35,7 @@ if new_role.id in role_messages:
 
         if not channel_id:
             print("[ERROR] WELCOME_CHANNEL_ID not set.")
-            return
+        return
 
         channel = bot.get_channel(channel_id)
         if not channel:
