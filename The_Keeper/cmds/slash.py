@@ -85,5 +85,4 @@ class CommandsCog(commands.Cog):
 
 
 async def setup(bot):
-    await bot.add_cog("community")
     await bot.add_cog(CommandsCog(bot))
