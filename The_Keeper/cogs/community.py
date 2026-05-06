@@ -142,7 +142,11 @@ class AddCivModal(discord.ui.Modal, title="Add Entry"):
 
         new_row[4] = self.link.value or ""
         def insert():
-            self.cog.sheet.append_row(new_row, value_input_option="RAW")
+            next_row = len(self.cog.sheet.get_all_values()) + 1
+            self.cog.sheet.update_cell(next_row, 1, self.name.value)
+             self.cog.sheet.update_cell(next_row, 4, self.description.value)
+            self.cog.sheet.update_cell(next_row, 5, self.link.value or "")
+    
 
         await loop.run_in_executor(None, insert)
 
