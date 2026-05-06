@@ -40,7 +40,7 @@ if new_role.id in role_messages:
         channel = bot.get_channel(channel_id)
         if not channel:
             print(f"[ERROR] Channel {channel_id} not found.")
-            return
+        return
 
         avatar = after.avatar.url if after.avatar else after.default_avatar.url
 
