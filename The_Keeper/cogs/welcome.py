@@ -25,77 +25,52 @@ class WelcomeCog(commands.Cog):
         await self.send_welcome_embed(channel, member)
         print(f"[WELCOME] Sent welcome embed for {member.name}")
 
-    # -------------------- Role Update System --------------------
-    @commands.Cog.listener()
-    async def on_member_update(self, before, after):
-        bot = self.bot
 
-        new_roles = [role for role in after.roles if role not in before.roles]
-        if not new_roles:
+            # ---------------- WELCOME CHANNEL MESSAGE ----------------
+role_messages = getattr(bot, "role_welcome_messages", {})
+
+if new_role.id in role_messages:
+    try:
+        channel_id = getattr(bot, "WELCOME_CHANNEL_ID", None)
+
+        if not channel_id:
+            print("[ERROR] WELCOME_CHANNEL_ID not set.")
             return
 
-        # PRIMARY_ROLE_MAP is already correct format:
-        # { "cartographer": role_id, ... }
-
-        role_id_to_name = {v: k for k, v in PRIMARY_ROLE_MAP.items()}
-
-        for new_role in new_roles:
-
-            # ---------------- PRIMARY ROLE SET ----------------
-            if new_role.id in role_id_to_name:
-                try:
-                    from cogs.xp_system import set_primary_role  # FIXED IMPORT LOCATION
-
-                    role_name = role_id_to_name[new_role.id]
-                    await set_primary_role(after, role_name, bot)
-
-                except Exception as e:
-                    print(f"[XP ERROR] {e}")
-
-            # ---------------- WELCOME DM ----------------
-            role_messages = getattr(bot, "role_welcome_messages", {})
-
-            if new_role.id in role_messages:
-                try:
-                    avatar = after.avatar.url if after.avatar else after.default_avatar.url
-
-                    embed = discord.Embed(
-                        title=f"Welcome to The Haven, {after.display_name}!",
-                        description=role_messages[new_role.id],
-                        color=0x8A00C4
-                    )
-
-                    embed.add_field(
-                        name="Learn More",
-                        value=(
-                            "🌐 https://havenmap.online/haven-ui/\n"
-                            "📖 https://docs.google.com/document/d/...\n"
-                            "💫 https://travelers-exchange.online/"
-                        ),
-                        inline=False
-                    )
-
-                    embed.set_thumbnail(url=avatar)
-                    embed.set_image(
-                        url="https://cdn.discordapp.com/attachments/1483946204919501030/1483951736187256913/ezgif-36919d2af39654a6.gif"
-                    )
-
-                    await after.send(embed=embed)
-                    print(f"[WELCOME] Sent DM to {after.name} for role {new_role.name}")
-
-                except discord.Forbidden:
-                    print(f"[WELCOME] Cannot DM {after.name} - DMs are closed.")
-                except Exception as e:
-                    print(f"[WELCOME ERROR] {e}")
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot:
+        channel = bot.get_channel(channel_id)
+        if not channel:
+            print(f"[ERROR] Channel {channel_id} not found.")
             return
 
-        if message.content.strip().lower() == "welcome, voyager!":
-            await self.send_welcome_embed(message.channel, message.author)
+        avatar = after.avatar.url if after.avatar else after.default_avatar.url
 
+        embed = discord.Embed(
+            title=f"Welcome to The Haven, {after.display_name}!",
+            description=role_messages[new_role.id],
+            color=0x8A00C4
+        )
+
+        embed.add_field(
+            name="Learn More",
+            value=(
+                "🌐 https://havenmap.online/haven-ui/\n"
+                "📖 https://docs.google.com/document/d/...\n"
+                "💫 https://travelers-exchange.online/"
+            ),
+            inline=False
+        )
+
+        embed.set_thumbnail(url=avatar)
+        embed.set_image(
+            url="https://cdn.discordapp.com/attachments/1483946204919501030/1483951736187256913/ezgif-36919d2af39654a6.gif"
+        )
+
+        await channel.send(embed=embed)
+
+        print(f"[WELCOME] Posted welcome embed in channel for {after.name} (role {new_role.name})")
+
+    except Exception as e:
+        print(f"[WELCOME ERROR] {e}")
 
 # -------------------- Setup --------------------
 async def setup(bot: commands.Bot):
