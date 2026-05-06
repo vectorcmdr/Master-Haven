@@ -56,7 +56,7 @@ class CommandsCog(commands.Cog):
 # ---------------- Community ----------------
     @app_commands.command(name="community", description="Look up a No Man's Sky civ or commmunity")    
     async def community(self, interaction: discord.Interaction, *, search: str = None):
-        if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
+        if interaction.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
         community_cog = self.bot.get_cog("CommunityCog")
         
 
