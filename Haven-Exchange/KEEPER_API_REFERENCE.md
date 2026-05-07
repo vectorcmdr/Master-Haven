@@ -1,10 +1,33 @@
 # Travelers Exchange — Keeper Bot API Reference
 
-**Companion to:** `EXCHANGE_KEEPER_INTEGRATION_SPEC.md`
-**Audience:** Stars (The_Keeper maintainer) — implementing Discord cogs against the Exchange API
-**Scope:** Every endpoint your bot will call, with auth, request body, success response, and error cases. Sourced directly from the route handlers; verified against branch `keeper-integration-p0` (commit `3ce49e6`).
+**Audience:** Stars (The_Keeper maintainer) — implementing Discord cogs against the Exchange API.
+**Verified against:** branch `keeper-integration-p0` (latest commit on this branch).
 
 > Anything in this file is a working contract. If a field disappears or changes shape, treat it as a breaking change and ping Parker.
+
+---
+
+## TL;DR — how the bot works
+
+1. Parker hands Stars one bearer token (`tx_live_<32 hex>`).
+2. Every Exchange API request the bot ever makes carries two headers:
+   ```
+   Authorization: Bearer <KEEPER_API_KEY>
+   X-Discord-User-Id: <discord_user_id>
+   ```
+3. **First time the bot calls any user-tier endpoint with a brand-new `X-Discord-User-Id`, the Exchange auto-creates a User row for that Discord user.** No website detour, no link code, no password the user has to set. They just type `/wallet` in Discord and they're an Exchange user.
+4. Every subsequent call is the Exchange running the underlying logic *as that Discord user*. All existing role/permission checks (`citizen`, `nation_leader`, `world_mint`) apply exactly as if they were on the website.
+
+That's the whole protocol.
+
+### Optional headers used during auto-provision
+
+When auto-creating a user, the Exchange uses these to populate the new User row:
+
+- `X-Discord-Username` → `users.username` (default: `discord_<id>`). Sanitized to alphanumeric/`_-.`. Collisions get a numeric suffix.
+- `X-Discord-Display` → `users.display_name` (default: NULL).
+
+Pass them on every call — the Exchange ignores them after the first call (when the user already exists). If you don't pass them, you'll end up with a username like `discord_999888777` and no display name. Cleanest pattern: bot always passes `X-Discord-Username` set to the Discord member's `name` and `X-Discord-Display` to their `global_name`/`display_name`.
 
 ---
 
@@ -12,456 +35,234 @@
 
 - **Base URL:** `https://travelers-exchange.online`
 - **Format:** Request bodies are JSON unless explicitly marked `application/x-www-form-urlencoded`. Responses are always JSON.
-- **Money:** All amounts are integers in TC (Travelers Coin). Display in national currency by computing `amount * gdp_multiplier / 100` (rounded as you prefer; the multiplier is stored as `int * 100`).
-- **Wallets:** `TRV-<8-hex>` for users. `TRV-NATION-<8-hex>` for treasuries. `TRV-BANK-<8-hex>` for banks.
+- **Money:** All amounts are integers in TC. Display in national currency by computing `amount * gdp_multiplier / 100` (the multiplier is stored as `int * 100`; e.g. 125 = 1.25x).
+- **Wallets:** `TRV-<8-hex>` for users, `TRV-NATION-<8-hex>` for treasuries, `TRV-BANK-<8-hex>` for banks.
 - **Errors:** FastAPI shape — `{"detail": "Human-readable message"}` with HTTP 4xx. Surface `detail` verbatim in Discord embeds; it's already user-friendly.
-
-## Auth
-
-Every Exchange API request from the bot uses both headers:
-
-```
-Authorization: Bearer <KEEPER_API_KEY>
-X-Discord-User-Id: <discord_user_id>
-```
-
-- The bearer key is the plaintext token Parker hands you from `scripts/issue_bot_key.py`. Format: `tx_live_<32 hex>`.
-- The `X-Discord-User-Id` header is required for any endpoint that needs a logged-in user (everything tagged **user**, **nation_leader**, **bank_op**, **world_mint** below). The server resolves it to the linked Exchange user via `users.discord_id`.
-- For purely public endpoints (`public` tag), you can omit `X-Discord-User-Id`. The bearer alone is fine.
-- For the `/discord-link/start` endpoint, only the bearer is required (no `X-Discord-User-Id` — the discord_id is in the body).
-- **If a Discord user hasn't linked yet** and you call a `user`-tagged endpoint with their `X-Discord-User-Id`, the server returns **HTTP 303 to `/login`**. Treat that as "user not linked"; respond in Discord with "Run `/exchange link` first."
+- **Special case:** `/api/transactions/transfer` returns HTTP 200 with `{"success": false, "error": "..."}` for business errors (insufficient balance, etc.). Render `error` if `success` is false.
 
 ## Rate limits
 
-- `600` mutating requests/minute/key
-- `60` mutating requests/minute/discord_id
-- `GET`/`HEAD`/`OPTIONS` are not throttled
-- Overage returns `HTTP 429` with `{"detail": "..."}`. Treat as transient; back off and retry.
-
----
-
-## 0. Linking (P0)
-
-### `POST /api/auth/discord-link/start`
-
-**Auth:** Bearer key only (no `X-Discord-User-Id`)
-**Body:** `{"discord_id": "<discord_user_id>"}`
-**Success:** `200`
-```json
-{"code": "511783", "expires_in": 600, "link_url": "https://travelers-exchange.online/settings#link-discord"}
-```
-**Errors:** `400` empty discord_id; `401` bad/missing bearer; `409` discord_id already linked.
-
-DM the `code` and the `link_url` to the user.
-
-### `POST /api/auth/discord-link/confirm`
-
-This is **session-auth** — called from the website by the logged-in user, not by the bot. You don't implement this in Discord. It's listed here so you know what the user sees on the other side.
-**Body:** `code=<6 digits>` (form-encoded)
-**Success:** `200 {"success": true, "discord_id": "..."}`
-**Errors:** `400` malformed; `404` code not found / used; `410` expired; `409` race-condition collision or user already linked.
-
-### `DELETE /api/auth/discord-link`
-
-Session-auth, also website-only. User unlinks themselves. Bot doesn't call this.
+- 600 mutating req/min/key
+- 60 mutating req/min/discord_id
+- GET/HEAD/OPTIONS not throttled
+- Overage → HTTP 429 with `{"detail": "..."}`. Treat as transient; back off and retry.
 
 ---
 
 ## 1. Wallet, Ledger, Transfers
 
-### `GET /api/wallet`
-**Auth:** user
-**Returns:** caller's wallet
+| Method | Path | Auth | Body / Query | Notes |
+|---|---|---|---|---|
+| GET | `/api/wallet` | user | — | Caller's wallet incl. balance + 30d activity. **Auto-provisions on first call.** |
+| GET | `/api/wallet/search?q=&limit=` | public | `q` ≥ 1 char, `limit` 1–20 (default 8) | Prefix search across users + treasuries |
+| GET | `/api/wallet/{address}` | public | — | Public view; user-shape OR treasury-shape |
+| GET | `/api/wallet/{address}/transactions?page=&per_page=` | public | `per_page` ≤ 100 | Paginated tx history |
+| GET | `/api/ledger?page=&per_page=` | public | `per_page` ≤ 100 | Global ledger feed |
+| GET | `/api/transactions/{tx_hash}` | public | full hash or `tx_<first12>` | One transaction |
+| POST | `/api/transactions/transfer` | user | `{"to_address","amount","memo?"}` | Send TC. Returns `200` even on business errors — check `success`. |
+
+## 2. Account self-service (NEW — bot-callable)
+
+| Method | Path | Auth | Body | Notes |
+|---|---|---|---|---|
+| POST | `/api/auth/settings/password` | user | `{"old_password","new_password"}` | New password ≥ 8 chars. 403 if old wrong. |
+| POST | `/api/auth/settings/display-name` | user | `{"display_name?"}` | Empty/null clears it |
+
+## 3. Nations
+
+| Method | Path | Auth | Body / Query | Notes |
+|---|---|---|---|---|
+| GET | `/api/nations` | public | — | All approved nations + GDP info |
+| POST | `/api/nations/apply` | user | `{"name","currency_name?","currency_code?","description?","discord_invite?","game?"}` | `currency_code` 2–5 uppercase, unique |
+| POST | `/api/nations/{id}/join` | user | — | 400 if already in a nation / nation not approved |
+| POST | `/api/nations/{id}/leave` | user | — | 400 if leader (must transfer first) |
+| GET | `/api/nations/{id}/members` | public | — | Member roster |
+| **POST** | **`/api/nations/{id}/edit-description`** | **nation_leader** | **`{"description?"}`** | **NEW.** Leader edits description |
+| **PUT** | **`/api/nations/{id}/identity`** | **nation_leader** | **`{"name?","currency_name?","currency_code?","discord_invite?","game?"}`** | **NEW.** Leader rename / re-currency / etc. Any field optional; only sent fields update. |
+| **GET** | **`/api/nations/{id}/treasury`** | **user (must be member)** | **—** | **NEW.** Balance + recent distributions + allocation history in one call |
+| POST | `/api/nations/{id}/distribute` | nation_leader | `{"to_address","amount","memo?"}` | Single payout |
+| POST | `/api/nations/{id}/distribute-bulk` | nation_leader | `{"distributions":[{"to_address","amount"}], "memo?"}` | Atomic batch |
+| GET | `/api/nations/{id}/demurrage` | user (member) | — | Current settings |
+| PUT | `/api/nations/{id}/demurrage` | nation_leader | `{"demurrage_enabled?","demurrage_rate_bps?"}` | 1–1000 bps |
+| GET | `/api/nations/{id}/stimulus-proposals?status=` | nation_leader | — | Filter `pending|approved|rejected` |
+| POST | `/api/nations/{id}/stimulus-proposals/{pid}/approve` | nation_leader | `{"reason?"}` | |
+| POST | `/api/nations/{id}/stimulus-proposals/{pid}/reject` | nation_leader | `{"reason?"}` | |
+
+## 4. Banks & Loans
+
+| Method | Path | Auth | Body | Notes |
+|---|---|---|---|---|
+| POST | `/api/banks` | nation_leader | `{"name","owner_user_id"}` | Owner must be nation member; 4-bank cap |
+| GET | `/api/banks/nation/{nation_id}` | public | — | All banks in a nation |
+| GET | `/api/banks/{bank_id}` | public | — | Bank detail |
+| POST | `/api/banks/{bank_id}/deactivate` | nation_leader | — | |
+| GET | `/api/banks/{bank_id}/loans` | bank_op / nation_leader / world_mint | — | |
+| POST | `/api/banks/{bank_id}/loans` | bank_op | `{"borrower_user_id","amount","memo?"}` | Bank-issued loan |
+| POST | `/api/banks/{bank_id}/loans/{loan_id}/forgive` | nation_leader | — | |
+| POST | `/api/nations/{nation_id}/loans` | nation_leader | `{"borrower_user_id","amount","memo?"}` | Treasury-issued loan |
+| GET | `/api/nations/{nation_id}/loans` | nation_leader / world_mint | — | |
+| POST | `/api/nations/{nation_id}/loans/{loan_id}/forgive` | nation_leader | — | |
+| **POST** | **`/api/loans/apply`** | **user (citizen)** | **`{"bank_id","amount","memo?"}`** | **NEW.** Citizen-initiated apply against an active bank in their nation. 409 if active loan exists. |
+| GET | `/api/loans/mine` | user | — | All caller's loans |
+| **GET** | **`/api/loans/{loan_id}`** | **borrower / bank_op / nation_leader / world_mint** | **—** | **NEW.** Single loan detail with payment history |
+| POST | `/api/loans/{loan_id}/pay` | borrower | `{"amount"}` | Returns full burn-split breakdown — render every field in the embed |
+
+**`/api/loans/{loan_id}/pay` response:**
 ```json
 {
-  "address": "TRV-6fa948f9", "balance": 0, "display_name": "Eve",
-  "nation": null, "created_at": "...", "last_active": "...",
-  "transaction_count_lifetime": 0, "transaction_count_30d": 0,
-  "volume_lifetime": 0, "volume_30d": 0
-}
-```
-
-### `GET /api/wallet/search?q=<prefix>&limit=<1-20>`
-**Auth:** public
-Prefix search across users + treasuries. Default `limit=8`.
-
-### `GET /api/wallet/{address}`
-**Auth:** public
-Returns either user-shape or treasury-shape:
-- User: same fields as `/api/wallet` minus `created_at` (display_name, nation, balance, address, history fields)
-- Treasury: `{"address","balance","display_name","type":"nation_treasury"}`
-
-`404` if not found.
-
-### `GET /api/wallet/{address}/transactions?page=&per_page=`
-**Auth:** public
-Paginated tx list. `per_page` capped at 100. Returns `{"transactions": [...], "page", "per_page", "total"}`.
-
-### `GET /api/ledger?page=&per_page=`
-**Auth:** public
-Global ledger feed. `per_page` capped at 100.
-
-### `GET /api/transactions/{tx_hash}`
-**Auth:** public
-Full record. Accepts the full hash, or `tx_<first12>` short form. `404` if not found.
-Response: `{tx_hash, prev_hash, tx_type, from_address, to_address, amount, fee, memo, nonce, status, created_at}`.
-
-### `POST /api/transactions/transfer`
-**Auth:** user
-**Body:** `{"to_address": "TRV-...", "amount": 100, "memo": "optional"}`
-**Success:** `200 {"success": true, "tx_hash": "...", "amount": 100}`
-**Errors:** `200 {"success": false, "error": "..."}` for insufficient balance, invalid address, etc. (Note: this endpoint returns 200 + success-flag rather than HTTP 4xx for business errors.)
-
----
-
-## 2. Nations
-
-### `POST /api/nations/apply`
-**Auth:** user
-**Body:** `{"name", "currency_name?", "currency_code?", "description?", "discord_invite?", "game?"}`
-- `currency_code` must be 2–5 uppercase letters if provided. Must be unique.
-**Success:** `200 {"success": true, "nation_id": int}`
-**Errors:** `400` validation; `409` already lead a nation / name taken / currency code taken.
-
-### `GET /api/nations`
-**Auth:** public
-Returns `{"nations": [...]}`. Each nation: `{id, name, member_count, currency_name, currency_code, gdp_score, gdp_multiplier, gdp_display}`.
-
-### `POST /api/nations/{id}/join`
-**Auth:** user
-**Body:** none
-**Success:** `200 {"success": true}`
-**Errors:** `404` nation not found; `400` already in a nation / nation not approved.
-
-### `POST /api/nations/{id}/leave`
-**Auth:** user
-**Body:** none
-**Success:** `200 {"success": true}`
-**Errors:** `400` not in this nation / leader can't leave.
-
-### `GET /api/nations/{id}/members`
-**Auth:** public
-Returns `{"members": [{id, username, display_name, wallet_address, role}]}`.
-
-### `POST /api/nations/{id}/distribute`
-**Auth:** nation_leader
-**Body:** `{"to_address", "amount", "memo?"}`
-**Success:** `200 {"success": true, "tx_hash": "..."}`
-**Errors:** `403` not the leader; `400` insufficient treasury balance.
-
-### `POST /api/nations/{id}/distribute-bulk`
-**Auth:** nation_leader
-**Body:** `{"distributions": [{"to_address", "amount"}, ...], "memo?"}`
-Atomic — either all transfers succeed or none.
-**Errors:** `400` if total exceeds treasury balance.
-
-### `GET /api/nations/{id}/demurrage`
-**Auth:** user (caller must be in the nation)
-Returns `{"demurrage_enabled": bool, "demurrage_rate_bps": int}`.
-
-### `PUT /api/nations/{id}/demurrage`
-**Auth:** nation_leader
-**Body:** `{"demurrage_enabled?": bool, "demurrage_rate_bps?": int}` (1–1000 bps).
-**Success:** `200` with updated values.
-
-### `GET /api/nations/{id}/stimulus-proposals?status=`
-**Auth:** nation_leader (their own nation) or world_mint
-Returns proposals. Status filter: `pending|approved|rejected`.
-
-### `POST /api/nations/{id}/stimulus-proposals/{proposal_id}/approve`
-### `POST /api/nations/{id}/stimulus-proposals/{proposal_id}/reject`
-**Auth:** nation_leader of the affected nation
-Body for both: `{"reason?": str}`. `400` if not pending.
-
----
-
-## 3. Banks & Loans
-
-### `POST /api/banks`
-**Auth:** nation_leader
-**Body:** `{"name", "owner_user_id"}` — owner must be a member of the leader's nation.
-**Success:** `200 {"success": true, "bank_id"}`
-**Errors:** `400` non-member owner; `409` 4-bank cap reached.
-
-### `GET /api/banks/nation/{nation_id}`
-**Auth:** public
-Returns `{"banks": [...]}`.
-
-### `GET /api/banks/{bank_id}`
-**Auth:** public
-
-### `POST /api/banks/{bank_id}/deactivate`
-**Auth:** nation_leader
-
-### `GET /api/banks/{bank_id}/loans`
-**Auth:** bank_op (the bank's owner) / nation_leader / world_mint
-
-### `POST /api/banks/{bank_id}/loans`
-**Auth:** bank_op
-**Body:** `{"borrower_user_id", "amount", "memo?"}`
-Borrower must be in the same nation, must not have an active loan, bank must have reserves ≥ amount.
-**Success:** `200 {"success": true, "loan_id"}`
-
-### `POST /api/banks/{bank_id}/loans/{loan_id}/forgive`
-**Auth:** nation_leader
-
-### `POST /api/nations/{nation_id}/loans`
-**Auth:** nation_leader (treasury-as-lender)
-**Body:** `{"borrower_user_id", "amount", "memo?"}`
-
-### `GET /api/nations/{nation_id}/loans`
-**Auth:** nation_leader / world_mint
-
-### `POST /api/nations/{nation_id}/loans/{loan_id}/forgive`
-**Auth:** nation_leader
-
-### `GET /api/loans/mine`
-**Auth:** user
-Returns `{"loans": [...]}` with all of caller's loans (active + closed).
-
-### `POST /api/loans/{loan_id}/pay`
-**Auth:** user (must be the borrower)
-**Body:** `{"amount": int}`
-**Success:** `200` with the full burn-split breakdown:
-```json
-{
-  "success": true,
-  "tx_hash": "...",
-  "interest_portion": 12,
-  "principal_portion": 88,
-  "during_payment_burn": 8,    // burn taken on the interest portion
-  "close_burn": 0,             // additional burn if final payment
-  "burn_amount": 8,            // total burned this payment
-  "bank_amount": 92,           // what reached the bank/treasury
+  "success": true, "tx_hash": "...",
+  "interest_portion": 12, "principal_portion": 88,
+  "during_payment_burn": 8, "close_burn": 0,
+  "burn_amount": 8, "bank_amount": 92,
   "is_final_payment": false,
-  "remaining_principal": 412,
-  "remaining_interest": 28
+  "remaining_principal": 412, "remaining_interest": 28
 }
 ```
-**UX requirement:** show all of these in the Discord confirmation embed so members understand exactly where their TC went. The "burn" goes to `TRV-00000000` (the World Mint) and is permanently out of circulation.
 
----
+## 5. Shops & Marketplace
 
-## 4. Shops & Marketplace
+| Method | Path | Auth | Body / Query | Notes |
+|---|---|---|---|---|
+| POST | `/api/shops` | user | `{"name","description?","shop_type":"general|resource_depot","mining_setup?"}` | `mining_setup` required for resource_depot. Shop starts `pending`. |
+| GET | `/api/shops?nation_id=&type=` | public | — | Approved + active shops |
+| GET | `/api/shops/pending` | nation_leader (own nation) / world_mint | — | |
+| GET | `/api/shops/{id}` | public | — | Shop detail with listings (TC + national price) |
+| POST | `/api/shops/{id}/listings` | shop_owner | `{"title","description?","price","category"}` | `price` is in **national currency** |
+| POST | `/api/shops/{id}/listings/{lid}/buy` | user | — | Server transfers TC, marks unavailable |
+| PUT | `/api/shops/{id}/listings/{lid}` | shop_owner | any of `{title,description,price,category,is_available}` | Partial update |
+| POST | `/api/shops/{id}/approve` | nation_leader (NOT own shop) / world_mint | — | |
+| POST | `/api/shops/{id}/reject` | same | `{"reason?"}` | |
+| POST | `/api/shops/{id}/suspend` | same | `{"reason?"}` | |
+| **POST** | **`/api/shops/{id}/ipo`** | **shop_owner / world_mint** | **`{"num_shares"}`** | **NEW.** IPO an approved shop into a tradable business stock. Returns `{"ticker"}`. |
 
-### `POST /api/shops`
-**Auth:** user (must be in an approved nation)
-**Body:** `{"name", "description?", "shop_type": "general"|"resource_depot", "mining_setup?"}`
-- `mining_setup` is **required** when `shop_type == "resource_depot"`.
-- Shop starts `status="pending"` — needs NL or WM approval before listings can be added.
-**Success:** `200 {"success": true, "shop_id", "status": "pending"}`
+## 6. Stock Market
 
-### `GET /api/shops?nation_id=&type=`
-**Auth:** public
-Filter by `nation_id` and/or `type` (=`shop_type`). Returns approved+active shops.
+| Method | Path | Auth | Body / Query | Notes |
+|---|---|---|---|---|
+| GET | `/api/stocks?stock_type=&sort_by=` | public | — | All active stocks |
+| GET | `/api/stocks/portfolio` | user | — | Caller's holdings + total gain/loss |
+| GET | `/api/stocks/rankings` | public | — | Performance leaderboard |
+| GET | `/api/stocks/{ticker}` | public | — | Detail w/ recent trades |
+| GET | `/api/stocks/{ticker}/history` | public | — | 90-day price history |
+| POST | `/api/stocks/{ticker}/buy` | user | `{"shares"}` | Business stocks gated on nation membership |
+| POST | `/api/stocks/{ticker}/sell` | user | `{"shares"}` | |
+| POST | `/api/stocks/{stock_id}/close` | world_mint OR shop_owner | `{"reason?"}` | |
 
-### `GET /api/shops/pending`
-**Auth:** nation_leader (sees only own nation) / world_mint (sees all)
-Returns `{"shops": [...]}`.
+## 7. World Mint (admin) — gate Discord-side too
 
-### `GET /api/shops/{id}`
-**Auth:** public
-Shop detail with embedded listings. Each listing includes `price` (TC) and `price_national` (converted).
+All endpoints require `role=world_mint` on the resolved Exchange user. Recommend gating these Discord commands behind a Discord role check on top.
 
-### `POST /api/shops/{id}/listings`
-**Auth:** shop_owner
-**Body:** `{"title", "description?", "price", "category": "service"|"coordinates"|"item"|"other"}`
-- `price` is in **national currency**. Server converts to TC using the nation's `gdp_multiplier`.
-**Errors:** `403` not owner; `400` shop not approved.
-
-### `POST /api/shops/{id}/listings/{listing_id}/buy`
-**Auth:** user
-**Body:** none
-**Success:** `200 {"success": true, "tx_hash", "amount_tc"}`
-Server transfers TC, marks listing unavailable, updates GDP.
-
-### `PUT /api/shops/{id}/listings/{listing_id}`
-**Auth:** shop_owner
-**Body:** any of `{"title?", "description?", "price?", "category?", "is_available?"}`. Only fields you send are updated.
-
-### `POST /api/shops/{id}/approve`
-**Auth:** nation_leader (own nation, NOT own shop) or world_mint
-**Body:** none
-**Errors:** `403` you can't approve your own shop (V4 fix); `400` shop already approved.
-
-### `POST /api/shops/{id}/reject`
-**Auth:** nation_leader / world_mint (NOT own shop)
-**Body:** `{"reason?": str}`
-
-### `POST /api/shops/{id}/suspend`
-**Auth:** nation_leader / world_mint (NOT own shop, except for WM)
-**Body:** `{"reason?": str}`. Disables an approved shop.
-
----
-
-## 5. Stock Market
-
-### `GET /api/stocks?stock_type=&sort_by=`
-**Auth:** public
-`stock_type` filter: `nation`|`business`. `sort_by`: `ticker|price|change_24h|volume_24h`.
-
-### `GET /api/stocks/portfolio`
-**Auth:** user
-Caller's holdings + total gain/loss.
-
-### `GET /api/stocks/rankings`
-**Auth:** public
-Performance leaderboard.
-
-### `GET /api/stocks/{ticker}`
-**Auth:** public
-Detail with recent trades and valuation breakdown.
-
-### `GET /api/stocks/{ticker}/history`
-**Auth:** public
-90-day price history. Render with ASCII sparkline for v1 (good enough); a real chart can come later via QuickChart.
-
-### `POST /api/stocks/{ticker}/buy`
-**Auth:** user
-**Body:** `{"shares": int}`
-- Business stocks gated on the buyer being a member of the issuing nation.
-**Success:** `200 {"success": true, "shares_owned", "total_cost_tc"}`
-**Errors:** `400` insufficient balance; `403` non-citizen for business stock.
-
-### `POST /api/stocks/{ticker}/sell`
-**Auth:** user
-**Body:** `{"shares": int}`
-**Errors:** `400` not enough shares.
-
-### `POST /api/stocks/{stock_id}/close`
-**Auth:** world_mint OR shop_owner (for business stocks of own shop)
-**Body:** `{"reason?": str}`
-Closes the stock and pays out all holders at the close price.
-
----
-
-## 6. World Mint (Admin) — gate Discord-side too
-
-All endpoints require the linked Exchange user to have `role=world_mint`. **Strongly recommend** Stars also gate these Discord commands behind a Discord role check (`World Mint` or server-owner).
-
-### `GET /api/mint/stats`
-Global economy dashboard.
-
-### `POST /api/mint/execute`
-**Body:** `{"to_address", "amount", "memo?"}` — mints to a wallet or treasury. Subject to per-nation `mint_cap`.
-
-### `GET /api/mint/allocations`
-Returns pending + approved + recently-distributed allocations.
-
-### `POST /api/mint/allocations/{id}/approve`
-**Body:** `{"approved_amount?": int}` — defaults to the proposed amount.
-
-### `POST /api/mint/allocations/{id}/execute`
-Distribute one already-approved allocation to its nation treasury.
-
-### `POST /api/mint/execute-all-approved`
-Batch-distribute every approved-but-unexecuted allocation.
-
-### `POST /api/mint/calculate-allocations`
-**Body:** `{"period?": str}` (default = current month)
-Generates the next batch of monthly allocations.
-
-### `POST /api/mint/nations/{id}/approve`
-Approve a pending nation. Auto-IPO's its stock.
-
-### `POST /api/mint/nations/{id}/reject`
-Reject a pending nation.
-
-### `POST /api/mint/nations/{id}/suspend`
-Suspend an approved nation. Demotes the leader to `citizen` (V4 fix), unless they lead another approved nation.
-
-### `POST /api/mint/nations/{id}/unsuspend`
-Restore a suspended nation. Re-promotes the leader to `nation_leader`.
-
-### `POST /api/mint/recalculate-gdp`
-Force a GDP recalc + stimulus check.
-
-### `GET /api/mint/gdp-history?nation_id=&limit=`
-GDP snapshots. `limit` default 30.
-
-### `GET /api/mint/stimulus-proposals?status=&limit=`
-Auto-generated stimulus proposals (triggered on nation GDP drops).
-
-### `POST /api/mint/stimulus-proposals/{id}/approve`
-**Body:** `{"approved_amount?", "reason?"}`
-
-### `POST /api/mint/stimulus-proposals/{id}/reject`
-**Body:** `{"reason?"}`
-
-### `GET /api/mint/settings`
-Returns global `{burn_rate_bps, interest_rate_cap_bps, interest_burn_rate_bps}`.
-
-### `POST /api/mint/settings`
-**Body:** `{"burn_rate_bps", "interest_rate_cap_bps", "interest_burn_rate_bps?"}`
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| GET | `/api/mint/stats` | — | Dashboard subset |
+| **GET** | **`/api/mint/stats/detailed`** | **—** | **NEW.** Hash chain status + supply breakdown + tx-by-type counts + per-nation table |
+| POST | `/api/mint/execute` | `{"to_address","amount","memo?"}` | Mint TC. Subject to per-nation `mint_cap`. |
+| GET | `/api/mint/allocations` | — | Pending + approved + recent |
+| POST | `/api/mint/allocations/{id}/approve` | `{"approved_amount?"}` | |
+| POST | `/api/mint/allocations/{id}/execute` | — | Distribute one |
+| POST | `/api/mint/execute-all-approved` | — | Batch-distribute |
+| POST | `/api/mint/calculate-allocations` | `{"period?"}` | Generate next batch |
+| POST | `/api/mint/nations/{id}/approve` | — | Approves + auto-IPOs nation stock |
+| POST | `/api/mint/nations/{id}/reject` | — | |
+| POST | `/api/mint/nations/{id}/suspend` | — | Demotes leader to citizen (unless they lead another approved nation) |
+| POST | `/api/mint/nations/{id}/unsuspend` | — | Re-promotes leader |
+| **PUT** | **`/api/mint/nations/{id}/identity`** | **`{"name?","currency_name?","currency_code?","discord_invite?","game?"}`** | **NEW.** WM rename / re-currency / etc. Keeps nation Stock row in sync. |
+| POST | `/api/mint/recalculate-gdp` | — | Force recalc + stimulus check |
+| **POST** | **`/api/mint/recalculate-stocks`** | **—** | **NEW.** Force stock-price recalc |
+| GET | `/api/mint/gdp-history?nation_id=&limit=` | — | Snapshots; `limit` default 30 |
+| GET | `/api/mint/stimulus-proposals?status=&limit=` | — | |
+| POST | `/api/mint/stimulus-proposals/{id}/approve` | `{"approved_amount?","reason?"}` | |
+| POST | `/api/mint/stimulus-proposals/{id}/reject` | `{"reason?"}` | |
+| GET | `/api/mint/settings` | — | Global `{burn_rate_bps, interest_rate_cap_bps, interest_burn_rate_bps}` |
+| POST | `/api/mint/settings` | `{"burn_rate_bps","interest_rate_cap_bps","interest_burn_rate_bps?"}` | |
 
 ---
 
 ## Working examples
 
-These are the exact curl commands I used to verify the integration is live. Replace `BOT_KEY` with your actual key and `DISCORD_ID` with a linked Discord user ID.
-
 ```bash
 BOT_KEY="tx_live_<32hex>"
 DISCORD_ID="123456789012345678"
 
-# 1. Start a link for a brand new Discord user
-curl -s -X POST https://travelers-exchange.online/api/auth/discord-link/start \
-  -H "Authorization: Bearer ${BOT_KEY}" \
-  -H "Content-Type: application/json" \
-  -d "{\"discord_id\":\"${DISCORD_ID}\"}"
-# → {"code":"511783","expires_in":600,"link_url":"..."}
-# DM the code + link_url to the user; they paste it on the Settings page.
+# 1. Brand new Discord user — auto-provisions on first call.
+curl -s "$BASE/api/wallet" \
+  -H "Authorization: Bearer $BOT_KEY" \
+  -H "X-Discord-User-Id: $DISCORD_ID" \
+  -H "X-Discord-Username: parker_demo" \
+  -H "X-Discord-Display: Parker"
+# → {"address":"TRV-...","balance":0,"display_name":"Parker",...}
 
-# 2. After they've linked, fetch their wallet
-curl -s https://travelers-exchange.online/api/wallet \
-  -H "Authorization: Bearer ${BOT_KEY}" \
-  -H "X-Discord-User-Id: ${DISCORD_ID}"
-# → {"address":"TRV-...","balance":0,...}
-
-# 3. Send TC on their behalf
-curl -s -X POST https://travelers-exchange.online/api/transactions/transfer \
-  -H "Authorization: Bearer ${BOT_KEY}" \
-  -H "X-Discord-User-Id: ${DISCORD_ID}" \
+# 2. Send TC — same headers; the resolved user must have balance.
+curl -s -X POST "$BASE/api/transactions/transfer" \
+  -H "Authorization: Bearer $BOT_KEY" \
+  -H "X-Discord-User-Id: $DISCORD_ID" \
   -H "Content-Type: application/json" \
   -d '{"to_address":"TRV-aaaa1111","amount":50,"memo":"From Discord"}'
-# → {"success":true,"tx_hash":"..."} OR {"success":false,"error":"Insufficient balance..."}
+# → {"success":true,"tx_hash":"..."}  OR  {"success":false,"error":"Insufficient balance..."}
 
-# 4. List approved nations (no X-Discord-User-Id needed, public)
-curl -s https://travelers-exchange.online/api/nations \
-  -H "Authorization: Bearer ${BOT_KEY}"
-# → {"nations":[...]}
+# 3. Apply for a nation.
+curl -s -X POST "$BASE/api/nations/apply" \
+  -H "Authorization: Bearer $BOT_KEY" \
+  -H "X-Discord-User-Id: $DISCORD_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Atlantia","currency_name":"AtlanCoin","currency_code":"ATC"}'
 
-# 5. Pay a loan and show the burn breakdown in the embed
-curl -s -X POST "https://travelers-exchange.online/api/loans/42/pay" \
-  -H "Authorization: Bearer ${BOT_KEY}" \
-  -H "X-Discord-User-Id: ${DISCORD_ID}" \
+# 4. Open a shop (after WM approves the nation).
+curl -s -X POST "$BASE/api/shops" \
+  -H "Authorization: Bearer $BOT_KEY" \
+  -H "X-Discord-User-Id: $DISCORD_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Parker Trading Co","description":"Ships, parts, and base modules","shop_type":"general"}'
+# → {"success":true,"shop_id":1,"status":"pending"}
+
+# 5. NL approves a pending shop in their nation.
+curl -s -X POST "$BASE/api/shops/1/approve" \
+  -H "Authorization: Bearer $BOT_KEY" \
+  -H "X-Discord-User-Id: <leader_discord_id>"
+# 403 if it's the leader's OWN shop — those go via /mint instead.
+
+# 6. List a product (price in NATIONAL currency, server converts to TC).
+curl -s -X POST "$BASE/api/shops/1/listings" \
+  -H "Authorization: Bearer $BOT_KEY" \
+  -H "X-Discord-User-Id: $DISCORD_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Hauler ship","description":"30 slots, fully loaded","price":150000,"category":"item"}'
+
+# 7. Pay a loan and render every field of the burn breakdown.
+curl -s -X POST "$BASE/api/loans/42/pay" \
+  -H "Authorization: Bearer $BOT_KEY" \
+  -H "X-Discord-User-Id: $DISCORD_ID" \
   -H "Content-Type: application/json" \
   -d '{"amount":100}'
-# → full breakdown — render every field
 ```
 
 ---
 
 ## What to do when
 
-| Situation | Response |
-|---|---|
-| HTTP 303 from a user-tier endpoint | "You're not linked yet — run `/exchange link`." |
-| HTTP 401 | Bot key was rejected — check `Authorization` header / key wasn't revoked. |
-| HTTP 403 | The user lacks the required role (e.g. citizen calling NL endpoint). Embed message: surface `detail` verbatim. |
-| HTTP 404 | The resource isn't there. Surface `detail`. |
-| HTTP 409 | A conflict (already linked, name taken, double-vote, etc.). Surface `detail`. |
-| HTTP 429 | Rate-limited. Back off ~30s and retry. |
-| `{"success": false, "error": "..."}` on `/transfer` | Render `error` in red. The HTTP status will still be `200`. |
+| HTTP | Meaning | Discord message |
+|---|---|---|
+| 200 + `{"success":false}` | Business error on `/transfer` or similar | Surface `error` in red |
+| 303 / 401 | Bot key bad or missing | "Bot is misconfigured — ping Parker." |
+| 403 | User lacks role (citizen calling NL endpoint, etc.) | Surface `detail` |
+| 404 | Resource doesn't exist | Surface `detail` |
+| 409 | Conflict (already linked, name taken, double-vote, etc.) | Surface `detail` |
+| 429 | Rate-limited | Back off 30s and retry |
+| 500 | Server bug | Generic "Something went wrong, ping Parker" |
 
 ---
 
-## Branch / commit you're targeting
+## Branch / commit Stars is targeting
 
 - Branch: `keeper-integration-p0`
-- Commit: `3ce49e6`
 - Repo: `Parker1920/Master-Haven`
-- Spec: `Haven-Exchange/EXCHANGE_KEEPER_INTEGRATION_SPEC.md` (the doc Parker wrote you)
+- Spec: `Haven-Exchange/EXCHANGE_KEEPER_INTEGRATION_SPEC.md`
 - Reference (this file): `Haven-Exchange/KEEPER_API_REFERENCE.md`
 
-The branch is not yet merged to `main`. Parker will merge after his review. URL behavior is identical against the running Pi `https://travelers-exchange.online` once merged + deployed.
+The branch is not yet merged to `main`. URL behavior is identical against the running Pi `https://travelers-exchange.online` once merged + deployed.
+
+---
+
+## Cookie note (web users only — bot doesn't care)
+
+`auth_routes.py:_set_session_cookie` currently has `secure=False` for local-dev demo purposes. **Flip back to `secure=True` before deploying to production** — the bot uses bearer auth not cookies, so this only affects browser sessions on production HTTPS.

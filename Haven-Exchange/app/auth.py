@@ -72,10 +72,19 @@ def verify_api_key(token: str, db: Session) -> Optional[ApiKey]:
 
 def _resolve_bot_user(request: Request, db: Session) -> Optional[User]:
     """If the request carries a valid bot bearer token + X-Discord-User-Id
-    header, resolve the linked Exchange user and return it.
+    header, resolve (or auto-provision) the Exchange user and return it.
 
-    Returns None for any failure mode (no token, bad token, missing
-    header, no linked user) — falls back to session auth.
+    Auto-provision: if no User row has the supplied discord_id, create one.
+    The Keeper bot is the Exchange in bot form — first contact from a
+    Discord user IS their account creation.  No website detour, no
+    password prompt.
+
+    Optional headers used during provisioning:
+      X-Discord-Username  — used as username (defaults to "discord_<id>")
+      X-Discord-Display   — used as display_name (defaults to None)
+
+    Returns None when the bot key is missing/invalid or the X-Discord-
+    User-Id header is absent — falls back to session auth.
     """
     auth_hdr = request.headers.get("authorization") or ""
     if not auth_hdr.lower().startswith("bearer "):
@@ -85,20 +94,54 @@ def _resolve_bot_user(request: Request, db: Session) -> Optional[User]:
     if api_key is None:
         return None
 
-    # Bot key valid.  Resolve target user via X-Discord-User-Id.
-    discord_id = request.headers.get("x-discord-user-id")
-    if not discord_id:
-        # Bot key alone, no acting-as.  We do not synthesize a "bot" user —
-        # endpoints that don't need a user (public reads) will accept this
-        # silently because they don't depend on get_current_user.
-        return None
-    discord_id = discord_id.strip()
+    discord_id = (request.headers.get("x-discord-user-id") or "").strip()
     if not discord_id:
         return None
+
     user = db.execute(
         select(User).where(User.discord_id == discord_id)
     ).scalar_one_or_none()
-    return user
+    if user is not None:
+        return user
+
+    # Auto-provision a fresh account for this Discord user.
+    from app.wallet import generate_wallet_address  # local to avoid cycle
+
+    raw_username = (request.headers.get("x-discord-username") or "").strip()
+    display_name = (request.headers.get("x-discord-display") or "").strip() or None
+
+    base_username = raw_username or f"discord_{discord_id}"
+    base_username = "".join(ch for ch in base_username if ch.isalnum() or ch in "_-.")[:64] or f"discord_{discord_id}"
+
+    # Resolve username collisions deterministically.
+    username = base_username
+    suffix = 1
+    while db.execute(select(User).where(User.username == username)).scalar_one_or_none() is not None:
+        suffix += 1
+        username = f"{base_username}_{suffix}"
+        if suffix > 100:
+            username = f"discord_{discord_id}"  # fall back to the guaranteed-unique form
+            break
+
+    # Random unguessable password — the Discord user can't log in via the
+    # web with this; they can change it later via /api/auth/settings/password
+    # if they want website access.
+    pw_hash = bcrypt.hashpw(secrets.token_hex(32).encode(), bcrypt.gensalt()).decode()
+
+    new_user = User(
+        username=username,
+        password_hash=pw_hash,
+        display_name=display_name,
+        wallet_address="PENDING",
+        role="citizen",
+        balance=0,
+        discord_id=discord_id,
+    )
+    db.add(new_user)
+    db.flush()
+    new_user.wallet_address = generate_wallet_address(new_user.id, settings.SECRET_KEY)
+    db.commit()
+    return new_user
 
 
 # ---------------------------------------------------------------------------

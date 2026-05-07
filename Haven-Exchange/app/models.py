@@ -798,29 +798,6 @@ class ApiKey(Base):
         return f"<ApiKey(id={self.id}, label='{self.label}', scope='{self.scope}')>"
 
 
-class DiscordLinkCode(Base):
-    """Short-lived (10 min) one-time codes that bind a Discord account
-    to an Exchange user.
-
-    Flow:
-      1. Bot calls POST /api/auth/discord-link/start with {discord_id}.
-         Server generates a 6-digit code, inserts a row here, returns
-         the code to the bot.
-      2. Bot DMs the code to the Discord user.
-      3. User logs into the Exchange website and submits the code via
-         /api/auth/discord-link/confirm.  Server looks up the row by
-         code, writes users.discord_id = code.discord_id, deletes the row.
-    """
-
-    __tablename__ = "discord_link_codes"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
-    discord_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    expires_at: Mapped[datetime] = mapped_column(nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        insert_default=func.current_timestamp()
-    )
-
-    def __repr__(self) -> str:
-        return f"<DiscordLinkCode(code='{self.code}', discord_id='{self.discord_id}')>"
+## DiscordLinkCode model removed — auto-provision replaces the link flow.
+## Bot bearer + X-Discord-User-Id alone is sufficient; if no user is bound to
+## that discord_id, the Exchange creates one automatically on first call.

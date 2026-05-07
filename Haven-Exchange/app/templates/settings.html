@@ -76,46 +76,6 @@
         </div>
     </div>
 
-    <!-- Discord Link (Keeper bot integration) -->
-    <div class="card settings-section" id="link-discord">
-        <div class="card-header">
-            <h3>Discord (Keeper Bot)</h3>
-        </div>
-        <div class="card-body">
-            {% if user.discord_id %}
-                <div class="info-row">
-                    <span class="info-label">Linked Discord ID</span>
-                    <span class="info-value mono">{{ user.discord_id }}</span>
-                </div>
-                <p class="text-muted" style="font-size: 0.875rem; margin: var(--space-sm) 0;">
-                    Your account is linked to Discord. Keeper bot commands like <code>/wallet</code>,
-                    <code>/wallet send</code>, <code>/loan-pay</code> will act as you.
-                </p>
-                <form id="discord-unlink-form" style="display:inline;">
-                    <button type="button" id="discord-unlink-btn" class="btn btn-danger">Unlink Discord</button>
-                </form>
-                <span id="discord-link-status" style="margin-left: var(--space-sm);"></span>
-            {% else %}
-                <p class="text-muted" style="font-size: 0.875rem; margin-bottom: var(--space-md);">
-                    Connect your Discord account so the Keeper bot can let you check balances,
-                    send TC, pay loans, and more from inside Discord. Run <code>/exchange link</code>
-                    in any Travelers Exchange Discord server, then paste the 6-digit code below.
-                </p>
-                <form id="discord-link-form">
-                    <div class="form-group">
-                        <label for="discord_link_code">6-digit code from <code>/exchange link</code></label>
-                        <input type="text" id="discord_link_code" name="code" inputmode="numeric"
-                               maxlength="6" pattern="[0-9]{6}" required
-                               placeholder="123456" style="font-family: var(--font-mono); letter-spacing: 0.25em;">
-                        <span class="form-hint">Codes expire 10 minutes after the bot issues one.</span>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Link Discord</button>
-                    <span id="discord-link-status" style="margin-left: var(--space-sm);"></span>
-                </form>
-            {% endif %}
-        </div>
-    </div>
-
     <!-- Password Change -->
     <div class="card settings-section">
         <div class="card-header">
@@ -143,60 +103,3 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-(function () {
-    var statusEl = document.getElementById('discord-link-status');
-    function setStatus(msg, color) {
-        if (!statusEl) return;
-        statusEl.textContent = msg;
-        statusEl.style.color = color || '';
-    }
-
-    var linkForm = document.getElementById('discord-link-form');
-    if (linkForm) {
-        linkForm.addEventListener('submit', function (e) {
-            e.preventDefault();
-            var code = document.getElementById('discord_link_code').value.trim();
-            if (!/^\d{6}$/.test(code)) {
-                setStatus('Code must be 6 digits.', 'var(--error, #d04848)');
-                return;
-            }
-            setStatus('Linking…', 'var(--text-muted)');
-            var fd = new FormData();
-            fd.append('code', code);
-            fetch('/api/auth/discord-link/confirm', { method: 'POST', body: fd })
-                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
-                .then(function (res) {
-                    if (res.ok && res.body.success) {
-                        setStatus('Linked. Reloading…', 'var(--success, #2ea043)');
-                        setTimeout(function () { window.location.reload(); }, 800);
-                    } else {
-                        setStatus(res.body.detail || 'Link failed.', 'var(--error, #d04848)');
-                    }
-                })
-                .catch(function () { setStatus('Network error.', 'var(--error, #d04848)'); });
-        });
-    }
-
-    var unlinkBtn = document.getElementById('discord-unlink-btn');
-    if (unlinkBtn) {
-        unlinkBtn.addEventListener('click', function () {
-            if (!confirm('Unlink Discord? Keeper bot commands will stop acting as you until you re-link.')) return;
-            setStatus('Unlinking…', 'var(--text-muted)');
-            fetch('/api/auth/discord-link', { method: 'DELETE' })
-                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
-                .then(function (res) {
-                    if (res.ok && res.body.success) {
-                        setStatus('Unlinked. Reloading…', 'var(--success, #2ea043)');
-                        setTimeout(function () { window.location.reload(); }, 800);
-                    } else {
-                        setStatus(res.body.detail || 'Unlink failed.', 'var(--error, #d04848)');
-                    }
-                })
-                .catch(function () { setStatus('Network error.', 'var(--error, #d04848)'); });
-        });
-    }
-})();
-</script>
-{% endblock %}

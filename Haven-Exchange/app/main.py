@@ -18,7 +18,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.blockchain import create_genesis_block
 from app.config import settings
 from app.database import SessionLocal, init_db
-from app.models import ApiKey, Bank, DiscordLinkCode, GdpSnapshot, GlobalSettings, Loan, LoanPayment, StimulusProposal, User  # noqa: F401  — ensures models are registered with Base
+from app.models import ApiKey, Bank, GdpSnapshot, GlobalSettings, Loan, LoanPayment, StimulusProposal, User  # noqa: F401  — ensures models are registered with Base
 from app.routes.mint_routes import router as mint_router
 from app.routes.nation_routes import router as nation_router
 from app.routes.page_routes import router as page_router

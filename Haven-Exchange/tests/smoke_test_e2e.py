@@ -830,132 +830,187 @@ class TestWalletHealthMetrics:
             assert isinstance(data[field], int)
 
 
-# ---------------------------------------------------------------------------
-# 15. Keeper Bot Integration (P0)
-# ---------------------------------------------------------------------------
-class TestKeeperBotIntegrationP0:
-    """End-to-end coverage of the new bot bearer-token + Discord-link flow.
 
-    The TestClient hits the in-process app, so we issue a bot key directly
-    via the same code path scripts/issue_bot_key.py uses.
+
+# ---------------------------------------------------------------------------
+# 15. Keeper Bot Integration — auto-provision + bot-callable endpoints
+# ---------------------------------------------------------------------------
+class TestKeeperBotIntegration:
+    """The Keeper bot is the Exchange in bot form: a single bearer token plus
+    `X-Discord-User-Id` is enough to act on behalf of any Discord user.  No
+    web-side link step.  First contact provisions the user automatically.
     """
 
-    def _issue_bot_key(self, label: str = "smoke-test-bot") -> str:
+    def _issue_bot_key(self, label: str = "smoke-bot") -> str:
         from app.auth import generate_api_key
         from app.database import SessionLocal
         from app.models import ApiKey
         plaintext, prefix, hashed = generate_api_key()
         db = SessionLocal()
         try:
-            row = ApiKey(
-                key_prefix=prefix,
-                key_hash=hashed,
-                label=label,
-                scope="bot_full",
-                is_active=True,
-            )
-            db.add(row)
+            db.add(ApiKey(key_prefix=prefix, key_hash=hashed, label=label,
+                          scope="bot_full", is_active=True))
             db.commit()
         finally:
             db.close()
         return plaintext
 
-    def test_53_link_flow_round_trip(self, client):
-        """Scenario 53 — bot issues code, web user confirms, discord_id binds."""
-        bot_key = self._issue_bot_key("smoke-link-test")
-        register(client, "kbot_link_user")
-        token, _ = login_session(client, "kbot_link_user")
+    def test_53_auto_provisions_on_first_call(self, client):
+        """Scenario 53 — first call with new X-Discord-User-Id creates the user."""
+        from app.database import SessionLocal
+        from app.models import User
+        from sqlalchemy import select
+        bot_key = self._issue_bot_key()
 
-        # Bot calls discord-link/start — bearer-only, no session, no X-Discord-User-Id
-        _clear_session(client)
-        discord_id = "1234567890_smoke"
-        r = client.post(
-            "/api/auth/discord-link/start",
-            json={"discord_id": discord_id},
-            headers={"Authorization": f"Bearer {bot_key}"},
-        )
-        assert r.status_code == 200, r.text
-        body = r.json()
-        assert body["expires_in"] == 600
-        code = body["code"]
-        assert len(code) == 6 and code.isdigit()
-
-        # User pastes the code on the website
-        with _as(client, token):
-            r2 = client.post("/api/auth/discord-link/confirm", data={"code": code})
-        assert r2.status_code == 200, r2.text
-        assert r2.json()["success"] is True
-
-        # Now the bot can act as that user via Authorization + X-Discord-User-Id.
-        # /api/wallet requires a logged-in user; it should respond as kbot_link_user.
-        _clear_session(client)
-        r3 = client.get(
-            "/api/wallet",
-            headers={
-                "Authorization": f"Bearer {bot_key}",
-                "X-Discord-User-Id": discord_id,
-            },
-        )
-        assert r3.status_code == 200, r3.text
-        # Wallet response shape (from existing endpoints) includes username/address
-        wallet = r3.json()
-        assert wallet.get("address", "").startswith("TRV-")
-
-    def test_54_bot_bad_key_rejected(self, client):
-        """Scenario 54 — invalid bearer token cannot start a link."""
-        _clear_session(client)
-        r = client.post(
-            "/api/auth/discord-link/start",
-            json={"discord_id": "999"},
-            headers={"Authorization": "Bearer tx_live_deadbeefdeadbeefdeadbeefdeadbeef"},
-        )
-        assert r.status_code == 401
-
-    def test_55_bot_unlinked_discord_id_returns_no_user(self, client):
-        """Scenario 55 — bot key + unknown discord_id behaves like anonymous.
-
-        /api/wallet requires login; so it should 303-redirect or 401.  The
-        important thing is that the request is NOT silently attributed to
-        some other user.
-        """
-        bot_key = self._issue_bot_key("smoke-noresolve-test")
+        discord_id = "smoke_autoprov_111"
         _clear_session(client)
         r = client.get(
             "/api/wallet",
             headers={
                 "Authorization": f"Bearer {bot_key}",
-                "X-Discord-User-Id": "no_such_discord_id_99999",
+                "X-Discord-User-Id": discord_id,
+                "X-Discord-Username": "smokey_user",
+                "X-Discord-Display": "Smokey",
             },
         )
-        # require_login raises 303 with Location: /login (web flow) — accept either
-        # 303 or 401 here, both mean "not authenticated".
-        assert r.status_code in (303, 401), f"Expected 303/401 for unlinked, got {r.status_code}"
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["address"].startswith("TRV-")
 
-    def test_56_double_link_blocked(self, client):
-        """Scenario 56 — confirm refuses if the user already has a discord_id."""
-        bot_key = self._issue_bot_key("smoke-double-test")
-        register(client, "kbot_double_user")
-        token, _ = login_session(client, "kbot_double_user")
+        # Verify a User row was created with the discord_id binding
+        db = SessionLocal()
+        try:
+            u = db.execute(select(User).where(User.discord_id == discord_id)).scalar_one()
+            assert u.username == "smokey_user"
+            assert u.display_name == "Smokey"
+            assert u.role == "citizen"
+        finally:
+            db.close()
 
-        # First link
+    def test_54_bad_bot_key_falls_back_to_anonymous(self, client):
+        """Scenario 54 — invalid bearer doesn't auto-provision; behaves anonymous."""
         _clear_session(client)
-        r1 = client.post(
-            "/api/auth/discord-link/start",
-            json={"discord_id": "double_link_id_a"},
-            headers={"Authorization": f"Bearer {bot_key}"},
+        r = client.get(
+            "/api/wallet",
+            headers={
+                "Authorization": "Bearer tx_live_deadbeefdeadbeefdeadbeefdeadbeef",
+                "X-Discord-User-Id": "should_not_exist",
+            },
         )
-        code = r1.json()["code"]
-        with _as(client, token):
-            assert client.post("/api/auth/discord-link/confirm", data={"code": code}).status_code == 200
+        # require_login raises 303 → /login
+        assert r.status_code in (303, 401)
 
-        # Second attempt should fail
+    def test_55_bot_send_tc_works_after_auto_provision(self, client):
+        """Scenario 55 — bot can transfer TC from an auto-provisioned user."""
+        from app.database import SessionLocal
+        from app.models import User
+        from sqlalchemy import select
+        bot_key = self._issue_bot_key()
+
+        # Provision a sender via first /api/wallet hit
+        sender_did = "smoke_send_222"
         _clear_session(client)
-        r2 = client.post(
-            "/api/auth/discord-link/start",
-            json={"discord_id": "double_link_id_b"},
-            headers={"Authorization": f"Bearer {bot_key}"},
+        client.get(
+            "/api/wallet",
+            headers={"Authorization": f"Bearer {bot_key}", "X-Discord-User-Id": sender_did},
         )
-        code2 = r2.json()["code"]
-        with _as(client, token):
-            r3 = client.post("/api/auth/discord-link/confirm", data={"code": code2})
-        assert r3.status_code == 409
+
+        # Mint some TC to sender so they can transfer
+        admin_tok = admin_token(client)
+        db = SessionLocal()
+        try:
+            sender = db.execute(select(User).where(User.discord_id == sender_did)).scalar_one()
+            sender_addr = sender.wallet_address
+        finally:
+            db.close()
+        with _as(client, admin_tok):
+            client.post("/api/mint/execute", json={
+                "to_address": sender_addr, "amount": 100, "memo": "smoke top-up"
+            })
+
+        # Provision a recipient via first /api/wallet hit
+        recv_did = "smoke_recv_333"
+        _clear_session(client)
+        client.get(
+            "/api/wallet",
+            headers={"Authorization": f"Bearer {bot_key}", "X-Discord-User-Id": recv_did},
+        )
+        db = SessionLocal()
+        try:
+            recv = db.execute(select(User).where(User.discord_id == recv_did)).scalar_one()
+            recv_addr = recv.wallet_address
+        finally:
+            db.close()
+
+        # Sender transfers via bot
+        _clear_session(client)
+        r = client.post(
+            "/api/transactions/transfer",
+            json={"to_address": recv_addr, "amount": 50, "memo": "via bot"},
+            headers={"Authorization": f"Bearer {bot_key}", "X-Discord-User-Id": sender_did},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json().get("success") is True
+
+        # Verify balances
+        db = SessionLocal()
+        try:
+            sender = db.execute(select(User).where(User.discord_id == sender_did)).scalar_one()
+            recv = db.execute(select(User).where(User.discord_id == recv_did)).scalar_one()
+            assert sender.balance == 50
+            assert recv.balance == 50
+        finally:
+            db.close()
+
+    def test_56_settings_password_change_via_bot(self, client):
+        """Scenario 56 — new /api/auth/settings/password endpoint works."""
+        bot_key = self._issue_bot_key()
+        # Auto-provision
+        did = "smoke_pw_444"
+        _clear_session(client)
+        client.get("/api/wallet", headers={
+            "Authorization": f"Bearer {bot_key}", "X-Discord-User-Id": did
+        })
+        # Set a password (auto-provision gave them a random one — they won't know it,
+        # but we can read it from the DB for the smoke test by calling change with
+        # the known random hash... actually easier: skip old_password verification
+        # by direct DB write of a known password, then attempt the change)
+        from app.database import SessionLocal
+        from app.models import User
+        from app.auth import hash_password
+        from sqlalchemy import select
+        db = SessionLocal()
+        try:
+            u = db.execute(select(User).where(User.discord_id == did)).scalar_one()
+            u.password_hash = hash_password("oldpass123")
+            db.commit()
+        finally:
+            db.close()
+
+        _clear_session(client)
+        r = client.post(
+            "/api/auth/settings/password",
+            json={"old_password": "oldpass123", "new_password": "newpass456"},
+            headers={"Authorization": f"Bearer {bot_key}", "X-Discord-User-Id": did},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["success"] is True
+
+    def test_57_loan_apply_endpoint_works(self, client):
+        """Scenario 57 — citizen-initiated loan apply via API."""
+        # Skip the full setup — just verify the endpoint is mounted by hitting it
+        # with a missing-bank case.
+        bot_key = self._issue_bot_key()
+        did = "smoke_loan_555"
+        _clear_session(client)
+        client.get("/api/wallet", headers={
+            "Authorization": f"Bearer {bot_key}", "X-Discord-User-Id": did
+        })
+        _clear_session(client)
+        r = client.post(
+            "/api/loans/apply",
+            json={"bank_id": 99999, "amount": 100, "memo": "smoke"},
+            headers={"Authorization": f"Bearer {bot_key}", "X-Discord-User-Id": did},
+        )
+        assert r.status_code == 404
+        assert "Bank not found" in r.json()["detail"]
