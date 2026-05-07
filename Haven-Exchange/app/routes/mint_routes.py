@@ -386,6 +386,42 @@ def approve_nation(
 
 
 # ---------------------------------------------------------------------------
+# POST /api/mint/nations/{nation_id}/reject
+# ---------------------------------------------------------------------------
+@router.post("/nations/{nation_id}/reject")
+def reject_nation(
+    nation_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(_require_world_mint),
+):
+    """Reject a pending nation application.
+
+    Status is moved to ``rejected``; ``leader_id`` and other identity
+    fields are preserved for audit purposes.  The applicant may re-apply
+    with a different name (or the same name once the rejected row is
+    excluded from uniqueness checks — see nations_apply_post).
+    """
+
+    nation = db.execute(
+        select(Nation).where(Nation.id == nation_id)
+    ).scalar_one_or_none()
+
+    if nation is None:
+        raise HTTPException(status_code=404, detail="Nation not found.")
+
+    if nation.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only pending nations can be rejected (current status: {nation.status}).",
+        )
+
+    nation.status = "rejected"
+    db.commit()
+
+    return {"success": True, "nation_id": nation.id, "status": "rejected"}
+
+
+# ---------------------------------------------------------------------------
 # POST /api/mint/nations/{nation_id}/suspend
 # ---------------------------------------------------------------------------
 @router.post("/nations/{nation_id}/suspend")
@@ -394,7 +430,11 @@ def suspend_nation(
     db: Session = Depends(get_db),
     admin: User = Depends(_require_world_mint),
 ):
-    """Suspend an approved nation."""
+    """Suspend an approved nation.
+
+    Also demotes the leader's user.role back to ``citizen`` if they don't
+    lead any other approved nation.  ``world_mint`` is preserved.
+    """
 
     nation = db.execute(
         select(Nation).where(Nation.id == nation_id)
@@ -404,6 +444,55 @@ def suspend_nation(
         raise HTTPException(status_code=404, detail="Nation not found.")
 
     nation.status = "suspended"
+
+    leader = db.execute(
+        select(User).where(User.id == nation.leader_id)
+    ).scalar_one_or_none()
+    if leader is not None and leader.role == "nation_leader":
+        # Only demote if they don't lead any *other* approved nation
+        other_led = db.execute(
+            select(func.count(Nation.id)).where(
+                Nation.leader_id == leader.id,
+                Nation.status == "approved",
+                Nation.id != nation.id,
+            )
+        ).scalar() or 0
+        if other_led == 0:
+            leader.role = "citizen"
+
+    db.commit()
+
+    return {"success": True}
+
+
+# ---------------------------------------------------------------------------
+# POST /api/mint/nations/{nation_id}/unsuspend — Restore a suspended nation
+# ---------------------------------------------------------------------------
+@router.post("/nations/{nation_id}/unsuspend")
+def unsuspend_nation(
+    nation_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(_require_world_mint),
+):
+    """Restore a suspended nation back to ``approved`` and re-promote leader."""
+
+    nation = db.execute(
+        select(Nation).where(Nation.id == nation_id)
+    ).scalar_one_or_none()
+
+    if nation is None:
+        raise HTTPException(status_code=404, detail="Nation not found.")
+    if nation.status != "suspended":
+        raise HTTPException(status_code=400, detail="Nation is not suspended.")
+
+    nation.status = "approved"
+
+    leader = db.execute(
+        select(User).where(User.id == nation.leader_id)
+    ).scalar_one_or_none()
+    if leader is not None and leader.role not in ("world_mint", "nation_leader"):
+        leader.role = "nation_leader"
+
     db.commit()
 
     return {"success": True}

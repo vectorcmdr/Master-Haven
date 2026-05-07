@@ -16,7 +16,9 @@ from sqlalchemy.orm import Session
 
 from app.auth import (
     get_current_user,
+    get_led_nation,
     hash_password,
+    is_leader_of,
     require_login,
     require_role,
     verify_password,
@@ -376,9 +378,13 @@ def nations_apply_post(
     user: User = Depends(require_login),
     db: Session = Depends(get_db),
 ):
-    # Validate: user doesn't already lead a nation
+    # Validate: user doesn't already lead a nation (any status — pending,
+    # approved, suspended).  Re-applying after rejection is allowed.
     existing_nation = db.execute(
-        select(Nation).where(Nation.leader_id == user.id)
+        select(Nation).where(
+            Nation.leader_id == user.id,
+            Nation.status != "rejected",
+        )
     ).scalar_one_or_none()
     if existing_nation is not None:
         return RedirectResponse(
@@ -386,11 +392,23 @@ def nations_apply_post(
             status_code=303,
         )
 
-    # Validate: name is unique
-    name_taken = db.execute(
-        select(Nation).where(Nation.name == name.strip())
+    # Validate: user must leave their current nation before applying to lead
+    # a new one (you can't be a citizen of nation A and try to lead nation B).
+    if user.nation_id is not None:
+        return RedirectResponse(
+            url="/nations/apply?error=You+must+leave+your+current+nation+before+founding+a+new+one",
+            status_code=303,
+        )
+
+    # Validate: name is unique among non-rejected nations.  Allow re-using
+    # a name that was previously rejected so applicants get a second chance.
+    name_taken_active = db.execute(
+        select(Nation).where(
+            Nation.name == name.strip(),
+            Nation.status != "rejected",
+        )
     ).scalar_one_or_none()
-    if name_taken is not None:
+    if name_taken_active is not None:
         return RedirectResponse(
             url="/nations/apply?error=A+nation+with+that+name+already+exists",
             status_code=303,
@@ -641,19 +659,10 @@ def nation_settings_page(
     /mint/nations/{id}/edit-identity for any nation; this page is the
     self-service equivalent for the leader of a single nation.
     """
-    if user.role != "nation_leader":
-        return RedirectResponse(
-            url="/dashboard?error=You+must+be+a+nation+leader+to+edit+nation+settings",
-            status_code=303,
-        )
-
-    nation = db.execute(
-        select(Nation).where(Nation.leader_id == user.id, Nation.status == "approved")
-    ).scalar_one_or_none()
-
+    nation = get_led_nation(db, user)
     if nation is None:
         return RedirectResponse(
-            url="/dashboard?error=No+approved+nation+found+for+your+account",
+            url="/dashboard?error=You+do+not+lead+an+approved+nation",
             status_code=303,
         )
 
@@ -684,19 +693,10 @@ def nation_settings_post(
     currency code 2-8 chars and auto-uppercased, blank currency fields
     stored as NULL.
     """
-    if user.role != "nation_leader":
-        return RedirectResponse(
-            url="/dashboard?error=You+must+be+a+nation+leader+to+edit+nation+settings",
-            status_code=303,
-        )
-
-    nation = db.execute(
-        select(Nation).where(Nation.leader_id == user.id, Nation.status == "approved")
-    ).scalar_one_or_none()
-
+    nation = get_led_nation(db, user)
     if nation is None:
         return RedirectResponse(
-            url="/dashboard?error=No+approved+nation+found+for+your+account",
+            url="/dashboard?error=You+do+not+lead+an+approved+nation",
             status_code=303,
         )
 
@@ -787,19 +787,10 @@ def nation_treasury_page(
     user: User = Depends(require_login),
     db: Session = Depends(get_db),
 ):
-    if user.role != "nation_leader":
-        return RedirectResponse(
-            url="/dashboard?error=You+must+be+a+nation+leader+to+access+the+treasury",
-            status_code=303,
-        )
-
-    nation = db.execute(
-        select(Nation).where(Nation.leader_id == user.id, Nation.status == "approved")
-    ).scalar_one_or_none()
-
+    nation = get_led_nation(db, user)
     if nation is None:
         return RedirectResponse(
-            url="/dashboard?error=No+approved+nation+found",
+            url="/dashboard?error=You+do+not+lead+an+approved+nation",
             status_code=303,
         )
 
@@ -841,19 +832,10 @@ def nation_distribute_page(
     user: User = Depends(require_login),
     db: Session = Depends(get_db),
 ):
-    if user.role != "nation_leader":
-        return RedirectResponse(
-            url="/dashboard?error=You+must+be+a+nation+leader+to+distribute+funds",
-            status_code=303,
-        )
-
-    nation = db.execute(
-        select(Nation).where(Nation.leader_id == user.id, Nation.status == "approved")
-    ).scalar_one_or_none()
-
+    nation = get_led_nation(db, user)
     if nation is None:
         return RedirectResponse(
-            url="/dashboard?error=No+approved+nation+found",
+            url="/dashboard?error=You+do+not+lead+an+approved+nation",
             status_code=303,
         )
 
@@ -890,19 +872,10 @@ def nation_distribute_post(
     user: User = Depends(require_login),
     db: Session = Depends(get_db),
 ):
-    if user.role != "nation_leader":
-        return RedirectResponse(
-            url="/dashboard?error=You+must+be+a+nation+leader",
-            status_code=303,
-        )
-
-    nation = db.execute(
-        select(Nation).where(Nation.leader_id == user.id, Nation.status == "approved")
-    ).scalar_one_or_none()
-
+    nation = get_led_nation(db, user)
     if nation is None:
         return RedirectResponse(
-            url="/dashboard?error=No+approved+nation+found",
+            url="/dashboard?error=You+do+not+lead+an+approved+nation",
             status_code=303,
         )
 
@@ -938,19 +911,10 @@ def nation_distribute_bulk_post(
     user: User = Depends(require_login),
     db: Session = Depends(get_db),
 ):
-    if user.role != "nation_leader":
-        return RedirectResponse(
-            url="/dashboard?error=You+must+be+a+nation+leader",
-            status_code=303,
-        )
-
-    nation = db.execute(
-        select(Nation).where(Nation.leader_id == user.id, Nation.status == "approved")
-    ).scalar_one_or_none()
-
+    nation = get_led_nation(db, user)
     if nation is None:
         return RedirectResponse(
-            url="/dashboard?error=No+approved+nation+found",
+            url="/dashboard?error=You+do+not+lead+an+approved+nation",
             status_code=303,
         )
 
@@ -1011,19 +975,10 @@ def nation_members_page(
     user: User = Depends(require_login),
     db: Session = Depends(get_db),
 ):
-    if user.role != "nation_leader":
-        return RedirectResponse(
-            url="/dashboard?error=You+must+be+a+nation+leader",
-            status_code=303,
-        )
-
-    nation = db.execute(
-        select(Nation).where(Nation.leader_id == user.id, Nation.status == "approved")
-    ).scalar_one_or_none()
-
+    nation = get_led_nation(db, user)
     if nation is None:
         return RedirectResponse(
-            url="/dashboard?error=No+approved+nation+found",
+            url="/dashboard?error=You+do+not+lead+an+approved+nation",
             status_code=303,
         )
 
@@ -2433,6 +2388,79 @@ def mint_reject_nation_post(
 
     return RedirectResponse(
         url="/mint?success=Nation+rejected", status_code=303
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /mint/nations/{nation_id}/suspend — Suspend an approved nation
+# ---------------------------------------------------------------------------
+@router.post("/mint/nations/{nation_id}/suspend")
+def mint_suspend_nation_post(
+    nation_id: int,
+    request: Request,
+    user: User = Depends(_require_world_mint),
+    db: Session = Depends(get_db),
+):
+    nation = db.execute(
+        select(Nation).where(Nation.id == nation_id)
+    ).scalar_one_or_none()
+    if nation is None:
+        return RedirectResponse(url="/mint/nations?error=Nation+not+found", status_code=303)
+    if nation.status != "approved":
+        return RedirectResponse(url="/mint/nations?error=Only+approved+nations+can+be+suspended", status_code=303)
+
+    nation.status = "suspended"
+
+    leader = db.execute(
+        select(User).where(User.id == nation.leader_id)
+    ).scalar_one_or_none()
+    if leader is not None and leader.role == "nation_leader":
+        other_led = db.execute(
+            select(func.count(Nation.id)).where(
+                Nation.leader_id == leader.id,
+                Nation.status == "approved",
+                Nation.id != nation.id,
+            )
+        ).scalar() or 0
+        if other_led == 0:
+            leader.role = "citizen"
+
+    db.commit()
+    return RedirectResponse(
+        url=f"/mint/nations?success=Nation+'{nation.name}'+suspended".replace("'", "%27"),
+        status_code=303,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /mint/nations/{nation_id}/unsuspend — Restore a suspended nation
+# ---------------------------------------------------------------------------
+@router.post("/mint/nations/{nation_id}/unsuspend")
+def mint_unsuspend_nation_post(
+    nation_id: int,
+    request: Request,
+    user: User = Depends(_require_world_mint),
+    db: Session = Depends(get_db),
+):
+    nation = db.execute(
+        select(Nation).where(Nation.id == nation_id)
+    ).scalar_one_or_none()
+    if nation is None:
+        return RedirectResponse(url="/mint/nations?error=Nation+not+found", status_code=303)
+    if nation.status != "suspended":
+        return RedirectResponse(url="/mint/nations?error=Only+suspended+nations+can+be+unsuspended", status_code=303)
+
+    nation.status = "approved"
+    leader = db.execute(
+        select(User).where(User.id == nation.leader_id)
+    ).scalar_one_or_none()
+    if leader is not None and leader.role not in ("world_mint", "nation_leader"):
+        leader.role = "nation_leader"
+    db.commit()
+
+    return RedirectResponse(
+        url=f"/mint/nations?success=Nation+'{nation.name}'+restored".replace("'", "%27"),
+        status_code=303,
     )
 
 

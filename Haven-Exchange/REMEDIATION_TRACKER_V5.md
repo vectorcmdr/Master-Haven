@@ -9,8 +9,8 @@
 | Phase | Status | Started | Completed | Smoke tests | Commit |
 |---|---|---|---|---|---|
 | 0 | done | 2026-05-06 20:38 | 2026-05-06 20:40 | 52/52 | (in-flight) |
-| 1 | done | 2026-05-06 20:42 | 2026-05-06 21:08 | 52/52 | (in-flight) |
-| 2 | pending | — | — | — | — |
+| 1 | done | 2026-05-06 20:42 | 2026-05-06 21:08 | 52/52 | 3050916 |
+| 2 | done | 2026-05-06 21:09 | 2026-05-06 21:25 | 52/52 | (in-flight) |
 | 3 | pending | — | — | — | — |
 | 4 | pending | — | — | — | — |
 | 5 | pending | — | — | — | — |
@@ -30,15 +30,15 @@
 | 1 | /shop/ipo NameError 500 | 1 | done | page_routes.py | live: GET /shop/ipo→200 | module-level datetime+timedelta+timezone import; removed 9 local duplicates |
 | 2 | No UI to approve pending shops | 1 | done | page_routes.py, mint/pending_shops.html, nation/pending_shops.html, mint/dashboard.html, dashboard.html, base.html | live: WM approves Alice's shop via /mint/shops/pending; Alice approves Bob's via /nation/shops/pending | new routes /mint/shops/pending, /nation/shops/pending + approve/reject; nav + dashboard cards added |
 | 3 | Nation leader can self-approve own shop | 1 | done | shop_routes.py, page_routes.py | live: Alice POST /api/shops/2/approve→403; UI redirect with clear error | guards in approve_shop, reject_shop, suspend_shop and /nation/shops/{id}/approve |
-| 4 | Helper for relational leader check | 2 | pending | — | — | new infra |
-| 5 | Suspend nation demotes leader role | 2 | pending | — | — | role drift |
-| 6 | Unsuspend re-promotes leader role | 2 | pending | — | — | role drift |
-| 7 | WM-as-leader access to /nation/* | 2 | pending | — | — | V4 §3.4, §D |
-| 8 | Standardize role-check pattern | 2 | pending | — | — | hygiene |
-| 9 | Reject pending nation endpoint | 2 | pending | — | — | confirm exists |
-| 10 | Unsuspend nation endpoint | 2 | pending | — | — | tied to fix 6 |
+| 4 | Helper for relational leader check | 2 | done | app/auth.py | live: imports work | added is_leader_of, get_led_nation in Phase 1 |
+| 5 | Suspend nation demotes leader role | 2 | done | mint_routes.py, page_routes.py | live: alice citizen after suspend | preserves world_mint role; checks for other-led nations |
+| 6 | Unsuspend re-promotes leader role | 2 | done | mint_routes.py, page_routes.py | live: alice nation_leader after unsuspend | new POST /api/mint/nations/{id}/unsuspend + page route |
+| 7 | WM-as-leader access to /nation/* | 2 | done | page_routes.py | live: admin (WM) gets 200 on all 4 nation pages while leading Adminland | bulk-replaced 7 guard blocks via regex sub |
+| 8 | Standardize role-check pattern | 2 | done | page_routes.py | grep -c found 0 occurrences after replace | get_led_nation is the canonical pattern; existing relational checks left as-is |
+| 9 | Reject pending nation endpoint | 2 | done | mint_routes.py | live: API rejects, status=rejected | added POST /api/mint/nations/{id}/reject; page-route version pre-existed |
+| 10 | Unsuspend nation endpoint | 2 | done | mint_routes.py, page_routes.py | (covered by fix 6) | API + page-route POST |
 | 11 | Leadership-transfer flow | 2 | deferred-to-followup | — | — | needs design input |
-| 12 | Validate user not already in nation on apply | 2 | pending | — | — | new guard |
+| 12 | Validate user not already in nation on apply | 2 | done | page_routes.py | live: alice (member of Atlantia) gets "You already lead a nation" | also blocks citizens-of-other-nations from applying; rejected nation names re-usable |
 | 13 | Hide "Open a Shop" CTA when ineligible | 3 | pending | — | — | V4 §3.6 |
 | 14 | Pending-nation user shouldn't see shop CTA | 3 | pending | — | — | V4 §A.2/B.3 |
 | 15 | Suspended-nation leader navbar gate | 3 | pending | — | — | V4 §E.2 |
