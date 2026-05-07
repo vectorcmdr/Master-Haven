@@ -1566,6 +1566,12 @@ def dashboard_page(
         select(Nation).where(Nation.leader_id == user.id, Nation.status == "pending")
     ).scalar_one_or_none()
 
+    # "New user" flag for onboarding banner — created in last 24 hours
+    is_new_user = False
+    if user.created_at is not None:
+        created_aware = user.created_at if user.created_at.tzinfo else user.created_at.replace(tzinfo=timezone.utc)
+        is_new_user = (datetime.now(timezone.utc) - created_aware) < timedelta(hours=24)
+
     # Recent transactions (last 10)
     recent_transactions = get_transactions_for_address(
         db, user.wallet_address, limit=10, offset=0
@@ -1624,6 +1630,7 @@ def dashboard_page(
         user_shop=user_shop,
         led_pending_shops_count=led_pending_shops_count,
         portfolio_stats=portfolio_stats,
+        is_new_user=is_new_user,
     )
     return templates.TemplateResponse("dashboard.html", ctx)
 

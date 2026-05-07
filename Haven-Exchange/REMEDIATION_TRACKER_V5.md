@@ -12,8 +12,8 @@
 | 1 | done | 2026-05-06 20:42 | 2026-05-06 21:08 | 52/52 | 3050916 |
 | 2 | done | 2026-05-06 21:09 | 2026-05-06 21:25 | 52/52 | b489b36 |
 | 3 | done | 2026-05-06 21:26 | 2026-05-06 21:55 | 52/52 | b875422 |
-| 4 | done | 2026-05-06 21:56 | 2026-05-06 22:18 | 52/52 | (in-flight) |
-| 5 | pending | — | — | — | — |
+| 4 | done | 2026-05-06 21:56 | 2026-05-06 22:18 | 52/52 | 0cc707e |
+| 5 | done | 2026-05-06 22:19 | 2026-05-06 22:38 | 52/52 | (in-flight) |
 | 6 | pending | — | — | — | — |
 | 7 | pending | — | — | — | — |
 | 8 | pending | — | — | — | — |
@@ -51,13 +51,13 @@
 | 22 | Form input preservation across POST handlers | 4 | partial | send.html, nations_apply.html, shop_create.html, page_routes.py | live: /send, /nations/apply, /shop/create all preserve input on error | added _render_form_error helper; refactored 3 high-impact POST handlers; remaining (/banks/create, /loans/apply POST, /register, /login, exchange trade, distribute, ipo) NOT refactored — will use redirect+error pattern. Deferred to follow-up sweep. |
 | 23 | Shop creation form too thin | 4 | done | shop_create.html, page_routes.py | live: resource_depot without mining_setup → inline error; with mining_setup → success | added shop_type select + conditional mining_setup textarea; smoke test #19/#20 still pass |
 | 24 | CSRF tokens | 4 | deferred-to-followup | — | — | separate security pass |
-| 25 | New-user onboarding banner | 5 | pending | — | — | new partial |
-| 26 | Promote no-nation guidance | 5 | pending | — | — | tied to fix 25 |
-| 27 | Apply-for-Nation entry point | 5 | pending | — | — | banner on /nations |
-| 28 | Banks in navbar | 5 | pending | — | — | new nav item |
-| 29 | Loans in navbar | 5 | pending | — | — | new nav item |
-| 30 | Distribute in navbar (leader-only) | 5 | pending | — | — | V4 §N.5 |
-| 31 | Promote pending-nation status | 5 | pending | — | — | visual emphasis |
+| 25 | New-user onboarding banner | 5 | done | _partials/onboarding.html, dashboard.html, page_routes.py | live: eve sees Welcome banner, then pending banner, then nothing after approval | state machine in partial; is_new_user computed from created_at < 24h |
+| 26 | Promote no-nation guidance | 5 | done | _partials/onboarding.html | (covered by fix 25) | compact "join a nation" prompt for users past first 24h |
+| 27 | Apply-for-Nation entry point | 5 | done | nations.html | live: "Don't see your community" banner on /nations for non-member users | hides for users with pending app or already in nation |
+| 28 | Banks in navbar | 5 | done | base.html | live: /banks/nation/{id} link in nav for users with a nation | conditional on user_nation since no top-level /banks page exists |
+| 29 | Loans in navbar | 5 | done | base.html | live: /loans/mine link in nav | always visible to logged-in users |
+| 30 | Distribute in navbar (leader-only) | 5 | done | base.html | live: /nation/distribute link in leader nav block | gated on user_led_nation |
+| 31 | Promote pending-nation status | 5 | done | dashboard.html | live: pulse animation + larger font + ⏳ icon | inline @keyframes pulse; expanded help text |
 | 32 | Mobile nav grouping | 7 | pending | — | — | V4 §F.2 |
 | 33 | Sub-toggle pattern for sections | 7 | pending | — | — | tied to fix 32 |
 | 34 | Breadcrumbs | 7 | pending | — | — | new |

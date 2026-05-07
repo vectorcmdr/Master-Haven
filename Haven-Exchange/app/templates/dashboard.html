@@ -8,6 +8,8 @@
     <p class="page-subtitle">Your Travelers Exchange dashboard</p>
 </div>
 
+{% include "_partials/onboarding.html" %}
+
 <!-- Balance & Wallet Info -->
 <div class="dashboard-grid">
     <div class="stat-card">
@@ -63,11 +65,13 @@
                     <small class="text-muted">Game: {{ nation.game }}</small>
                 {% endif %}
             {% elif pending_nation %}
-                <p style="margin-bottom: var(--space-sm);">
+                <p style="margin-bottom: var(--space-sm); font-size: 1.05rem;">
+                    <span style="font-size: 1.25em;">&#9203;</span>
                     <strong>{{ pending_nation.name }}</strong>
-                    <span class="badge badge-pending" style="margin-left: var(--space-xs);">Pending Approval</span>
+                    <span class="badge badge-pending" style="margin-left: var(--space-xs); animation: pulse 2s ease-in-out infinite;">Pending Approval</span>
                 </p>
-                <small class="text-muted">Your nation application is being reviewed by the World Mint.</small>
+                <small class="text-muted" style="display: block; line-height: 1.5;">Your nation application is being reviewed by the World Mint. Approval typically happens within 24&ndash;48 hours.</small>
+                <style>@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.55;} }</style>
             {% else %}
                 <p class="text-muted" style="margin-bottom: var(--space-sm);">Not a member of any nation yet.</p>
                 <div class="btn-group">

@@ -31,12 +31,17 @@
                     <a href="/history" {% if active_page == 'history' %}class="active"{% endif %}>History</a>
                     <a href="/shop/manage" {% if active_page == 'shop' %}class="active"{% endif %}>My Shop</a>
                     <a href="/portfolio" {% if active_page == 'portfolio' %}class="active"{% endif %}>Portfolio</a>
+                    {% if user_nation %}
+                    <a href="/banks/nation/{{ user_nation.id }}" {% if active_page == 'banks' %}class="active"{% endif %}>Banks</a>
+                    {% endif %}
+                    <a href="/loans/mine" {% if active_page == 'loans' %}class="active"{% endif %}>Loans</a>
                     <a href="/docs" {% if active_page == 'docs' %}class="active"{% endif %}>Docs</a>
                     <a href="/settings" {% if active_page == 'settings' %}class="active"{% endif %}>Settings</a>
 
                     {% if user_led_nation %}
                         <span class="nav-divider"></span>
                         <a href="/nation/treasury" {% if active_page == 'treasury' %}class="active"{% endif %}>Treasury</a>
+                        <a href="/nation/distribute" {% if active_page == 'distribute' %}class="active"{% endif %}>Distribute</a>
                         <a href="/nation/members" {% if active_page == 'members' %}class="active"{% endif %}>Members</a>
                         <a href="/nation/shops/pending" {% if active_page == 'pending_shops' %}class="active"{% endif %}>Pending Shops</a>
                     {% endif %}
