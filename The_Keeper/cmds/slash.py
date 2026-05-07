@@ -111,7 +111,7 @@ class CommandsCog(commands.Cog):
 @app_commands.command(name="sync")
 @app_commands.checks.has_permissions(administrator=True)
 async def sync(interaction: discord.Interaction):
-    guild = discord.Object(id=YOUR_GUILD_ID)
+    guild = discord.Object(1423941004230135851)
     await bot.tree.sync(guild=guild)
     await interaction.response.send_message("Synced!", ephemeral=True)
 
