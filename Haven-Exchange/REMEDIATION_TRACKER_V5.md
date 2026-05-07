@@ -11,8 +11,8 @@
 | 0 | done | 2026-05-06 20:38 | 2026-05-06 20:40 | 52/52 | (in-flight) |
 | 1 | done | 2026-05-06 20:42 | 2026-05-06 21:08 | 52/52 | 3050916 |
 | 2 | done | 2026-05-06 21:09 | 2026-05-06 21:25 | 52/52 | b489b36 |
-| 3 | done | 2026-05-06 21:26 | 2026-05-06 21:55 | 52/52 | (in-flight) |
-| 4 | pending | — | — | — | — |
+| 3 | done | 2026-05-06 21:26 | 2026-05-06 21:55 | 52/52 | b875422 |
+| 4 | done | 2026-05-06 21:56 | 2026-05-06 22:18 | 52/52 | (in-flight) |
 | 5 | pending | — | — | — | — |
 | 6 | pending | — | — | — | — |
 | 7 | pending | — | — | — | — |
@@ -47,9 +47,9 @@
 | 18 | Block listing creation on pending shops | 3 | done | page_routes.py | live: bob's POST → "Your shop must be approved", listings table empty | guard in shop_listing_create_post + toggle_post |
 | 19 | Pending-shop banner on /shop/manage | 3 | done | shop_manage.html | live: alert-info banner rendered for pending shop; listings form hidden | also rendered for rejected/suspended states |
 | 20 | /loans/apply empty state by role | 3 | done | loan_apply.html | role-aware CTA wired (live test in Phase 6) | shows "Create a Bank" to leaders, "ask your nation leader" otherwise |
-| 21 | /send max="0" poisoning | 4 | pending | — | — | V4 §A.3 |
-| 22 | Form input preservation across POST handlers | 4 | pending | — | — | V4 §A.3 sweep |
-| 23 | Shop creation form too thin | 4 | pending | — | — | shop_type/mining_setup |
+| 21 | /send max="0" poisoning | 4 | done | send.html | live: balance=0 user submits, max attr removed when balance=0 | drops max attr instead of poisoning at zero |
+| 22 | Form input preservation across POST handlers | 4 | partial | send.html, nations_apply.html, shop_create.html, page_routes.py | live: /send, /nations/apply, /shop/create all preserve input on error | added _render_form_error helper; refactored 3 high-impact POST handlers; remaining (/banks/create, /loans/apply POST, /register, /login, exchange trade, distribute, ipo) NOT refactored — will use redirect+error pattern. Deferred to follow-up sweep. |
+| 23 | Shop creation form too thin | 4 | done | shop_create.html, page_routes.py | live: resource_depot without mining_setup → inline error; with mining_setup → success | added shop_type select + conditional mining_setup textarea; smoke test #19/#20 still pass |
 | 24 | CSRF tokens | 4 | deferred-to-followup | — | — | separate security pass |
 | 25 | New-user onboarding banner | 5 | pending | — | — | new partial |
 | 26 | Promote no-nation guidance | 5 | pending | — | — | tied to fix 25 |

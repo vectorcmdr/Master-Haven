@@ -164,6 +164,32 @@ def _paginate(total: int, page: int, per_page: int = PER_PAGE) -> dict:
     }
 
 
+def _render_form_error(
+    request: Request,
+    user: Optional[User],
+    db: Session,
+    template_name: str,
+    error: str,
+    form_data: dict,
+    **extra_ctx,
+):
+    """Re-render *template_name* with the user's input preserved.
+
+    Use this from POST handlers in place of a 303 RedirectResponse so the
+    error message and the form values stay together.  The template is
+    expected to read `form_data.<field>` defaulting to empty string.
+    """
+    ctx = _base_context(
+        request,
+        user,
+        db=db,
+        flash_error=error,
+        form_data=form_data,
+        **extra_ctx,
+    )
+    return templates.TemplateResponse(template_name, ctx)
+
+
 def _build_name_map(db: Session) -> dict:
     """Return a dict mapping wallet/treasury address -> human-readable display name."""
     name_map: dict = {}
@@ -400,6 +426,21 @@ def nations_apply_post(
     user: User = Depends(require_login),
     db: Session = Depends(get_db),
 ):
+    fd = {
+        "name": name,
+        "description": description,
+        "game": game,
+        "discord_invite": discord_invite,
+        "currency_name": currency_name,
+        "currency_code": currency_code,
+    }
+
+    def _err(msg):
+        return _render_form_error(
+            request, user, db, "nations_apply.html", msg, fd,
+            active_page="nations",
+        )
+
     # Validate: user doesn't already lead a nation (any status — pending,
     # approved, suspended).  Re-applying after rejection is allowed.
     existing_nation = db.execute(
@@ -409,18 +450,12 @@ def nations_apply_post(
         )
     ).scalar_one_or_none()
     if existing_nation is not None:
-        return RedirectResponse(
-            url="/nations/apply?error=You+already+lead+a+nation",
-            status_code=303,
-        )
+        return _err("You already lead a nation")
 
     # Validate: user must leave their current nation before applying to lead
     # a new one (you can't be a citizen of nation A and try to lead nation B).
     if user.nation_id is not None:
-        return RedirectResponse(
-            url="/nations/apply?error=You+must+leave+your+current+nation+before+founding+a+new+one",
-            status_code=303,
-        )
+        return _err("You must leave your current nation before founding a new one")
 
     # Validate: name is unique among non-rejected nations.  Allow re-using
     # a name that was previously rejected so applicants get a second chance.
@@ -431,10 +466,7 @@ def nations_apply_post(
         )
     ).scalar_one_or_none()
     if name_taken_active is not None:
-        return RedirectResponse(
-            url="/nations/apply?error=A+nation+with+that+name+already+exists",
-            status_code=303,
-        )
+        return _err("A nation with that name already exists")
 
     # Validate currency code if provided
     import re
@@ -442,18 +474,12 @@ def nations_apply_post(
     cn = currency_name.strip() if currency_name else ""
     if cc:
         if not re.match(r"^[A-Z]{2,5}$", cc):
-            return RedirectResponse(
-                url="/nations/apply?error=Currency+code+must+be+2-5+uppercase+letters",
-                status_code=303,
-            )
+            return _err("Currency code must be 2-5 uppercase letters")
         code_taken = db.execute(
             select(Nation).where(Nation.currency_code == cc)
         ).scalar_one_or_none()
         if code_taken is not None:
-            return RedirectResponse(
-                url=f"/nations/apply?error=Currency+code+{cc}+is+already+in+use",
-                status_code=303,
-            )
+            return _err(f"Currency code {cc} is already in use")
 
     # Create the nation with placeholder address, flush to get ID
     nation = Nation(
@@ -1652,11 +1678,16 @@ def send_post(
             status_code=303,
         )
     except ValueError as exc:
-        error_msg = str(exc).replace(" ", "+")
-        return RedirectResponse(
-            url=f"/send?error={error_msg}",
-            status_code=303,
+        # Re-render the send form with the user's input preserved.
+        ctx = _base_context(
+            request,
+            user,
+            db=db,
+            active_page="send",
+            flash_error=str(exc),
+            form_data={"to_address": to_address, "amount": amount, "memo": memo or ""},
         )
+        return templates.TemplateResponse("send.html", ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -1853,9 +1884,18 @@ def shop_create_post(
     request: Request,
     name: str = Form(...),
     description: str = Form(""),
+    shop_type: str = Form("general"),
+    mining_setup: str = Form(""),
     user: User = Depends(require_login),
     db: Session = Depends(get_db),
 ):
+    fd = {
+        "name": name,
+        "description": description,
+        "shop_type": shop_type,
+        "mining_setup": mining_setup,
+    }
+
     if user.nation_id is None:
         return RedirectResponse(url="/shop/manage?error=You+must+join+a+nation+first", status_code=303)
 
@@ -1867,15 +1907,30 @@ def shop_create_post(
     if existing is not None:
         return RedirectResponse(url="/shop/manage?error=You+already+own+a+shop", status_code=303)
 
+    def _err(msg):
+        return _render_form_error(
+            request, user, db, "shop_create.html", msg, fd,
+            active_page="shop", nation_name=nation.name,
+        )
+
     shop_name = name.strip()
     if not shop_name:
-        return RedirectResponse(url="/shop/create?error=Shop+name+cannot+be+empty", status_code=303)
+        return _err("Shop name cannot be empty")
+
+    if shop_type not in ("general", "resource_depot"):
+        return _err("Invalid shop type")
+
+    mining_clean = mining_setup.strip() if mining_setup else ""
+    if shop_type == "resource_depot" and not mining_clean:
+        return _err("Resource depot shops require a mining setup disclosure")
 
     shop = Shop(
         owner_id=user.id,
         nation_id=user.nation_id,
         name=shop_name,
         description=description.strip() or None,
+        shop_type=shop_type,
+        mining_setup=mining_clean or None,
     )
     db.add(shop)
     db.commit()
