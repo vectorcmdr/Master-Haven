@@ -17,7 +17,88 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import Nation, Session_, User
+from app.models import ApiKey, Nation, Session_, User
+
+
+# ---------------------------------------------------------------------------
+# Keeper integration P0 — API key generation & verification
+# ---------------------------------------------------------------------------
+# Bearer-token credentials for external bots.  Plaintext keys look like:
+#     tx_live_<32 hex chars>
+# The first 12 chars (e.g. "tx_live_a1b2") are the prefix used as a fast
+# index lookup; the full plaintext is then bcrypt-compared against
+# ApiKey.key_hash on the matching row.
+
+API_KEY_PREFIX_LEN = 12  # "tx_live_" + 4 hex chars
+API_KEY_TAG = "tx_live_"
+
+
+def generate_api_key() -> tuple[str, str, str]:
+    """Mint a fresh plaintext key.
+
+    Returns ``(plaintext, prefix, hash)``.  Caller is responsible for
+    persisting prefix + hash to the database; plaintext is shown to the
+    operator once and never stored.
+    """
+    body = secrets.token_hex(16)  # 32 hex chars
+    plaintext = f"{API_KEY_TAG}{body}"
+    prefix = plaintext[:API_KEY_PREFIX_LEN]
+    hashed = bcrypt.hashpw(plaintext.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return plaintext, prefix, hashed
+
+
+def verify_api_key(token: str, db: Session) -> Optional[ApiKey]:
+    """Look up an ApiKey by bearer token.
+
+    Returns the active ApiKey row, or None if the token doesn't match.
+    Updates ``last_used_at`` as a side effect on a successful match.
+    """
+    if not token or not token.startswith(API_KEY_TAG):
+        return None
+    prefix = token[:API_KEY_PREFIX_LEN]
+    candidates = db.execute(
+        select(ApiKey).where(ApiKey.key_prefix == prefix, ApiKey.is_active == True)  # noqa: E712
+    ).scalars().all()
+    for cand in candidates:
+        try:
+            if bcrypt.checkpw(token.encode("utf-8"), cand.key_hash.encode("utf-8")):
+                cand.last_used_at = datetime.now(timezone.utc)
+                db.commit()
+                return cand
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def _resolve_bot_user(request: Request, db: Session) -> Optional[User]:
+    """If the request carries a valid bot bearer token + X-Discord-User-Id
+    header, resolve the linked Exchange user and return it.
+
+    Returns None for any failure mode (no token, bad token, missing
+    header, no linked user) — falls back to session auth.
+    """
+    auth_hdr = request.headers.get("authorization") or ""
+    if not auth_hdr.lower().startswith("bearer "):
+        return None
+    token = auth_hdr.split(None, 1)[1].strip()
+    api_key = verify_api_key(token, db)
+    if api_key is None:
+        return None
+
+    # Bot key valid.  Resolve target user via X-Discord-User-Id.
+    discord_id = request.headers.get("x-discord-user-id")
+    if not discord_id:
+        # Bot key alone, no acting-as.  We do not synthesize a "bot" user —
+        # endpoints that don't need a user (public reads) will accept this
+        # silently because they don't depend on get_current_user.
+        return None
+    discord_id = discord_id.strip()
+    if not discord_id:
+        return None
+    user = db.execute(
+        select(User).where(User.discord_id == discord_id)
+    ).scalar_one_or_none()
+    return user
 
 
 # ---------------------------------------------------------------------------
@@ -81,12 +162,21 @@ def get_current_user(
 ) -> Optional[User]:
     """FastAPI dependency that resolves the currently logged-in user.
 
-    Reads the ``session_token`` cookie, looks up the corresponding
-    Session_ row, and returns the associated User if the session is still
-    valid.  Returns ``None`` when no valid session exists.
+    Resolution order:
+      1. Bot bearer token + X-Discord-User-Id header — for Keeper bot
+         requests.  The bearer must match an active ApiKey row, and
+         the discord_id header must match a User.discord_id binding.
+      2. Session cookie — the standard browser path.
+    Returns None when neither produces a user.
 
     Occasionally cleans up expired sessions to keep the table tidy.
     """
+    # 1. Bot path
+    bot_user = _resolve_bot_user(request, db)
+    if bot_user is not None:
+        return bot_user
+
+    # 2. Session cookie path
     token = request.cookies.get("session_token")
     if not token:
         return None

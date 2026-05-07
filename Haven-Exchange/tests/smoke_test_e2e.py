@@ -828,3 +828,134 @@ class TestWalletHealthMetrics:
                       "volume_lifetime", "volume_30d"):
             assert field in data, f"Missing wallet health field: {field}"
             assert isinstance(data[field], int)
+
+
+# ---------------------------------------------------------------------------
+# 15. Keeper Bot Integration (P0)
+# ---------------------------------------------------------------------------
+class TestKeeperBotIntegrationP0:
+    """End-to-end coverage of the new bot bearer-token + Discord-link flow.
+
+    The TestClient hits the in-process app, so we issue a bot key directly
+    via the same code path scripts/issue_bot_key.py uses.
+    """
+
+    def _issue_bot_key(self, label: str = "smoke-test-bot") -> str:
+        from app.auth import generate_api_key
+        from app.database import SessionLocal
+        from app.models import ApiKey
+        plaintext, prefix, hashed = generate_api_key()
+        db = SessionLocal()
+        try:
+            row = ApiKey(
+                key_prefix=prefix,
+                key_hash=hashed,
+                label=label,
+                scope="bot_full",
+                is_active=True,
+            )
+            db.add(row)
+            db.commit()
+        finally:
+            db.close()
+        return plaintext
+
+    def test_53_link_flow_round_trip(self, client):
+        """Scenario 53 — bot issues code, web user confirms, discord_id binds."""
+        bot_key = self._issue_bot_key("smoke-link-test")
+        register(client, "kbot_link_user")
+        token, _ = login_session(client, "kbot_link_user")
+
+        # Bot calls discord-link/start — bearer-only, no session, no X-Discord-User-Id
+        _clear_session(client)
+        discord_id = "1234567890_smoke"
+        r = client.post(
+            "/api/auth/discord-link/start",
+            json={"discord_id": discord_id},
+            headers={"Authorization": f"Bearer {bot_key}"},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["expires_in"] == 600
+        code = body["code"]
+        assert len(code) == 6 and code.isdigit()
+
+        # User pastes the code on the website
+        with _as(client, token):
+            r2 = client.post("/api/auth/discord-link/confirm", data={"code": code})
+        assert r2.status_code == 200, r2.text
+        assert r2.json()["success"] is True
+
+        # Now the bot can act as that user via Authorization + X-Discord-User-Id.
+        # /api/wallet requires a logged-in user; it should respond as kbot_link_user.
+        _clear_session(client)
+        r3 = client.get(
+            "/api/wallet",
+            headers={
+                "Authorization": f"Bearer {bot_key}",
+                "X-Discord-User-Id": discord_id,
+            },
+        )
+        assert r3.status_code == 200, r3.text
+        # Wallet response shape (from existing endpoints) includes username/address
+        wallet = r3.json()
+        assert wallet.get("address", "").startswith("TRV-")
+
+    def test_54_bot_bad_key_rejected(self, client):
+        """Scenario 54 — invalid bearer token cannot start a link."""
+        _clear_session(client)
+        r = client.post(
+            "/api/auth/discord-link/start",
+            json={"discord_id": "999"},
+            headers={"Authorization": "Bearer tx_live_deadbeefdeadbeefdeadbeefdeadbeef"},
+        )
+        assert r.status_code == 401
+
+    def test_55_bot_unlinked_discord_id_returns_no_user(self, client):
+        """Scenario 55 — bot key + unknown discord_id behaves like anonymous.
+
+        /api/wallet requires login; so it should 303-redirect or 401.  The
+        important thing is that the request is NOT silently attributed to
+        some other user.
+        """
+        bot_key = self._issue_bot_key("smoke-noresolve-test")
+        _clear_session(client)
+        r = client.get(
+            "/api/wallet",
+            headers={
+                "Authorization": f"Bearer {bot_key}",
+                "X-Discord-User-Id": "no_such_discord_id_99999",
+            },
+        )
+        # require_login raises 303 with Location: /login (web flow) — accept either
+        # 303 or 401 here, both mean "not authenticated".
+        assert r.status_code in (303, 401), f"Expected 303/401 for unlinked, got {r.status_code}"
+
+    def test_56_double_link_blocked(self, client):
+        """Scenario 56 — confirm refuses if the user already has a discord_id."""
+        bot_key = self._issue_bot_key("smoke-double-test")
+        register(client, "kbot_double_user")
+        token, _ = login_session(client, "kbot_double_user")
+
+        # First link
+        _clear_session(client)
+        r1 = client.post(
+            "/api/auth/discord-link/start",
+            json={"discord_id": "double_link_id_a"},
+            headers={"Authorization": f"Bearer {bot_key}"},
+        )
+        code = r1.json()["code"]
+        with _as(client, token):
+            assert client.post("/api/auth/discord-link/confirm", data={"code": code}).status_code == 200
+
+        # Second attempt should fail
+        _clear_session(client)
+        r2 = client.post(
+            "/api/auth/discord-link/start",
+            json={"discord_id": "double_link_id_b"},
+            headers={"Authorization": f"Bearer {bot_key}"},
+        )
+        code2 = r2.json()["code"]
+        with _as(client, token):
+            r3 = client.post("/api/auth/discord-link/confirm", data={"code": code2})
+        assert r3.status_code == 409
