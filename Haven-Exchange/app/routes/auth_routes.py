@@ -27,7 +27,20 @@ COOKIE_MAX_AGE = 7 * 24 * 60 * 60  # 7 days in seconds
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
-    """Apply the session cookie to *response* with standard settings."""
+    """Apply the session cookie to *response* with standard settings.
+
+    NOTE on `secure=True`: cookies marked Secure are only sent by browsers
+    over HTTPS.  Production runs behind Cloudflare → Nginx Proxy Manager
+    with TLS termination so this is correct there.  In a plain-HTTP local
+    dev setup (e.g. running the container on http://localhost:8010 without
+    a proxy), real browsers will refuse to *store* the cookie at all and
+    every request will appear unauthenticated.  Workarounds for local dev:
+      1. Run the dev container behind an HTTPS proxy (e.g. mkcert + caddy).
+      2. Temporarily flip secure=False here for local-only debugging.
+    A future hardening pass should gate this on an env var (e.g.
+    `settings.COOKIE_SECURE`) so the same code base works in both modes
+    without requiring a manual toggle.
+    """
     response.set_cookie(
         key=COOKIE_KEY,
         value=token,

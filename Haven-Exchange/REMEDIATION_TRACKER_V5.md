@@ -16,8 +16,8 @@
 | 5 | done | 2026-05-06 22:19 | 2026-05-06 22:38 | 52/52 | eded972 |
 | 6 | done | 2026-05-06 22:39 | 2026-05-06 22:48 | 52/52 | c1473ce |
 | 7 | done | 2026-05-06 22:49 | 2026-05-06 23:00 | 52/52 | 5a36788 |
-| 8 | done | 2026-05-06 23:01 | 2026-05-06 23:18 | 52/52 | (in-flight) |
-| 9 | pending | — | — | — | — |
+| 8 | done | 2026-05-06 23:01 | 2026-05-06 23:18 | 52/52 | 7d9bcfb |
+| 9 | done | 2026-05-06 23:19 | 2026-05-06 23:28 | 52/52 | (in-flight) |
 | 10 | pending | — | — | — | — |
 | 11 | pending | — | — | — | — |
 
@@ -70,8 +70,8 @@
 | 41 | Footer dynamic year | 8 | done | base.html, page_routes.py | live: footer reads © 2026 (current year from datetime.now()) | current_year added to _base_context |
 | 42 | Logout fallback form | 8 | done | base.html, page_routes.py | live: POST /logout returns 303 to /login?success=Logged+out+successfully | new /logout page route + form-fallback in nav |
 | 43 | Wallet copy progressive enhancement | 8 | done | static/js/app.js, dashboard.html | live: data-copy attr present, delegated handler added | `[data-copy]` delegated listener; works without inline onclick |
-| 44 | Pass user to docs templates | 9 | pending | — | — | V4 §N.1 |
-| 45 | Cookie secure=True doc comment | 9 | pending | — | — | V4 §N.6, comment only |
+| 44 | Pass user to docs templates | 9 | done | docs_routes.py, docs/index.html, docs/power_user.html, docs/nation_leaders.html | live: logged-in admin sees Dashboard+Logout, not Login/Register | get_current_user dependency added; conditional Login/Dashboard in nav |
+| 45 | Cookie secure=True doc comment | 9 | done | auth_routes.py | inline comment | documents production HTTPS context + local-dev workarounds + future env-var gating |
 | 46 | requirements-dev.txt for pytest+httpx | 10 | pending | — | — | V4 §N.8 |
 
 ### Unassessed (acknowledged, no fix in this run)
