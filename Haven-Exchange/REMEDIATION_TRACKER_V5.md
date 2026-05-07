@@ -14,8 +14,8 @@
 | 3 | done | 2026-05-06 21:26 | 2026-05-06 21:55 | 52/52 | b875422 |
 | 4 | done | 2026-05-06 21:56 | 2026-05-06 22:18 | 52/52 | 0cc707e |
 | 5 | done | 2026-05-06 22:19 | 2026-05-06 22:38 | 52/52 | eded972 |
-| 6 | done | 2026-05-06 22:39 | 2026-05-06 22:48 | 52/52 | (in-flight) |
-| 7 | pending | — | — | — | — |
+| 6 | done | 2026-05-06 22:39 | 2026-05-06 22:48 | 52/52 | c1473ce |
+| 7 | done | 2026-05-06 22:49 | 2026-05-06 23:00 | 52/52 | (in-flight) |
 | 8 | pending | — | — | — | — |
 | 9 | pending | — | — | — | — |
 | 10 | pending | — | — | — | — |
@@ -58,11 +58,11 @@
 | 29 | Loans in navbar | 5 | done | base.html | live: /loans/mine link in nav | always visible to logged-in users |
 | 30 | Distribute in navbar (leader-only) | 5 | done | base.html | live: /nation/distribute link in leader nav block | gated on user_led_nation |
 | 31 | Promote pending-nation status | 5 | done | dashboard.html | live: pulse animation + larger font + ⏳ icon | inline @keyframes pulse; expanded help text |
-| 32 | Mobile nav grouping | 7 | pending | — | — | V4 §F.2 |
-| 33 | Sub-toggle pattern for sections | 7 | pending | — | — | tied to fix 32 |
-| 34 | Breadcrumbs | 7 | pending | — | — | new |
-| 35 | Favicon | 7 | pending | — | — | static asset |
-| 36 | Open Graph meta tags | 7 | pending | — | — | base.html |
+| 32 | Mobile nav grouping | 7 | done (lite) | base.html, style.css | live: section labels render on mobile via data-label CSS | full collapsible details/summary refactor deferred — current pattern uses CSS-pseudo labels on `.nav-divider[data-label]`; works without JS |
+| 33 | Sub-toggle pattern for sections | 7 | done (lite) | style.css | (covered by 32) | desktop unchanged, mobile shows section headers; expand/collapse JS deferred to follow-up |
+| 34 | Breadcrumbs | 7 | done | base.html (block), style.css, nation/treasury.html, shop_manage.html, exchange_trade.html, bank_detail.html | live: breadcrumbs render on /shop/manage etc. | new `{% block breadcrumb %}` in base; 4 templates wired |
+| 35 | Favicon | 7 | done | app/static/favicon.svg, base.html | live: GET /static/favicon.svg → 200, 298 bytes | inline SVG with diamond glyph |
+| 36 | Open Graph meta tags | 7 | done | base.html | live: og:title, og:description, twitter:card all rendered on /login | per-page title via `{{ self.title() }}` |
 | 37 | Stop auto-dismissing errors | 8 | pending | — | — | V4 §F.4 |
 | 38 | Standardize empty-state icons | 8 | pending | — | — | hygiene |
 | 39 | Filter recent transactions on dashboard | 8 | pending | — | — | UX |

@@ -4,7 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Travelers Exchange{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/css/style.css">
+
+    {# Open Graph / Twitter card #}
+    <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}A community-built economic platform — currency, banks, and stock markets for No Man's Sky civilizations.{% endblock %}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ self.og_title() }}">
+    <meta name="twitter:description" content="{{ self.og_description() }}">
+
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -25,7 +36,7 @@
                 <a href="/exchange" {% if active_page == 'exchange' %}class="active"{% endif %}>Exchange</a>
 
                 {% if user %}
-                    <span class="nav-divider"></span>
+                    <span class="nav-divider" data-label="My Account"></span>
                     <a href="/dashboard" {% if active_page == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
                     <a href="/send" {% if active_page == 'send' %}class="active"{% endif %}>Send</a>
                     <a href="/history" {% if active_page == 'history' %}class="active"{% endif %}>History</a>
@@ -39,7 +50,7 @@
                     <a href="/settings" {% if active_page == 'settings' %}class="active"{% endif %}>Settings</a>
 
                     {% if user_led_nation %}
-                        <span class="nav-divider"></span>
+                        <span class="nav-divider" data-label="My Nation"></span>
                         <a href="/nation/treasury" {% if active_page == 'treasury' %}class="active"{% endif %}>Treasury</a>
                         <a href="/nation/distribute" {% if active_page == 'distribute' %}class="active"{% endif %}>Distribute</a>
                         <a href="/nation/members" {% if active_page == 'members' %}class="active"{% endif %}>Members</a>
@@ -47,11 +58,11 @@
                     {% endif %}
 
                     {% if user.role == 'world_mint' %}
-                        <span class="nav-divider"></span>
+                        <span class="nav-divider" data-label="Admin"></span>
                         <a href="/mint" {% if active_page == 'mint' %}class="active"{% endif %}>Mint</a>
                     {% endif %}
 
-                    <span class="nav-divider"></span>
+                    <span class="nav-divider" data-label="Session"></span>
                     <button class="nav-logout logout-btn">Logout</button>
                 {% else %}
                     <span class="nav-divider"></span>
@@ -61,6 +72,9 @@
             </div>
         </div>
     </nav>
+
+    <!-- Optional breadcrumbs -->
+    {% block breadcrumb %}{% endblock %}
 
     <!-- Flash Messages -->
     <div class="page-content">

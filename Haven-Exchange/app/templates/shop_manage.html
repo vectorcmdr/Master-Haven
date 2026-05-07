@@ -2,6 +2,14 @@
 
 {% block title %}My Shop — Travelers Exchange{% endblock %}
 
+{% block breadcrumb %}
+<div class="breadcrumb"><div class="breadcrumb-inner">
+    <a href="/dashboard">Dashboard</a>
+    <span class="crumb-sep">›</span>
+    <span class="crumb-current">My Shop{% if shop %} ({{ shop.name }}){% endif %}</span>
+</div></div>
+{% endblock %}
+
 {% block content %}
 {% if not shop %}
 <div class="page-header">
