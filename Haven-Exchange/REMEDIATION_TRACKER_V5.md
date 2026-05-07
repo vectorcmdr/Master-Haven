@@ -15,8 +15,8 @@
 | 4 | done | 2026-05-06 21:56 | 2026-05-06 22:18 | 52/52 | 0cc707e |
 | 5 | done | 2026-05-06 22:19 | 2026-05-06 22:38 | 52/52 | eded972 |
 | 6 | done | 2026-05-06 22:39 | 2026-05-06 22:48 | 52/52 | c1473ce |
-| 7 | done | 2026-05-06 22:49 | 2026-05-06 23:00 | 52/52 | (in-flight) |
-| 8 | pending | — | — | — | — |
+| 7 | done | 2026-05-06 22:49 | 2026-05-06 23:00 | 52/52 | 5a36788 |
+| 8 | done | 2026-05-06 23:01 | 2026-05-06 23:18 | 52/52 | (in-flight) |
 | 9 | pending | — | — | — | — |
 | 10 | pending | — | — | — | — |
 | 11 | pending | — | — | — | — |
@@ -63,13 +63,13 @@
 | 34 | Breadcrumbs | 7 | done | base.html (block), style.css, nation/treasury.html, shop_manage.html, exchange_trade.html, bank_detail.html | live: breadcrumbs render on /shop/manage etc. | new `{% block breadcrumb %}` in base; 4 templates wired |
 | 35 | Favicon | 7 | done | app/static/favicon.svg, base.html | live: GET /static/favicon.svg → 200, 298 bytes | inline SVG with diamond glyph |
 | 36 | Open Graph meta tags | 7 | done | base.html | live: og:title, og:description, twitter:card all rendered on /login | per-page title via `{{ self.title() }}` |
-| 37 | Stop auto-dismissing errors | 8 | pending | — | — | V4 §F.4 |
-| 38 | Standardize empty-state icons | 8 | pending | — | — | hygiene |
-| 39 | Filter recent transactions on dashboard | 8 | pending | — | — | UX |
-| 40 | Quick Actions visual hierarchy | 8 | pending | — | — | UX |
-| 41 | Footer dynamic year | 8 | pending | — | — | trivial |
-| 42 | Logout fallback form | 8 | pending | — | — | progressive enhancement |
-| 43 | Wallet copy progressive enhancement | 8 | pending | — | — | data-copy attr |
+| 37 | Stop auto-dismissing errors | 8 | done | static/js/app.js | live test by triggering an error and waiting | guards added in initFlashMessages and showAlert; success/info still auto-dismiss |
+| 38 | Standardize empty-state icons | 8 | partial | dashboard.html, style.css (existing) | one inline SVG converted as exemplar | shared `.empty-icon` class already standardizes size+opacity across templates; full SVG conversion of remaining 9 entity glyphs deferred to follow-up |
+| 39 | Filter recent transactions on dashboard | 8 | done | page_routes.py, dashboard.html | live: BUY/SELL no longer in dashboard table | filter to TRANSFER/PURCHASE/DISTRIBUTE/MINT/GENESIS; "Stock activity" link added to portfolio |
+| 40 | Quick Actions visual hierarchy | 8 | done | dashboard.html | live: Send is btn-lg, others btn-sm | Send promoted to its own row, others secondary row |
+| 41 | Footer dynamic year | 8 | done | base.html, page_routes.py | live: footer reads © 2026 (current year from datetime.now()) | current_year added to _base_context |
+| 42 | Logout fallback form | 8 | done | base.html, page_routes.py | live: POST /logout returns 303 to /login?success=Logged+out+successfully | new /logout page route + form-fallback in nav |
+| 43 | Wallet copy progressive enhancement | 8 | done | static/js/app.js, dashboard.html | live: data-copy attr present, delegated handler added | `[data-copy]` delegated listener; works without inline onclick |
 | 44 | Pass user to docs templates | 9 | pending | — | — | V4 §N.1 |
 | 45 | Cookie secure=True doc comment | 9 | pending | — | — | V4 §N.6, comment only |
 | 46 | requirements-dev.txt for pytest+httpx | 10 | pending | — | — | V4 §N.8 |

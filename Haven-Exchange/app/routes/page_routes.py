@@ -145,6 +145,7 @@ def _base_context(request: Request, user: Optional[User], db: Session = None, **
         "settings": settings,
         "active_page": kwargs.pop("active_page", ""),
         "tc_to_national": tc_to_national,
+        "current_year": datetime.now(timezone.utc).year,
     }
     ctx.update(kwargs)
     return ctx
@@ -240,6 +241,27 @@ def landing_page(
 # ---------------------------------------------------------------------------
 # GET /login
 # ---------------------------------------------------------------------------
+@router.post("/logout")
+def logout_post(
+    request: Request,
+    response: RedirectResponse = None,
+    db: Session = Depends(get_db),
+):
+    """Form-fallback logout — used when JS isn't available.
+
+    Clears the session_token cookie and redirects to /login. The fetch-based
+    logout in app.js still works as a progressive enhancement; this endpoint
+    is the no-JS path.
+    """
+    from app.auth import delete_session
+    token = request.cookies.get("session_token")
+    if token:
+        delete_session(db, token)
+    resp = RedirectResponse(url="/login?success=Logged+out+successfully", status_code=303)
+    resp.delete_cookie("session_token")
+    return resp
+
+
 @router.get("/login")
 def login_page(
     request: Request,
@@ -1572,10 +1594,15 @@ def dashboard_page(
         created_aware = user.created_at if user.created_at.tzinfo else user.created_at.replace(tzinfo=timezone.utc)
         is_new_user = (datetime.now(timezone.utc) - created_aware) < timedelta(hours=24)
 
-    # Recent transactions (last 10)
-    recent_transactions = get_transactions_for_address(
-        db, user.wallet_address, limit=10, offset=0
+    # Recent transactions (last 10) — Phase 8 fix 39: hide stock activity by
+    # default; that lives on /portfolio instead.
+    _all_recent = get_transactions_for_address(
+        db, user.wallet_address, limit=30, offset=0
     )
+    recent_transactions = [
+        tx for tx in _all_recent
+        if tx.tx_type in ("TRANSFER", "PURCHASE", "DISTRIBUTE", "MINT", "GENESIS")
+    ][:10]
 
     name_map = _build_name_map(db)
 

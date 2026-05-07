@@ -63,7 +63,9 @@
                     {% endif %}
 
                     <span class="nav-divider" data-label="Session"></span>
-                    <button class="nav-logout logout-btn">Logout</button>
+                    <form action="/logout" method="POST" class="logout-form" style="display:inline;">
+                        <button type="submit" class="nav-logout logout-btn">Logout</button>
+                    </form>
                 {% else %}
                     <span class="nav-divider"></span>
                     <a href="/login" {% if active_page == 'login' %}class="active"{% endif %}>Login</a>
@@ -107,7 +109,7 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            Travelers Exchange &mdash; Currency: {{ settings.CURRENCY_NAME }} ({{ settings.CURRENCY_SHORT }}) &mdash; &copy; 2026
+            Travelers Exchange &mdash; Currency: {{ settings.CURRENCY_NAME }} ({{ settings.CURRENCY_SHORT }}) &mdash; &copy; {{ current_year or 2026 }}
         </div>
     </footer>
 
