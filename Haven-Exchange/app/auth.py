@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import Session_, User
+from app.models import Nation, Session_, User
 
 
 # ---------------------------------------------------------------------------
@@ -169,3 +169,29 @@ def require_role(role: str):
         return user
 
     return _role_checker
+
+
+# ---------------------------------------------------------------------------
+# Relational leader checks
+# ---------------------------------------------------------------------------
+# Prefer these over `if user.role == "nation_leader"` — the role enum is a
+# coarse cache that drifts (e.g. when a nation is suspended the role is not
+# automatically demoted).  Source of truth is the `nations` table.
+
+def is_leader_of(user: Optional[User], nation: Optional[Nation]) -> bool:
+    """True iff *user* leads the supplied *nation* and the nation is approved."""
+    if user is None or nation is None:
+        return False
+    return nation.leader_id == user.id and nation.status == "approved"
+
+
+def get_led_nation(db: Session, user: Optional[User]) -> Optional[Nation]:
+    """Return the approved nation *user* currently leads, or None."""
+    if user is None:
+        return None
+    return db.execute(
+        select(Nation).where(
+            Nation.leader_id == user.id,
+            Nation.status == "approved",
+        )
+    ).scalar_one_or_none()

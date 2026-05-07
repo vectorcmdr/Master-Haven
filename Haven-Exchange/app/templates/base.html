@@ -38,6 +38,7 @@
                         <span class="nav-divider"></span>
                         <a href="/nation/treasury" {% if active_page == 'treasury' %}class="active"{% endif %}>Treasury</a>
                         <a href="/nation/members" {% if active_page == 'members' %}class="active"{% endif %}>Members</a>
+                        <a href="/nation/shops/pending" {% if active_page == 'pending_shops' %}class="active"{% endif %}>Pending Shops</a>
                     {% endif %}
 
                     {% if user.role == 'world_mint' %}

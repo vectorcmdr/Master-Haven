@@ -9,7 +9,7 @@
 | Phase | Status | Started | Completed | Smoke tests | Commit |
 |---|---|---|---|---|---|
 | 0 | done | 2026-05-06 20:38 | 2026-05-06 20:40 | 52/52 | (in-flight) |
-| 1 | pending | — | — | — | — |
+| 1 | done | 2026-05-06 20:42 | 2026-05-06 21:08 | 52/52 | (in-flight) |
 | 2 | pending | — | — | — | — |
 | 3 | pending | — | — | — | — |
 | 4 | pending | — | — | — | — |
@@ -27,9 +27,9 @@
 
 | # | Title | Phase | Status | Files touched | Verified | Notes |
 |---|---|---|---|---|---|---|
-| 1 | /shop/ipo NameError 500 | 1 | pending | — | — | V4 §3.1, §C.4 |
-| 2 | No UI to approve pending shops | 1 | pending | — | — | V4 §3.2, §C.5 |
-| 3 | Nation leader can self-approve own shop | 1 | pending | — | — | V4 §3.3, §C.6 |
+| 1 | /shop/ipo NameError 500 | 1 | done | page_routes.py | live: GET /shop/ipo→200 | module-level datetime+timedelta+timezone import; removed 9 local duplicates |
+| 2 | No UI to approve pending shops | 1 | done | page_routes.py, mint/pending_shops.html, nation/pending_shops.html, mint/dashboard.html, dashboard.html, base.html | live: WM approves Alice's shop via /mint/shops/pending; Alice approves Bob's via /nation/shops/pending | new routes /mint/shops/pending, /nation/shops/pending + approve/reject; nav + dashboard cards added |
+| 3 | Nation leader can self-approve own shop | 1 | done | shop_routes.py, page_routes.py | live: Alice POST /api/shops/2/approve→403; UI redirect with clear error | guards in approve_shop, reject_shop, suspend_shop and /nation/shops/{id}/approve |
 | 4 | Helper for relational leader check | 2 | pending | — | — | new infra |
 | 5 | Suspend nation demotes leader role | 2 | pending | — | — | role drift |
 | 6 | Unsuspend re-promotes leader role | 2 | pending | — | — | role drift |

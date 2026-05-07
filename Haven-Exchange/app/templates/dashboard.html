@@ -50,6 +50,9 @@
                     <a href="/nation/treasury" class="btn btn-sm btn-primary">Treasury</a>
                     <a href="/nation/distribute" class="btn btn-sm btn-secondary">Distribute</a>
                     <a href="/nation/members" class="btn btn-sm btn-secondary">Members</a>
+                    <a href="/nation/shops/pending" class="btn btn-sm btn-secondary">
+                        Pending Shops{% if led_pending_shops_count and led_pending_shops_count > 0 %} ({{ led_pending_shops_count }}){% endif %}
+                    </a>
                 </div>
             {% elif nation %}
                 <p style="margin-bottom: var(--space-sm);">

@@ -528,6 +528,11 @@ def approve_shop(
             status_code=403, detail="Only the nation leader or World Mint can approve shops"
         )
 
+    if current_user.id == shop.owner_id and current_user.role != "world_mint":
+        raise HTTPException(
+            status_code=403, detail="You cannot approve your own shop. Ask the World Mint to review it."
+        )
+
     if shop.status == "approved":
         raise HTTPException(status_code=400, detail="Shop is already approved")
 
@@ -566,6 +571,11 @@ def reject_shop(
             status_code=403, detail="Only the nation leader or World Mint can reject shops"
         )
 
+    if current_user.id == shop.owner_id and current_user.role != "world_mint":
+        raise HTTPException(
+            status_code=403, detail="You cannot reject your own shop. Ask the World Mint to review it."
+        )
+
     if shop.status == "approved":
         raise HTTPException(status_code=400, detail="Cannot reject an already-approved shop; use suspend instead")
 
@@ -600,6 +610,11 @@ def suspend_shop(
     if current_user.role != "world_mint" and current_user.id != nation.leader_id:
         raise HTTPException(
             status_code=403, detail="Only the nation leader or World Mint can suspend shops"
+        )
+
+    if current_user.id == shop.owner_id and current_user.role != "world_mint":
+        raise HTTPException(
+            status_code=403, detail="You cannot suspend your own shop. Ask the World Mint to review it."
         )
 
     if shop.status == "suspended":
