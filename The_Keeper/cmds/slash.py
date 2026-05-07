@@ -5,6 +5,7 @@ import requests
 import os, sys
 import logging
 from cogs.community import SearchView, AddCivView, EditConfirmView
+from typing import Optional
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -24,16 +25,16 @@ class CommandsCog(commands.Cog):
         self.parser = GoogleDocParser(DOC_URL)
 
     @app_commands.command(name="announce", description="Send doc to selected channel")
-    @app_commands.describe(
-        channel="Channel to send to",
-        tag="User or role to mention"
-    )
-    async def announce(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel,
-        tag: discord.Member | discord.Role = None
-    ):
+@app_commands.describe(
+    channel="Channel to send to",
+    tag="User or role to mention (optional)"
+)
+async def announce(
+    self,
+    interaction: discord.Interaction,
+    channel: discord.TextChannel,
+    tag: Optional[discord.Member | discord.Role] = None
+):
         await interaction.response.defer()
 
         text = self.parser.get_doc_text()
