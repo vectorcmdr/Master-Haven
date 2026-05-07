@@ -14,17 +14,6 @@ class CommandsCog(commands.Cog):
         self.bot = bot
         self.parser = GoogleDocParser(DOC_URL)
 
-    # ---------------- SYNC ----------------
-    @app_commands.command(name="sync", description="Sync slash commands globally")
-    @app_commands.checks.has_permissions(administrator=True)
-async def sync(self, interaction: discord.Interaction):
-
-    synced = await self.bot.tree.sync()
-
-    await interaction.response.send_message(
-        f"Synced {len(synced)} global commands.",
-        ephemeral=True
-    )
 
     # ---------------- Announce ----------------
     @app_commands.command(name="announce", description="Send doc to selected channel")
@@ -49,28 +38,6 @@ async def sync(self, interaction: discord.Interaction):
 
         if tag:
             await channel.send(tag.mention)
-
-        await interaction.followup.send(
-            f"Sent to {channel.mention}",
-            ephemeral=True
-        )
-
-    # ---------------- SAY ----------------
-    @app_commands.command(name="say", description="Send doc to selected channel")
-    @app_commands.describe(channel="Channel to send to")
-    async def say(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel,
-    ):
-        await interaction.response.defer()
-
-        text = self.parser.get_doc_text()
-        sections = self.parser.parse_blocks(text)
-
-        for section in sections:
-            if section:
-                await channel.send(section[:2000])
 
         await interaction.followup.send(
             f"Sent to {channel.mention}",
