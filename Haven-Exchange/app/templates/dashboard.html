@@ -114,7 +114,7 @@
     <a href="/wallet/{{ user.wallet_address }}" class="btn btn-secondary">Public Wallet</a>
     {% if user_shop %}
         <a href="/shop/manage" class="btn btn-secondary">Manage Shop</a>
-    {% else %}
+    {% elif user_nation and user_nation.status == 'approved' %}
         <a href="/shop/create" class="btn btn-secondary">Open a Shop</a>
     {% endif %}
     <a href="/exchange" class="btn btn-secondary">Exchange</a>

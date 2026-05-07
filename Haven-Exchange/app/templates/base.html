@@ -34,7 +34,7 @@
                     <a href="/docs" {% if active_page == 'docs' %}class="active"{% endif %}>Docs</a>
                     <a href="/settings" {% if active_page == 'settings' %}class="active"{% endif %}>Settings</a>
 
-                    {% if user.role == 'nation_leader' %}
+                    {% if user_led_nation %}
                         <span class="nav-divider"></span>
                         <a href="/nation/treasury" {% if active_page == 'treasury' %}class="active"{% endif %}>Treasury</a>
                         <a href="/nation/members" {% if active_page == 'members' %}class="active"{% endif %}>Members</a>

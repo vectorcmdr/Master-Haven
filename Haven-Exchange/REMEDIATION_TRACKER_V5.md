@@ -10,8 +10,8 @@
 |---|---|---|---|---|---|
 | 0 | done | 2026-05-06 20:38 | 2026-05-06 20:40 | 52/52 | (in-flight) |
 | 1 | done | 2026-05-06 20:42 | 2026-05-06 21:08 | 52/52 | 3050916 |
-| 2 | done | 2026-05-06 21:09 | 2026-05-06 21:25 | 52/52 | (in-flight) |
-| 3 | pending | — | — | — | — |
+| 2 | done | 2026-05-06 21:09 | 2026-05-06 21:25 | 52/52 | b489b36 |
+| 3 | done | 2026-05-06 21:26 | 2026-05-06 21:55 | 52/52 | (in-flight) |
 | 4 | pending | — | — | — | — |
 | 5 | pending | — | — | — | — |
 | 6 | pending | — | — | — | — |
@@ -39,14 +39,14 @@
 | 10 | Unsuspend nation endpoint | 2 | done | mint_routes.py, page_routes.py | (covered by fix 6) | API + page-route POST |
 | 11 | Leadership-transfer flow | 2 | deferred-to-followup | — | — | needs design input |
 | 12 | Validate user not already in nation on apply | 2 | done | page_routes.py | live: alice (member of Atlantia) gets "You already lead a nation" | also blocks citizens-of-other-nations from applying; rejected nation names re-usable |
-| 13 | Hide "Open a Shop" CTA when ineligible | 3 | pending | — | — | V4 §3.6 |
-| 14 | Pending-nation user shouldn't see shop CTA | 3 | pending | — | — | V4 §A.2/B.3 |
-| 15 | Suspended-nation leader navbar gate | 3 | pending | — | — | V4 §E.2 |
-| 16 | Approve/Reject buttons on /mint/nations | 3 | pending | — | — | V4 §3.10 |
-| 17 | /nations empty-state CTA | 3 | pending | — | — | V4 §N.2 |
-| 18 | Block listing creation on pending shops | 3 | pending | — | — | V4 §C.3 |
-| 19 | Pending-shop banner on /shop/manage | 3 | pending | — | — | V4 §C.2 |
-| 20 | /loans/apply empty state by role | 3 | pending | — | — | V4 §N.3 |
+| 13 | Hide "Open a Shop" CTA when ineligible | 3 | done | dashboard.html | live: bob (no nation) sees no Open a Shop button | wrapped CTA in `{% if user_nation and user_nation.status=='approved' %}` |
+| 14 | Pending-nation user shouldn't see shop CTA | 3 | done | shop_manage.html, page_routes.py | live: carol (pending) sees "application is still pending" message | added user_pending_nation to base context |
+| 15 | Suspended-nation leader navbar gate | 3 | done | base.html, page_routes.py | live: alice's nav has Treasury before/0 after suspend | navbar keys off user_led_nation (status=approved) |
+| 16 | Approve/Reject buttons on /mint/nations | 3 | done | mint/nations.html | live: 2 Approve + 2 Restore buttons on /mint/nations | also added Suspend for approved + Restore for suspended |
+| 17 | /nations empty-state CTA | 3 | done | nations.html | live: "Be the first" + "Apply to lead a nation" CTA | logged-out users prompted to register first |
+| 18 | Block listing creation on pending shops | 3 | done | page_routes.py | live: bob's POST → "Your shop must be approved", listings table empty | guard in shop_listing_create_post + toggle_post |
+| 19 | Pending-shop banner on /shop/manage | 3 | done | shop_manage.html | live: alert-info banner rendered for pending shop; listings form hidden | also rendered for rejected/suspended states |
+| 20 | /loans/apply empty state by role | 3 | done | loan_apply.html | role-aware CTA wired (live test in Phase 6) | shows "Create a Bank" to leaders, "ask your nation leader" otherwise |
 | 21 | /send max="0" poisoning | 4 | pending | — | — | V4 §A.3 |
 | 22 | Form input preservation across POST handlers | 4 | pending | — | — | V4 §A.3 sweep |
 | 23 | Shop creation form too thin | 4 | pending | — | — | shop_type/mining_setup |

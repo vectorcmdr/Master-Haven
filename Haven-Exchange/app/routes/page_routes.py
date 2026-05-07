@@ -102,6 +102,26 @@ def _base_context(request: Request, user: Optional[User], db: Session = None, **
             select(Nation).where(Nation.id == user.nation_id)
         ).scalar_one_or_none()
 
+    # Resolve the approved nation the user *leads* (used by templates to
+    # decide whether to render the leader-only nav block; the role enum
+    # may say `nation_leader` even after the nation has been suspended).
+    user_led_nation = None
+    user_pending_nation = None
+    if user and db:
+        user_led_nation = db.execute(
+            select(Nation).where(
+                Nation.leader_id == user.id,
+                Nation.status == "approved",
+            )
+        ).scalar_one_or_none()
+        # Pending application by this user (for state-aware empty states)
+        user_pending_nation = db.execute(
+            select(Nation).where(
+                Nation.leader_id == user.id,
+                Nation.status == "pending",
+            )
+        ).scalar_one_or_none()
+
     user_currency = {
         "code": user_nation.currency_code if user_nation and user_nation.currency_code else "TC",
         "name": user_nation.currency_name if user_nation and user_nation.currency_name else "Travelers Coin",
@@ -118,6 +138,8 @@ def _base_context(request: Request, user: Optional[User], db: Session = None, **
         "request": request,
         "user": user,
         "user_nation": user_nation,
+        "user_led_nation": user_led_nation,
+        "user_pending_nation": user_pending_nation,
         "user_currency": user_currency,
         "user_balance_national": user_balance_national,
         "settings": settings,
@@ -1878,6 +1900,12 @@ def shop_listing_create_post(
     if shop is None:
         return RedirectResponse(url="/shop/manage?error=You+don't+have+a+shop", status_code=303)
 
+    if shop.status != "approved":
+        return RedirectResponse(
+            url="/shop/manage?error=Your+shop+must+be+approved+before+you+can+add+listings",
+            status_code=303,
+        )
+
     valid_categories = {"service", "coordinates", "item", "other"}
     if category not in valid_categories:
         return RedirectResponse(url="/shop/manage?error=Invalid+category", status_code=303)
@@ -1919,6 +1947,12 @@ def shop_listing_toggle_post(
     shop = db.execute(select(Shop).where(Shop.id == listing.shop_id)).scalar_one_or_none()
     if shop is None or shop.owner_id != user.id:
         return RedirectResponse(url="/shop/manage?error=Unauthorized", status_code=303)
+
+    if shop.status != "approved":
+        return RedirectResponse(
+            url="/shop/manage?error=Your+shop+must+be+approved+to+toggle+listings",
+            status_code=303,
+        )
 
     listing.is_available = not listing.is_available
     db.commit()
