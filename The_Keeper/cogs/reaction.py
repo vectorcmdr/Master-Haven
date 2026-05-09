@@ -61,6 +61,9 @@ class ReactionRoles(commands.Cog):
 @commands.Cog.listener()
 async def on_ready(self):         
     self.bot.add_view(DepartmentView())
+    
+
+    await msg.edit(view=DepartmentView())
 
     @commands.command(name="react")
     @commands.has_permissions(administrator=True)
