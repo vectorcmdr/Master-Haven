@@ -280,7 +280,7 @@ def add_xp(user_id, role, amount):
     """, (user_id, role))
 
     xp, old_level = cur.fetchone()
-        level = old_level
+    level = old_level
 
     
     xp += amount
