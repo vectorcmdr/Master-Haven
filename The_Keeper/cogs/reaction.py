@@ -10,28 +10,23 @@ class DepartmentView(discord.ui.View):
         super().__init__(timeout=None)
 
     async def give_role(self, interaction, role_key):
+    guild = interaction.guild
+    member = interaction.user
 
-        guild = interaction.guild
-        member = interaction.user
+    role_id = PRIMARY_ROLE_MAP[role_key]
+    new_role = guild.get_role(role_id)
 
-        role_id = xpdata.PRIMARY_ROLE_MAP[role_key]
-        role = guild.get_role(role_id)
-
+    for r_id in PRIMARY_ROLE_MAP.values():
+        role = guild.get_role(r_id)
         if role in member.roles:
             await member.remove_roles(role)
 
-            await interaction.response.send_message(
-                f"Removed {role.name}",
-                ephemeral=True
-            )
+    await member.add_roles(new_role)
 
-        else:
-            await member.add_roles(role)
-
-            await interaction.response.send_message(
-                f"Added {role.name}",
-                ephemeral=True
-            )
+    await interaction.response.send_message(
+        f"Set primary role to {new_role.name}",
+        ephemeral=True
+    )
 
     @discord.ui.button(label="Architecture", emoji="🔨", style=discord.ButtonStyle.secondary, custom_id="architect")
     async def architect_button(self, interaction: discord.Interaction, button: discord.ui.Button):
