@@ -58,8 +58,8 @@ class ReactionRoles(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-
-        self.bot.add_view(DepartmentView())
+@commands.Cog.listener()
+async def on_ready(self):         self.bot.add_view(DepartmentView())
 
     @commands.command(name="react")
     @commands.has_permissions(administrator=True)
