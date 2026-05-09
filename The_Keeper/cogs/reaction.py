@@ -10,17 +10,20 @@ class DepartmentView(discord.ui.View):
         super().__init__(timeout=None)
 
     async def give_role(self, interaction, role_key):
-    guild = interaction.guild
+        guild = interaction.guild
     member = interaction.user
 
+    # get selected role
     role_id = PRIMARY_ROLE_MAP[role_key]
     new_role = guild.get_role(role_id)
 
+    # remove ALL primary roles first
     for r_id in PRIMARY_ROLE_MAP.values():
         role = guild.get_role(r_id)
         if role in member.roles:
             await member.remove_roles(role)
 
+    # add selected role (if it wasn't already the only one)
     await member.add_roles(new_role)
 
     await interaction.response.send_message(
