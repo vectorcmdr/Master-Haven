@@ -63,7 +63,7 @@ async def on_ready(self):
     self.bot.add_view(DepartmentView())
     
 
-    @commands.command(name="react")
+@commands.command(name="react")
     @commands.has_permissions(administrator=True)
     async def react_panel(self, ctx):
 
