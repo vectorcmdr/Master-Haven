@@ -77,24 +77,12 @@ CONFIG = {
       "channels": [1432875588602822966, 1434721861664641134],
       "upload_channels": [1495581094899355819, 1495919097936871525],
       "office_channel": 1456660468985888779,
-      "rank_roles": {
-        "Initiate": 1434716088570216608,
-        "Advanced": 1457088694321418373,
-        "Senior": 1435144343676649533,
-        "Voyager": 1426308934251315304
-      }
     },
 
     "xenobiologist": {
       "channels": [1434795794074173471, 1494185313952595978],
       "upload_channels": [1495526495806816398, 1495526887848542279],
       "office_channel": 1434648413814788266,
-      "rank_roles": {
-        "Initiate": 1434715809963573388,
-        "Advanced": 1457088694321418373,
-        "Senior": 1435141378077364274,
-        "Voyager": 1433570871540191292
-      }
     },
 
     "engineer": {
@@ -106,24 +94,12 @@ CONFIG = {
         1495526178650325228
       ],
       "office_channel": 1445469006407536833,
-      "rank_roles": {
-        "Initiate": 1457101973219442738,
-        "Advanced": 1457104118828241078,
-        "Senior": 1457103687485751501,
-        "Voyager": 1457104664100208747
-      }
     },
 
     "architect": {
       "channels": [1494185916023963749, 1434748205509382224],
       "upload_channels": [1495580592782442666, 1495528051474432143],
       "office_channel": 1441664283418296392,
-      "rank_roles": {
-        "Initiate": 1434719851917738034,
-        "Advanced": 1434719002273255454,
-        "Senior": 1435142030174060658,
-        "Voyager": 1436758936073273545
-      }
     },
 
     "historian": {
@@ -134,23 +110,11 @@ CONFIG = {
         1495963517650473001
       ],
       "office_channel": 1495922234219565259,
-      "rank_roles": {
-        "Initiate": 1487603963418120273,
-        "Advanced": 1487604094003839016,
-        "Senior": 1487604191152046232,
-        "Voyager": 1487604266200731769
-      }
     },
 
     "diplomat": {
       "channels": [1435648549147901962],
       "office_channel": 1435648549147901962,
-      "rank_roles": {
-        "Initiate": 1434936345650008144,
-        "Advanced": 1434936970567749752,
-        "Senior": 1434936555629318267,
-        "Voyager": 1427386180193878159
-      }
     }
   }
 }
@@ -168,13 +132,11 @@ PRIMARY_ROLE_MAP = {
 def get_conn():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     return sqlite3.connect(DB_PATH, check_same_thread=False)
-    
-    cur.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, primary_role TEXT)")
 
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("PRAGMA table_info(users)")
+    cur.execute("PRAGMA table_info(user_roles)")
     cols = [c[1] for c in cur.fetchall()]
     
     cur.execute("""
@@ -228,7 +190,7 @@ def system_xp(user_id: int, amount: int):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Ensure user exists
+    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS user_xp (
             user_id INTEGER PRIMARY KEY,
@@ -236,13 +198,13 @@ def system_xp(user_id: int, amount: int):
         )
     """)
 
-    # Insert if not exists
+    
     cursor.execute("""
         INSERT OR IGNORE INTO user_xp (user_id, xp)
         VALUES (?, 0)
     """, (user_id,))
 
-    # Add XP
+    
     cursor.execute("""
         UPDATE user_xp
         SET xp = xp + ?
@@ -259,6 +221,28 @@ def get_cfg(key, default=0):
 
 
 # ---------------- DB HELPERS ----------------
+def get_rank_data(level: int):
+    """
+    Returns the rank config for a given level.
+    """
+
+    for rank in CONFIG["ranks"]:
+        if rank["min_level"] <= level <= rank["max_level"]:
+            return rank
+
+    return CONFIG["ranks"][0]
+def get_rank_name(level: int):
+    return get_rank_data(level)["name"]
+
+def get_xp_requirement(level: int):
+    rank = get_rank_data(level)
+
+    if "xp_required" in rank:
+        return rank["xp_required"]
+
+
+
+    return rank.get("xp_per_level", 100)
 def ensure_user(user_id):
     conn = get_conn()
     cur = conn.cursor()
@@ -282,15 +266,48 @@ def add_xp(user_id, role, amount):
     conn = get_conn()
     cur = conn.cursor()
 
+    
     cur.execute("""
-    INSERT INTO user_roles (user_id, role, xp)
-    VALUES (?, ?, ?)
-    ON CONFLICT(user_id, role)
-    DO UPDATE SET xp = xp + ?
-    """, (user_id, role, amount, amount))
+    INSERT OR IGNORE INTO user_roles (user_id, role, xp, level)
+    VALUES (?, ?, 0, 1)
+    """, (user_id, role))
+
+    
+    cur.execute("""
+    SELECT xp, level
+    FROM user_roles
+    WHERE user_id=? AND role=?
+    """, (user_id, role))
+
+    xp, old_level = cur.fetchone()
+        level = old_level
+
+    
+    xp += amount
+
+    
+    while level < CONFIG["leveling"]["max_level"]:
+        needed = get_xp_requirement(level)
+
+        if xp < needed:
+            break
+
+        xp -= needed
+        level += 1
+
+    
+    cur.execute("""
+    UPDATE user_roles
+    SET xp=?, level=?
+    WHERE user_id=? AND role=?
+    """, (xp, level, user_id, role))
 
     conn.commit()
     conn.close()
+    
+    leveled_up = level > old_level
+
+    return xp, level, leveled_up
 
 
 def get_level(user_id, role):
@@ -300,6 +317,10 @@ def get_level(user_id, role):
     row = cur.fetchone()
     conn.close()
     return row[0] if row else 1
+
+def get_rank(user_id, role):
+    level = get_level(user_id, role)
+    return get_rank_name(level)
 
 
 def set_level(user_id, role, level):
