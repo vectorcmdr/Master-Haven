@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 
-from Data.xpdata import PRIMARY_ROLE_MAP
+from Data.xpdata import PRIMARY_ROLE_MAP, save_panel, get_panel
 
 
 class DepartmentView(discord.ui.View):
@@ -23,7 +23,7 @@ class DepartmentView(discord.ui.View):
             )
             return
 
-        # remove old primary roles
+        
         for r_id in PRIMARY_ROLE_MAP.values():
             role = guild.get_role(r_id)
             if role in member.roles:
@@ -70,20 +70,49 @@ class ReactionRoles(commands.Cog):
     async def on_ready(self):
         self.bot.add_view(DepartmentView())
 
+        for guild in self.bot.guilds:
+            data = get_panel(guild.id)
+            if not data:
+                continue
+
+            channel_id, message_id = data
+
+            channel = guild.get_channel(channel_id)
+            if not channel:
+                continue
+
+            try:
+                msg = await channel.fetch_message(message_id)
+                await msg.edit(view=DepartmentView())
+            except discord.NotFound:
+                pass
+
     @commands.command(name="react")
     @commands.has_permissions(administrator=True)
     async def react_panel(self, ctx):
+
+        existing = get_panel(ctx.guild.id)
+        if existing:
+            await ctx.send("Reaction panel already exists for this server.")
+            return
 
         embed = discord.Embed(
             title="🌌 Choose Your Department",
             description=(
                 "Select a department below.\n"
-                "Department activities award bonus XP."
+                "Department activities and channels award bonus XP."
             ),
             color=discord.Color.blurple()
         )
 
-        await ctx.send(embed=embed, view=DepartmentView())
+        msg = await ctx.send(embed=embed, view=DepartmentView())
+
+        save_panel(ctx.guild.id, ctx.channel.id, msg.id)
+
+        await ctx.send("Reaction panel created and saved.", delete_after=5)
+    save_panel(ctx.guild.id, ctx.channel.id, msg.id)
+
+    await ctx.send("Reaction panel created and saved.", delete_after=5)
 
 
 async def setup(bot):
