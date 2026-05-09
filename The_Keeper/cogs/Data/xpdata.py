@@ -177,9 +177,14 @@ def init_db():
     cur.execute("PRAGMA table_info(users)")
     cols = [c[1] for c in cur.fetchall()]
     
-    
-              
-
+    cur.execute("""
+CREATE TABLE IF NOT EXISTS panels (
+    guild_id INTEGER PRIMARY KEY,
+    channel_id INTEGER,
+    message_id INTEGER
+)
+""")
+                  
     cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -306,6 +311,37 @@ def set_level(user_id, role, level):
     """, (level, user_id, role))
     conn.commit()
     conn.close()
+
+def save_panel(guild_id, channel_id, message_id):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO panels (guild_id, channel_id, message_id)
+    VALUES (?, ?, ?)
+    ON CONFLICT(guild_id)
+    DO UPDATE SET channel_id=excluded.channel_id,
+                  message_id=excluded.message_id
+    """, (guild_id, channel_id, message_id))
+
+    conn.commit()
+    conn.close()
+
+
+def get_panel(guild_id):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT channel_id, message_id
+    FROM panels
+    WHERE guild_id=?
+    """, (guild_id,))
+
+    row = cur.fetchone()
+    conn.close()
+
+    return row
 
 
 # ---------------- COOLDOWNS ----------------
