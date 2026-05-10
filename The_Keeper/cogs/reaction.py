@@ -16,14 +16,12 @@ def build_main_embed(guild: discord.Guild):
         role = guild.get_role(role_id)
 
         if role:
-            # 🔥 reliable live count from role membership cache
+            # reliable live count from role cache
             count = sum(1 for _ in role.members)
         else:
             count = 0
 
-        lines.append(
-            f"• **{role_name.capitalize()}** — {count}"
-        )
+        lines.append(f"• **{role_name.capitalize()}** — {count}")
 
     embed = discord.Embed(
         title="🌌 Department Control Panel",
@@ -66,10 +64,9 @@ class DepartmentView(discord.ui.View):
         try:
             msg = await channel.fetch_message(message_id)
 
-            # ALWAYS rebuild fresh embed at edit time
             await msg.edit(
                 embed=build_main_embed(guild),
-                view=DepartmentView()
+                view=self
             )
 
         except discord.NotFound:
@@ -102,16 +99,23 @@ class DepartmentView(discord.ui.View):
             if role and role in member.roles:
                 await member.remove_roles(role)
 
-        # allow Discord role propagation
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
 
         # ---------------- ADD NEW ROLE ----------------
 
         if new_role not in member.roles:
             await member.add_roles(new_role)
 
-        # ensure role cache updates before counting
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
+
+        # ---------------- FORCE CACHE REFRESH (CRITICAL FIX) ----------------
+
+        try:
+            await guild.chunk(cache=True)
+        except Exception:
+            pass
+
+        await asyncio.sleep(0.5)
 
         # ---------------- UPDATE PANEL ----------------
 
@@ -214,11 +218,7 @@ class ReactionRoles(commands.Cog):
                         view=DepartmentView()
                     )
 
-                    save_panel(
-                        ctx.guild.id,
-                        old_channel_id,
-                        old_message_id
-                    )
+                    save_panel(ctx.guild.id, old_channel_id, old_message_id)
 
                     await ctx.send("Reaction panel updated.", delete_after=5)
                     return
