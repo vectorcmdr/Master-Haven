@@ -303,40 +303,40 @@ class CommandsRouter(commands.Cog):
 
 #----------assignment-------------++
     @commands.command(name="assignment")
-@commands.has_permissions(administrator=True)
-@commands.guild_only()
-async def assignment(ctx):
-    guild = ctx.guild
+    @commands.has_permissions(administrator=True)
+    @commands.guild_only()
+    async def assignment(ctx):
+        guild = ctx.guild
 
-    assigned = 0
-    db_updated = 0
-    skipped = 0
-    failed = 0
+        assigned = 0
+        db_updated = 0
+        skipped = 0
+        failed = 0
 
-    await ctx.send("Running one-time primary role + DB sync...")
+        await ctx.send("Running one-time primary role + DB sync...")
 
-    role_map = {
-        name: role_id
-        for name, role_id in PRIMARY_ROLE_MAP.items()
-    }
+        role_map = {
+            name: role_id
+            for name, role_id in PRIMARY_ROLE_MAP.items()
+        }
 
-    conn = get_conn()
-    cur = conn.cursor()
+        conn = get_conn()
+        cur = conn.cursor()
 
-    for member in guild.members:
-        try:
-            member_roles = {r.name.lower() for r in member.roles}
+        for member in guild.members:
+            try:
+                member_roles = {r.name.lower() for r in member.roles}
 
-            for role_name, primary_role_id in role_map.items():
+                for role_name, primary_role_id in role_map.items():
 
-                initiate_role = f"initiate {role_name}"
+                    initiate_role = f"initiate {role_name}"
 
-                if initiate_role not in member_roles:
-                    continue
+                    if initiate_role not in member_roles:
+                        continue
 
-                primary_role = guild.get_role(primary_role_id)
-                if not primary_role:
-                    continue
+                    primary_role = guild.get_role(primary_role_id)
+                    if not primary_role:
+                        continue
 
                 # -------- ROLE ASSIGNMENT --------
                 if primary_role not in member.roles:
