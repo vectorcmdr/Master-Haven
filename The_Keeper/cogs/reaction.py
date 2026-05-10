@@ -15,7 +15,7 @@ def build_main_embed(guild: discord.Guild):
 
         role = guild.get_role(role_id)
 
-        # ALWAYS fresh count from role.members
+        # always fetch fresh member count
         count = len(role.members) if role else 0
 
         lines.append(
@@ -67,11 +67,11 @@ class DepartmentView(discord.ui.View):
             # force fresh fetch
             msg = await channel.fetch_message(message_id)
 
-            # rebuild embed every update
-            new_embed = build_main_embed(guild)
+            # rebuild embed fresh every time
+            embed = build_main_embed(guild)
 
             await msg.edit(
-                embed=new_embed,
+                embed=embed,
                 view=self
             )
 
@@ -101,24 +101,37 @@ class DepartmentView(discord.ui.View):
 
             return
 
-        # remove old department roles
+        # ---------------- REMOVE OLD ROLES ----------------
+
+        removed_any = False
+
         for r_id in PRIMARY_ROLE_MAP.values():
 
             role = guild.get_role(r_id)
 
             if role and role in member.roles:
-                await member.remove_roles(role)
 
-        # add new role
-        await member.add_roles(new_role)
+                await member.remove_roles(role)
+                removed_any = True
 
         # wait for discord cache update
+        if removed_any:
+            await asyncio.sleep(1)
+
+        # ---------------- ADD NEW ROLE ----------------
+
+        if new_role not in member.roles:
+            await member.add_roles(new_role)
+
+        # wait for cache update
         await asyncio.sleep(1)
 
-        # FORCE panel refresh every selection
+        # ---------------- FORCE PANEL REFRESH ----------------
+
         await self.update_panel(guild)
 
-        # response
+        # ---------------- RESPONSE ----------------
+
         response = f"Set primary role to {new_role.name}"
 
         if interaction.response.is_done():
