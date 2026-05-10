@@ -207,7 +207,6 @@ COGS = [
     "cmds.slash",
     "cmds.voyager",
 ]
-channel_id = bot.CHANNELS.get("welcome")
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
