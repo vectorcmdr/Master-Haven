@@ -289,16 +289,10 @@ def add_xp(user_id, role, amount):
     """, (user_id, role))
 
     xp, old_level = cur.fetchone()
+level = int(old_level)
 
-    if isinstance(old_level, str):
-        old_level = {"initiate": 1}.get(old_level.lower(), 1)
-
-    old_level = int(old_level)
-
-    
     xp += amount
 
-    
     while level < CONFIG["leveling"]["max_level"]:
         needed = get_xp_requirement(level)
 
