@@ -211,6 +211,11 @@ COGS = [
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} command(s)")
+    except Exception as e:
+        print(e)
     print("COMMANDS:", [cmd.name for cmd in bot.commands])
     print("[...The Keeper is watching...]")
 
