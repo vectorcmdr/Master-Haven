@@ -261,10 +261,9 @@ async def on_command_error(ctx, error):
 
 # -------------------- RUN --------------------
 async def main():
-    async def setup_hook():
-        
+    async def setup_hook():        
 
-    bot.setup_hook = setup_hook
+        bot.setup_hook = setup_hook
 
     for cog in COGS:
         await bot.load_extension(cog)
