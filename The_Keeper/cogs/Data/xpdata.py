@@ -131,12 +131,21 @@ PRIMARY_ROLE_MAP = {
 # ---------------- CONNECTION ----------------
 def get_conn():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+    return sqlite3.connect(
+        DB_PATH,
+        timeout=30,
+        check_same_thread=False
+    )
 
 def init_db():
     conn = get_conn()
     cur = conn.cursor()
+
+    cur.execute("PRAGMA journal_mode=WAL;")
+
     cur.execute("PRAGMA table_info(user_roles)")
+    
+
     cols = [c[1] for c in cur.fetchall()]
     
     cur.execute("""
