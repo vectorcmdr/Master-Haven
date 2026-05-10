@@ -206,6 +206,7 @@ COGS = [
     "cmds.list",
     "cmds.slash",
     "cmds.voyager",
+    "setup",
 ]
 # -------------------- EVENTS --------------------
 @bot.event
