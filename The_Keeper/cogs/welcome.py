@@ -62,7 +62,7 @@ class WelcomeCog(commands.Cog):
             url="https://cdn.discordapp.com/attachments/1483946204919501030/1483951736187256913/ezgif-36919d2af39654a6.gif"
         )
 
-        await channel.send(embed=embed)
+        await channel.send(embed=embed, view=DeptView())
 
 class DeptView(discord.ui.View):
     @discord.ui.button(label="Select Department", style=discord.ButtonStyle.primary)
