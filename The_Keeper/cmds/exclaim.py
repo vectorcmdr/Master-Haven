@@ -136,7 +136,7 @@ class CommandsRouter(commands.Cog):
         view.message = message
 
 # ---------------- Discoveries ----------------
-    @@commands.command(name="discovery", help="upload a discovery directly from the server")
+    @commands.command(name="discovery", help="upload a discovery directly from the server")
 async def discovery(self, ctx):
 
     haven_cog = self.bot.get_cog("HavenSubmission")
