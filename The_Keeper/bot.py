@@ -212,11 +212,21 @@ COGS = [
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
+    guild_folder = "Data/guilds"
+
     try:
+        if os.path.exists(guild_folder):
+            for file in os.listdir(guild_folder):
+                if file.endswith(".json"):
+                    gid = int(file.replace(".json", ""))
+                    await bot.tree.sync(guild=discord.Object(id=gid))
+
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} command(s)")
+
     except Exception as e:
         print(e)
+
     print("COMMANDS:", [cmd.name for cmd in bot.commands])
     print("[...The Keeper is watching...]")
 
