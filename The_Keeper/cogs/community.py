@@ -271,16 +271,23 @@ class CommunityCog(commands.Cog):
 
         search_words = search.lower().strip().split()
 
-        scored = []
-        for r in data:
-            name = str(list(r.values())[0]).lower()
+scored = []
 
-score = sum(1 for w in search_words if w in name)
+for r in data:
+    name = str(list(r.values())[0]).lower()
 
-        if score > 0:
-            scored.append((score, r))
+    score = sum(1 for w in search_words if w in name)
 
-        matches = [r for _, r in sorted(scored, key=lambda x: x[0], reverse=True)][:10]
+    if score > 0:
+        scored.append((score, r))
+
+matches = [
+    r for _, r in sorted(
+        scored,
+        key=lambda x: x[0],
+        reverse=True
+    )
+][:10]
 
         if not matches:
             await interaction.edit_original_response(
