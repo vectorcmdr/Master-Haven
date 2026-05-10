@@ -17,11 +17,8 @@ def build_main_embed(guild: discord.Guild):
 
         if role:
 
-            # TRUE LIVE COUNT
-            count = sum(
-                1 for member in guild.members
-                if role in member.roles
-            )
+            # 🔥 RELIABLE LIVE COUNT (no guild.members dependency)
+            count = len(role.members)
 
         else:
             count = 0
@@ -72,14 +69,10 @@ class DepartmentView(discord.ui.View):
 
         try:
 
-            # fresh fetch every update
             msg = await channel.fetch_message(message_id)
 
-            # rebuild embed with fresh counts
-            embed = build_main_embed(guild)
-
             await msg.edit(
-                embed=embed,
+                embed=build_main_embed(guild),
                 view=self
             )
 
@@ -111,126 +104,61 @@ class DepartmentView(discord.ui.View):
 
         # ---------------- REMOVE OLD ROLES ----------------
 
-        removed_any = False
-
         for r_id in PRIMARY_ROLE_MAP.values():
 
             role = guild.get_role(r_id)
 
             if role and role in member.roles:
-
                 await member.remove_roles(role)
-                removed_any = True
 
-        # wait for role removal update
-        if removed_any:
-            await asyncio.sleep(1)
+        # small delay for role propagation
+        await asyncio.sleep(0.8)
 
         # ---------------- ADD NEW ROLE ----------------
 
         if new_role not in member.roles:
             await member.add_roles(new_role)
 
-        # wait for cache update
-        await asyncio.sleep(1)
+        # ensure Discord updates role cache
+        await asyncio.sleep(0.8)
 
-        # ---------------- UPDATE PANEL ----------------
+        # ---------------- FORCE PANEL UPDATE ----------------
 
         await self.update_panel(guild)
 
         # ---------------- RESPONSE ----------------
 
-        response = f"Set primary role to {new_role.name}"
+        msg = f"Set primary role to {new_role.name}"
 
         if interaction.response.is_done():
-            await interaction.followup.send(
-                response,
-                ephemeral=True
-            )
+            await interaction.followup.send(msg, ephemeral=True)
         else:
-            await interaction.response.send_message(
-                response,
-                ephemeral=True
-            )
+            await interaction.response.send_message(msg, ephemeral=True)
 
     # ---------------- BUTTONS ----------------
 
-    @discord.ui.button(
-        label="Architecture",
-        emoji="🔨",
-        style=discord.ButtonStyle.secondary,
-        custom_id="architect"
-    )
-    async def architect_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="Architecture", emoji="🔨", style=discord.ButtonStyle.secondary, custom_id="architect")
+    async def architect_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.give_role(interaction, "architect")
 
-    @discord.ui.button(
-        label="Cartography",
-        emoji="🗺️",
-        style=discord.ButtonStyle.secondary,
-        custom_id="cartographer"
-    )
-    async def cartographer_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="Cartography", emoji="🗺️", style=discord.ButtonStyle.secondary, custom_id="cartographer")
+    async def cartographer_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.give_role(interaction, "cartographer")
 
-    @discord.ui.button(
-        label="Diplomacy",
-        emoji="🕊️",
-        style=discord.ButtonStyle.secondary,
-        custom_id="diplomat"
-    )
-    async def diplomat_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="Diplomacy", emoji="🕊️", style=discord.ButtonStyle.secondary, custom_id="diplomat")
+    async def diplomat_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.give_role(interaction, "diplomat")
 
-    @discord.ui.button(
-        label="Engineering",
-        emoji="⚙️",
-        style=discord.ButtonStyle.secondary,
-        custom_id="engineer"
-    )
-    async def engineer_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="Engineering", emoji="⚙️", style=discord.ButtonStyle.secondary, custom_id="engineer")
+    async def engineer_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.give_role(interaction, "engineer")
 
-    @discord.ui.button(
-        label="History",
-        emoji="🖊️",
-        style=discord.ButtonStyle.secondary,
-        custom_id="historian"
-    )
-    async def historian_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="History", emoji="🖊️", style=discord.ButtonStyle.secondary, custom_id="historian")
+    async def historian_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.give_role(interaction, "historian")
 
-    @discord.ui.button(
-        label="Xenobiology",
-        emoji="🐾",
-        style=discord.ButtonStyle.secondary,
-        custom_id="xenobiologist"
-    )
-    async def xenobiologist_button(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button
-    ):
+    @discord.ui.button(label="Xenobiology", emoji="🐾", style=discord.ButtonStyle.secondary, custom_id="xenobiologist")
+    async def xenobiologist_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.give_role(interaction, "xenobiologist")
 
 
@@ -282,7 +210,6 @@ class ReactionRoles(commands.Cog):
 
         existing = get_panel(ctx.guild.id)
 
-        # update existing panel
         if existing:
 
             old_channel_id, old_message_id = existing
@@ -293,9 +220,7 @@ class ReactionRoles(commands.Cog):
 
                 try:
 
-                    old_msg = await old_channel.fetch_message(
-                        old_message_id
-                    )
+                    old_msg = await old_channel.fetch_message(old_message_id)
 
                     await old_msg.edit(
                         embed=embed,
@@ -308,32 +233,17 @@ class ReactionRoles(commands.Cog):
                         old_message_id
                     )
 
-                    await ctx.send(
-                        "Reaction panel updated.",
-                        delete_after=5
-                    )
-
+                    await ctx.send("Reaction panel updated.", delete_after=5)
                     return
 
                 except discord.NotFound:
                     pass
 
-        # create new panel
-        msg = await ctx.send(
-            embed=embed,
-            view=DepartmentView()
-        )
+        msg = await ctx.send(embed=embed, view=DepartmentView())
 
-        save_panel(
-            ctx.guild.id,
-            ctx.channel.id,
-            msg.id
-        )
+        save_panel(ctx.guild.id, ctx.channel.id, msg.id)
 
-        await ctx.send(
-            "Reaction panel created and saved.",
-            delete_after=5
-        )
+        await ctx.send("Reaction panel created and saved.", delete_after=5)
 
 
 async def setup(bot):
