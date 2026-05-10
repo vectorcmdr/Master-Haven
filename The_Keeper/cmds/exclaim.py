@@ -367,7 +367,7 @@ class CommandsRouter(commands.Cog):
             print(f"[ASSIGNMENT ERROR] {member}: {e}")
             failed += 1
 
-finally:
+Finally:
     conn.commit()
     conn.close()
 
