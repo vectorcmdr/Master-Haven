@@ -209,6 +209,37 @@ COGS = [
     "cmds.voyager",
     "setup",
 ]
+@bot.tree.interaction_check
+async def channel_restriction_check(interaction: discord.Interaction) -> bool:
+    if not interaction.guild:
+        return True
+
+    guild_id = interaction.guild.id
+    config_path = f"Data/guilds/{guild_id}.json"
+
+    if not os.path.exists(config_path):
+        return True  # no restrictions set
+
+    with open(config_path, "r") as f:
+        config = json.load(f)
+
+    command_name = interaction.command.name
+
+    # if command is not restricted, allow
+    if command_name not in config:
+        return True
+
+    allowed_channels = config[command_name]
+
+    # block if not in allowed channel
+    if interaction.channel_id not in allowed_channels:
+        await interaction.response.send_message(
+            "🚫 This command is not allowed in this channel.",
+            ephemeral=True
+        )
+        return False
+
+    return True
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
