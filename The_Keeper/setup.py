@@ -5,18 +5,27 @@ import json
 import os
 
 
-# ---------------- CONFIG ----------------
+# ---------------- GUILD CONFIG SYSTEM ----------------
 
-CONFIG_FILE = "config.json"
+GUILD_FOLDER = "Data/guilds"
+os.makedirs(GUILD_FOLDER, exist_ok=True)
 
-def load_config():
-    if not os.path.exists(CONFIG_FILE):
+
+def guild_path(guild_id: int):
+    return os.path.join(GUILD_FOLDER, f"{guild_id}.json")
+
+
+def load_guild_config(guild_id: int):
+    path = guild_path(guild_id)
+    if not os.path.exists(path):
         return {}
-    with open(CONFIG_FILE, "r") as f:
+    with open(path, "r") as f:
         return json.load(f)
 
-def save_config(data):
-    with open(CONFIG_FILE, "w") as f:
+
+def save_guild_config(guild_id: int, data: dict):
+    path = guild_path(guild_id)
+    with open(path, "w") as f:
         json.dump(data, f, indent=4)
 
 
@@ -39,7 +48,7 @@ class FeatureSelect(discord.ui.Select):
         ]
 
         super().__init__(
-            placeholder="Choose a feature...",
+            placeholder="Choose a feature to configure...",
             min_values=1,
             max_values=1,
             options=options
@@ -49,7 +58,7 @@ class FeatureSelect(discord.ui.Select):
         feature = self.values[0]
 
         await interaction.response.edit_message(
-            content=f"✅ Selected: **{FEATURES[feature]}**\nNow pick channel(s):",
+            content=f"✅ Selected: **{FEATURES[feature]}**\nNow select channel(s):",
             view=ChannelSelectView(feature)
         )
 
@@ -74,23 +83,27 @@ class ChannelSelect(discord.ui.ChannelSelect):
         )
 
     async def callback(self, interaction: discord.Interaction):
+        if not interaction.guild:
+            return await interaction.response.send_message(
+                "This command only works in servers.",
+                ephemeral=True
+            )
+
+        guild_id = interaction.guild.id
         channels = self.values
 
-        guild_id = str(interaction.guild.id)
-        config = load_config()
+        config = load_guild_config(guild_id)
 
-        if guild_id not in config:
-            config[guild_id] = {}
+        # Save feature → channel IDs
+        config[self.feature] = [c.id for c in channels]
 
-        config[guild_id][self.feature] = [c.id for c in channels]
-
-        save_config(config)
+        save_guild_config(guild_id, config)
 
         mentions = ", ".join(c.mention for c in channels)
 
         await interaction.response.edit_message(
             content=(
-                f"✅ Setup complete!\n\n"
+                f"✅ Setup saved!\n\n"
                 f"**Feature:** {FEATURES[self.feature]}\n"
                 f"**Channels:** {mentions}"
             ),
@@ -104,28 +117,31 @@ class ChannelSelectView(discord.ui.View):
         self.add_item(ChannelSelect(feature))
 
 
-# ---------------- COG ----------------
+# ---------------- MAIN COG ----------------
 
 class SetupCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="setup", description="Configure bot features per channel")
+    @app_commands.command(
+        name="setup",
+        description="Configure bot features per server"
+    )
     async def setup(self, interaction: discord.Interaction):
         if not interaction.guild:
             return await interaction.response.send_message(
-                "This command only works in servers.",
+                "❌ This command only works inside servers.",
                 ephemeral=True
             )
 
         await interaction.response.send_message(
-            "🔧 **Setup Wizard**\nChoose a feature to configure:",
+            "🔧 **Setup Wizard**\nSelect a feature to configure:",
             view=FeatureSelectView(),
             ephemeral=True
         )
 
 
-# ---------------- SETUP FUNCTION ----------------
+# ---------------- EXTENSION ENTRYPOINT ----------------
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SetupCog(bot))
