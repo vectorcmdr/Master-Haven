@@ -98,7 +98,13 @@ class WelcomeCog(commands.Cog):
         await channel.send(embed=embed, view=DeptView())
 
 class DeptView(discord.ui.View):
-    @discord.ui.button(label="Select Department", style=discord.ButtonStyle.link, url="https://discord.com/channels/GUILD_ID/1502730838171713687")
+    def __init__(self, guild_id: int):
+        super().__init__()
+        self.add_item(discord.ui.Button(
+            label="Select Department",
+            style=discord.ButtonStyle.link,
+            url=f"https://discord.com/channels/{guild_id}/1502730838171713687"
+        ))
 
 # -------------------- SETUP --------------------
 async def setup(bot: commands.Bot):
