@@ -273,8 +273,9 @@ class CommunityCog(commands.Cog):
 
         scored = []
         for r in data:
-            blob = " ".join(str(v) for v in r.values() if v).lower()
-            score = sum(1 for w in search_words if w in blob)
+            name = str(list(r.values())[0]).lower()
+
+score = sum(1 for w in search_words if w in name)
 
             if score > 0:
                 scored.append((score, r))
