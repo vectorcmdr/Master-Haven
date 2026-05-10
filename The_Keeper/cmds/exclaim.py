@@ -137,30 +137,30 @@ class CommandsRouter(commands.Cog):
 
 # ---------------- Discoveries ----------------
     @commands.command(name="discovery", help="upload a discovery directly from the server")
-async def discovery(self, ctx):
+    async def discovery(self, ctx):
 
-    haven_cog = self.bot.get_cog("HavenSubmission")
-    if not haven_cog:
-        await ctx.send("⚠️ HavenSubmission cog is not loaded.")
-        return
+        haven_cog = self.bot.get_cog("HavenSubmission")
+        if not haven_cog:
+            await ctx.send("⚠️ HavenSubmission cog is not loaded.")
+            return
 
-    DiscoveryTypeSelect = getattr(haven_cog, "DiscoveryTypeSelect", None)
-    if DiscoveryTypeSelect is None:
-        await ctx.send("⚠️ DiscoveryTypeSelect not found.")
-        return
+        DiscoveryTypeSelect = getattr(haven_cog, "DiscoveryTypeSelect", None)
+        if DiscoveryTypeSelect is None:
+            await ctx.send("⚠️ DiscoveryTypeSelect not found.")
+            return
+  
+        api = getattr(haven_cog, "api", None)
+        if api is None:
+            await ctx.send("⚠️ HavenSubmission API missing.")
+            return
 
-    api = getattr(haven_cog, "api", None)
-    if api is None:
-        await ctx.send("⚠️ HavenSubmission API missing.")
-        return
+        glyph_emojis = getattr(haven_cog, "glyph_emojis", {})
 
-    glyph_emojis = getattr(haven_cog, "glyph_emojis", {})
+        view = DiscoveryTypeSelect(api, glyph_emojis, ctx.author.id)
 
-    view = DiscoveryTypeSelect(api, glyph_emojis, ctx.author.id)
+        await ctx.send("Select the type of discovery to submit:", view=view)
 
-    await ctx.send("Select the type of discovery to submit:", view=view)
-
-    system_xp(ctx.author.id, 3)
+        system_xp(ctx.author.id, 3)
 
 # ---------------- Leaderboard ----------------
     @commands.command(name="leaderboard", help="Featured photo leaderboard")
