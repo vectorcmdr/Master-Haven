@@ -4,12 +4,74 @@ from discord.ext import commands
 from Data.xpdata import PRIMARY_ROLE_MAP, save_panel, get_panel
 
 
+# ---------------- EMBED BUILDER ----------------
+
+def build_main_embed(guild: discord.Guild):
+
+    counts = {}
+
+    for role_name, role_id in PRIMARY_ROLE_MAP.items():
+        role = guild.get_role(role_id)
+        counts[role_name] = len(role.members) if role else 0
+
+    embed = discord.Embed(
+        title="🌌 Department Control Panel",
+        description=(
+            "Select a department below.\n"
+            "Department activities and channels award bonus XP.\n\n"
+            " **Department count**"
+        ),
+        color=discord.Color.blurple()
+    )
+
+    lines = []
+
+    for role_name, count in counts.items():
+        lines.append(f"• **{role_name.capitalize()}** — {count}")
+
+    embed.add_field(
+        name="Departments",
+        value="\n".join(lines),
+        inline=False
+    )
+
+    return embed
+
+
+# ---------------- VIEW ----------------
+
 class DepartmentView(discord.ui.View):
 
     def __init__(self):
         super().__init__(timeout=None)
 
+    async def update_panel(self, guild: discord.Guild):
+
+        data = get_panel(guild.id)
+
+        if not data:
+            return
+
+        channel_id, message_id = data
+
+        channel = guild.get_channel(channel_id)
+
+        if not channel:
+            return
+
+        try:
+            msg = await channel.fetch_message(message_id)
+
+            await msg.edit(
+                embed=build_main_embed(guild),
+                view=DepartmentView()
+            )
+
+        except discord.NotFound:
+            pass
+
     async def give_role(self, interaction: discord.Interaction, role_key: str):
+
         guild = interaction.guild
         member = interaction.user
 
@@ -17,6 +79,7 @@ class DepartmentView(discord.ui.View):
         new_role = guild.get_role(role_id)
 
         if new_role is None:
+
             if interaction.response.is_done():
                 await interaction.followup.send(
                     "Role not found in server.",
@@ -27,16 +90,24 @@ class DepartmentView(discord.ui.View):
                     "Role not found in server.",
                     ephemeral=True
                 )
+
             return
 
-        # remove old primary roles
+        # remove old department roles
         for r_id in PRIMARY_ROLE_MAP.values():
+
             role = guild.get_role(r_id)
+
             if role in member.roles:
                 await member.remove_roles(role)
 
+        # add new role
         await member.add_roles(new_role)
 
+        # update live embed stats
+        await self.update_panel(guild)
+
+        # response
         if interaction.response.is_done():
             await interaction.followup.send(
                 f"Set primary role to {new_role.name}",
@@ -48,30 +119,88 @@ class DepartmentView(discord.ui.View):
                 ephemeral=True
             )
 
-    @discord.ui.button(label="Architecture", emoji="🔨", style=discord.ButtonStyle.secondary, custom_id="architect")
-    async def architect_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    # ---------------- BUTTONS ----------------
+
+    @discord.ui.button(
+        label="Architecture",
+        emoji="🔨",
+        style=discord.ButtonStyle.secondary,
+        custom_id="architect"
+    )
+    async def architect_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         await self.give_role(interaction, "architect")
 
-    @discord.ui.button(label="Cartography", emoji="🗺️", style=discord.ButtonStyle.secondary, custom_id="cartographer")
-    async def cartographer_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="Cartography",
+        emoji="🗺️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="cartographer"
+    )
+    async def cartographer_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         await self.give_role(interaction, "cartographer")
 
-    @discord.ui.button(label="Diplomacy", emoji="🕊️", style=discord.ButtonStyle.secondary, custom_id="diplomat")
-    async def diplomat_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="Diplomacy",
+        emoji="🕊️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="diplomat"
+    )
+    async def diplomat_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         await self.give_role(interaction, "diplomat")
 
-    @discord.ui.button(label="Engineering", emoji="⚙️", style=discord.ButtonStyle.secondary, custom_id="engineer")
-    async def engineer_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="Engineering",
+        emoji="⚙️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="engineer"
+    )
+    async def engineer_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         await self.give_role(interaction, "engineer")
 
-    @discord.ui.button(label="History", emoji="🖊️", style=discord.ButtonStyle.secondary, custom_id="historian")
-    async def historian_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="History",
+        emoji="🖊️",
+        style=discord.ButtonStyle.secondary,
+        custom_id="historian"
+    )
+    async def historian_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         await self.give_role(interaction, "historian")
 
-    @discord.ui.button(label="Xenobiology", emoji="🐾", style=discord.ButtonStyle.secondary, custom_id="xenobiologist")
-    async def xenobiologist_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(
+        label="Xenobiology",
+        emoji="🐾",
+        style=discord.ButtonStyle.secondary,
+        custom_id="xenobiologist"
+    )
+    async def xenobiologist_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
         await self.give_role(interaction, "xenobiologist")
 
+
+# ---------------- COG ----------------
 
 class ReactionRoles(commands.Cog):
 
@@ -80,14 +209,18 @@ class ReactionRoles(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+
         self.bot.add_view(DepartmentView())
 
         for guild in self.bot.guilds:
+
             data = get_panel(guild.id)
+
             if not data:
                 continue
 
             channel_id, message_id = data
+
             channel = guild.get_channel(channel_id)
 
             if not channel:
@@ -95,33 +228,74 @@ class ReactionRoles(commands.Cog):
 
             try:
                 msg = await channel.fetch_message(message_id)
-                await msg.edit(view=DepartmentView())
+
+                await msg.edit(
+                    embed=build_main_embed(guild),
+                    view=DepartmentView()
+                )
+
             except discord.NotFound:
                 pass
+
+    # ---------------- COMMAND ----------------
 
     @commands.command(name="react")
     @commands.has_permissions(administrator=True)
     async def react_panel(self, ctx):
 
-        existing = get_panel(ctx.guild.id)
-        if existing:
-            await ctx.send("Reaction panel already exists for this server.")
-            return
+        embed = build_main_embed(ctx.guild)
 
-        embed = discord.Embed(
-            title="🌌 Choose Your Department",
-            description=(
-                "Select a department below.\n"
-                "Department activities and channels award bonus XP."
-            ),
-            color=discord.Color.blurple()
+        existing = get_panel(ctx.guild.id)
+
+        # update existing panel
+        if existing:
+
+            old_channel_id, old_message_id = existing
+
+            old_channel = ctx.guild.get_channel(old_channel_id)
+
+            if old_channel:
+
+                try:
+                    old_msg = await old_channel.fetch_message(old_message_id)
+
+                    await old_msg.edit(
+                        embed=embed,
+                        view=DepartmentView()
+                    )
+
+                    save_panel(
+                        ctx.guild.id,
+                        old_channel_id,
+                        old_message_id
+                    )
+
+                    await ctx.send(
+                        "Reaction panel updated.",
+                        delete_after=5
+                    )
+
+                    return
+
+                except discord.NotFound:
+                    pass
+
+        # create new panel
+        msg = await ctx.send(
+            embed=embed,
+            view=DepartmentView()
         )
 
-        msg = await ctx.send(embed=embed, view=DepartmentView())
+        save_panel(
+            ctx.guild.id,
+            ctx.channel.id,
+            msg.id
+        )
 
-        save_panel(ctx.guild.id, ctx.channel.id, msg.id)
-
-        await ctx.send("Reaction panel created and saved.", delete_after=5)
+        await ctx.send(
+            "Reaction panel created and saved.",
+            delete_after=5
+        )
 
 
 async def setup(bot):
