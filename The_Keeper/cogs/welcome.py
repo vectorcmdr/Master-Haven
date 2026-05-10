@@ -28,7 +28,7 @@ class WelcomeCog(commands.Cog):
 
         await self.send_welcome_embed(channel, member)
 
-    # -------------------- WELCOME message--------------------
+    # -------------------- WELCOME EMBED --------------------
     async def send_welcome_embed(self, channel, member: discord.Member):
         avatar = member.avatar.url if member.avatar else member.default_avatar.url
 
@@ -56,35 +56,35 @@ class WelcomeCog(commands.Cog):
 
         await channel.send(embed=embed)
 
-#----------------The simulation----------
-@commands.command(name="welcome")
-@commands.has_permissions(administrator=True)
-async def simulate_join(self, ctx, member: discord.Member = None):
-    """
-    Simulates a member joining and sends the welcome embed.
-    """
+    # -------------------- TEST COMMAND --------------------
+    @commands.command(name="welcome")
+    @commands.has_permissions(administrator=True)
+    async def simulate_join(self, ctx, member: discord.Member = None):
+        """
+        Simulates a member joining and sends the welcome embed.
+        """
 
-    if member is None:
-        member = ctx.author  # fallback for testing
+        if member is None:
+            member = ctx.author
 
-    channel_id = getattr(self.bot, "WELCOME_CHANNEL_ID", None)
+        channel_id = getattr(self.bot, "WELCOME_CHANNEL_ID", None)
 
-    if not channel_id:
-        await ctx.send(" WELCOME_CHANNEL_ID not set.")
-        return
-
-    channel = self.bot.get_channel(channel_id)
-
-    if channel is None:
-        try:
-            channel = await self.bot.fetch_channel(channel_id)
-        except Exception:
-            await ctx.send("Could not find welcome channel.")
+        if not channel_id:
+            await ctx.send("❌ WELCOME_CHANNEL_ID not set.")
             return
 
-    await self.send_welcome_embed(channel, member)
+        channel = self.bot.get_channel(channel_id)
 
-    await ctx.send(f"Simulated join for {member.mention}")
+        if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(channel_id)
+            except Exception:
+                await ctx.send("❌ Could not find welcome channel.")
+                return
+
+        await self.send_welcome_embed(channel, member)
+
+        await ctx.send(f"✅ Simulated join for {member.mention}")
 
 
 # -------------------- SETUP --------------------
