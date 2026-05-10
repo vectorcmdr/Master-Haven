@@ -106,7 +106,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Systems ----------------
     @commands.command(name="newsystem", help="upload a system directly from the server")
     async def addlog(self, ctx):
-        if ctx.channel.id != int(os.getenv("SYSTEM_CHANNEL_ID")): return
+        
         haven_cog = self.bot.get_cog("HavenSubmission")
         if not haven_cog:
             await ctx.send("⚠️ HavenSubmission cog is not loaded.")
@@ -137,19 +137,7 @@ class CommandsRouter(commands.Cog):
 
 # ---------------- Discoveries ----------------
     @commands.command(name="discovery", help="upload a disxovery directly from the server")
-    async def discovery(self, ctx):       
-        if ctx.channel.id not in [
-            int(os.getenv("BASE_CHANNEL_ID")),
-            int(os.getenv("OUT_CHANNEL_ID")),
-            int(os.getenv("CRASH_CHANNEL_ID")),
-            int(os.getenv("SENTINEL_CHANNEL_ID")),
-            int(os.getenv("TOOL_CHANNEL_ID")),
-            int(os.getenv("STAFF_CHANNEL_ID")),
-            int(os.getenv("FAUNA_CHANNEL_ID")),
-            int(os.getenv("FLORA_CHANNEL_ID")),
-        ]:
-            return
-
+    
         haven_cog = self.bot.get_cog("HavenSubmission")
         if not haven_cog:
             await ctx.send("⚠️ HavenSubmission cog is not loaded.")
@@ -187,7 +175,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Map ----------------
     @commands.command(name="map", help="a link to the Haven map")
     async def map_command(self, ctx: commands.Context):
-        if ctx.channel.id not in [int(os.getenv("GENERAL_CHANNEL_ID")), int(os.getenv("HELP_CHANNEL_ID")), int(os.getenv("LIBRARY_CHANNEL_ID"))]: return
+        
         HAVEN_MAP_URL = "https://havenmap.online/map/latest"
 
         button = discord.ui.Button(label="✨ Open the Haven Map 🌌", url=HAVEN_MAP_URL)
@@ -199,7 +187,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Stats ----------------
     @commands.command(name="stats", help="a general overview of Haven map stats")
     async def stats(self, ctx):
-        if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
+        
         cog = self.bot.get_cog("Haven_statsCog")
         if not cog:
             return await ctx.send("Stats system not loaded.")
@@ -220,7 +208,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Systems Count ----------------
     @commands.command(name="systems", help="number of current systems")
     async def system(self, ctx):
-        if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
+        
         cog = self.bot.get_cog("AnnouncementCog")
 
         if not cog:
@@ -251,7 +239,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Planets Count ----------------
     @commands.command(name="planets", help="number if current planets")
     async def planets(self, ctx):
-        if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
+        
         cog = self.bot.get_cog("AnnouncementCog")
 
         if not cog:
