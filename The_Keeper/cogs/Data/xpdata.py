@@ -290,8 +290,10 @@ def add_xp(user_id, role, amount):
 
     xp, old_level = cur.fetchone()
 
+    if isinstance(old_level, str):
+        old_level = {"initiate": 1}.get(old_level.lower(), 1)
+
     old_level = int(old_level)
-    level = old_level
 
     
     xp += amount
