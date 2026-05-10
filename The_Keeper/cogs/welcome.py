@@ -74,7 +74,7 @@ class WelcomeCog(commands.Cog):
         embed.add_field(
             name="Learn More",
             value=(
-                "🌐 https://havenmap.online/haven-ui/\n"
+                "🌐 https://havenmap.online/\n"
                 "📖 https://docs.google.com/document/d/...\n"
                 "💫 https://travelers-exchange.online/"
             ),
