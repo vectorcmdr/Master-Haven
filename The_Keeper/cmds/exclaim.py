@@ -299,6 +299,67 @@ class CommandsRouter(commands.Cog):
     async def setup(bot):
         await bot.add_cog(Department(bot))
 
+@bot.command(name="assignment")
+@commands.has_permissions(administrator=True)
+@commands.guild_only()
+async def assignment(ctx):
+    guild = ctx.guild
+
+    assigned = 0
+    skipped = 0
+    failed = 0
+
+    await ctx.send("Assigning missing primary roles...")
+
+    for member in guild.members:
+
+        try:
+            role_names = [r.name.lower() for r in member.roles]
+
+            for primary_name, primary_role_id in PRIMARY_ROLE_MAP.items():
+
+                # "primary Cartographer" -> "cartographer"
+                base_name = primary_name.replace("primary ", "").strip().lower()
+
+                # Required matching role
+                target_role_name = f"initiate {base_name}"
+
+                # User has initiate role?
+                if target_role_name not in role_names:
+                    continue
+
+                primary_role = guild.get_role(primary_role_id)
+
+                if not primary_role:
+                    continue
+
+                # Already has primary role
+                if primary_role in member.roles:
+                    skipped += 1
+                    continue
+
+                await member.add_roles(
+                    primary_role,
+                    reason="Automatic primary role assignment"
+                )
+
+                assigned += 1
+
+        except Exception as e:
+            print(f"[ASSIGNMENT ERROR] {member} -> {e}")
+            failed += 1
+
+    embed = discord.Embed(
+        title="Primary Role Assignment Complete",
+        color=discord.Color.green()
+    )
+
+    embed.add_field(name="Assigned", value=str(assigned))
+    embed.add_field(name="Skipped", value=str(skipped))
+    embed.add_field(name="Failed", value=str(failed))
+
+    await ctx.send(embed=embed)
+
 # ---------------- Setup --------------------------
 async def setup(bot: commands.Bot):
     await bot.add_cog(CommandsRouter(bot))
