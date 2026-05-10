@@ -321,7 +321,9 @@ class CommunityCog(commands.Cog):
 
         for r in data:
 
-            name = str(r.get("Community Name", "")).strip().lower()
+            row_values = list(r.values())
+
+            name = str(row_values[0]).strip().lower() if row_values else ""
 
             if not name:
                 continue
