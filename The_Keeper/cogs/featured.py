@@ -88,6 +88,9 @@ class FeaturedCog(commands.Cog):
         if message.id in self.FEATURED_MESSAGES or message.id in self.PROCESSING:
             return
 
+        if any(reaction.me for reaction in message.reactions):
+        return
+
         self.PROCESSING.add(message.id)
         try:
             now = datetime.now(timezone.utc)
