@@ -259,32 +259,31 @@ class CommunityCog(commands.Cog):
             return list(csv.reader(StringIO(text)))
 
     async def run_search(self, interaction: discord.Interaction, search: str):
-    rows = await self.fetch_sheet()
-    headers = [h.strip() for h in rows[0]]
+        rows = await self.fetch_sheet()
+        headers = [h.strip() for h in rows[0]]
 
-    data = []
-    for r in rows[1:]:
-        if not r:
-            continue
-        row_dict = {headers[i]: (r[i] if i < len(r) else "") for i in range(len(headers))}
-        data.append(row_dict)
+        data = []
+        for r in rows[1:]:
+            if not r:
+                continue
+            row_dict = {headers[i]: (r[i] if i < len(r) else "") for i in range(len(headers))}
+            data.append(row_dict)
 
-    search_words = search.lower().strip().split()
+        search_words = search.lower().strip().split()
 
-    scored = []
+        scored = []
 
-    for r in data:
-        # safer: use first column as "name"
-        first_value = next(iter(r.values()), "")
-        name = str(first_value).lower()
+        for r in data:
+            first_value = next(iter(r.values()), "")
+            name = str(first_value).lower()
 
-        score = sum(1 for w in search_words if w in name)
+            score = sum(1 for w in search_words if w in name)
 
-        if score > 0:
-            scored.append((score, r))
+            if score > 0:
+                scored.append((score, r))
 
-    matches = [
-        r for _, r in sorted(scored, key=lambda x: x[0], reverse=True)
+        matches = [
+            r for _, r in sorted(scored, key=lambda x: x[0], reverse=True)
     ][:10]
 
     if not matches:
