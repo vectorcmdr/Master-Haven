@@ -303,8 +303,8 @@ class CommandsRouter(commands.Cog):
 
 #----------assignment-------------++
     @commands.command(name="assignment")
-    @commands.has_permissions(administrator=True)
-    @commands.guild_only()
+@commands.has_permissions(administrator=True)
+@commands.guild_only()
 async def assignment(ctx):
     guild = ctx.guild
 
@@ -315,7 +315,6 @@ async def assignment(ctx):
 
     await ctx.send("Running one-time primary role + DB sync...")
 
-    # Convert: "cartographer" -> role_id
     role_map = {
         name: role_id
         for name, role_id in PRIMARY_ROLE_MAP.items()
@@ -332,7 +331,6 @@ async def assignment(ctx):
 
                 initiate_role = f"initiate {role_name}"
 
-                # MUST already have initiate role
                 if initiate_role not in member_roles:
                     continue
 
@@ -340,7 +338,7 @@ async def assignment(ctx):
                 if not primary_role:
                     continue
 
-                # --- assign role if missing ---
+                # -------- ROLE ASSIGNMENT --------
                 if primary_role not in member.roles:
                     await member.add_roles(
                         primary_role,
@@ -350,16 +348,9 @@ async def assignment(ctx):
                 else:
                     skipped += 1
 
-                # --- DB SYNC ---
+                # -------- DB SYNC (FIXED) --------
                 ensure_user(member.id)
 
-                cur.execute("""
-                    UPDATE users
-                    SET primary_role = ?
-                    WHERE user_id = ?
-                """, (role_name, member.id))
-
-                # If row doesn't exist yet
                 cur.execute("""
                     INSERT INTO users (user_id, primary_role)
                     VALUES (?, ?)
@@ -368,6 +359,9 @@ async def assignment(ctx):
                 """, (member.id, role_name))
 
                 db_updated += 1
+
+                # IMPORTANT: stop duplicate overwrites per member
+                break
 
         except Exception as e:
             print(f"[ASSIGNMENT ERROR] {member}: {e}")
