@@ -89,7 +89,7 @@ class FeaturedCog(commands.Cog):
             return
 
         if any(reaction.me for reaction in message.reactions):
-        return
+            return
 
         self.PROCESSING.add(message.id)
         try:
