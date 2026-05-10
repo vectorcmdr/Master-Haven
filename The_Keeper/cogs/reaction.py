@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+import asyncio
 
 from Data.xpdata import PRIMARY_ROLE_MAP, save_panel, get_panel
 
@@ -19,7 +20,7 @@ def build_main_embed(guild: discord.Guild):
         description=(
             "Select a department below.\n"
             "Department activities and channels award bonus XP.\n\n"
-            " **Department count**"
+            "**Department Count**"
         ),
         color=discord.Color.blurple()
     )
@@ -103,6 +104,9 @@ class DepartmentView(discord.ui.View):
 
         # add new role
         await member.add_roles(new_role)
+
+        # allow discord cache/member list to update
+        await asyncio.sleep(1)
 
         # update live embed stats
         await self.update_panel(guild)
