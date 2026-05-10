@@ -98,10 +98,7 @@ class WelcomeCog(commands.Cog):
         await channel.send(embed=embed, view=DeptView())
 
 class DeptView(discord.ui.View):
-    @discord.ui.button(label="Select Department", style=discord.ButtonStyle.primary)
-    async def select(self, interaction: discord.Interaction, button: discord.ui.Button):
-        channel = interaction.guild.get_channel(1502730838171713687)
-        await interaction.response.send_message(f"Go here: {channel.mention}", ephemeral=True)
+    @discord.ui.button(label="Select Department", style=discord.ButtonStyle.link, url="https://discord.com/channels/GUILD_ID/1502730838171713687")
 
 # -------------------- SETUP --------------------
 async def setup(bot: commands.Bot):
