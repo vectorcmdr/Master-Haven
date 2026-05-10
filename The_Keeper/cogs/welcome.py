@@ -65,7 +65,7 @@ class WelcomeCog(commands.Cog):
         embed = discord.Embed(
             title=f"Welcome to The Haven, {member.mention}!",
             description=(
-                "Welcome to The Voyager's Haven — a community dedicated to exploration, research and archiving the universe of No Mans Sky! Stay and connect with us!\n"
+                "Welcome to The Voyager's Haven — a community dedicated to exploration, research, archiving and stellar cartography. We are invested in several projects to chart and connect the universe of No Mans Sky! Stay and watch, or connect with us!\n"
                 "Check out some of our projects here!"
             ),
             color=0x8A00C4
@@ -83,7 +83,7 @@ class WelcomeCog(commands.Cog):
 
         embed.add_field(
         name="Join Us",
-        value="To become part of our mapping project, sign a charter or to talk to one of our staff please submit a ticket in <#1434762611504713829>",
+        value="To become part of our mapping project, sign a charter or to talk to one of our staff, please submit a ticket in <#1434762611504713829>",
         inline=False
     )
 
