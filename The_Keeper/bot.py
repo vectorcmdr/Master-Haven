@@ -212,22 +212,28 @@ COGS = [
 @bot.tree.interaction_check
 async def check_channel_allowed(interaction: discord.Interaction) -> bool:
     if not interaction.guild:
-        return True  # allow DMs or block if you prefer
+        return True  # allow DMs
 
-    import json
-    import os
+    import os, json
 
     path = f"Data/guilds/{interaction.guild.id}.json"
 
     if not os.path.exists(path):
-        return True  # no config = allow everywhere (or change to False if you want strict mode)
+        return True  # or False if you want strict mode
 
     with open(path, "r") as f:
         config = json.load(f)
 
-    command_name = interaction.command.name
-    allowed_channels = config.get(f"/{command_name}", [])
+    # safety check
+    if not interaction.command:
+        return True  # or False for strict mode
 
+    command_name = f"/{interaction.command.name}"
+
+    # FIXED: correct dictionary lookup (no assignment here!)
+    allowed_channels = config.get(command_name, [])
+
+    # if command not configured, allow (change to False if strict mode)
     if not allowed_channels:
         return True
 
