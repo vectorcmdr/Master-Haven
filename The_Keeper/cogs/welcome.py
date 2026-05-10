@@ -25,6 +25,7 @@ class WelcomeCog(commands.Cog):
 
         await self.send_welcome_embed(channel, member)
 
+
     # -------------------- CHANNEL RESOLVER --------------------
     async def get_channel(self, channel_id: int):
         channel = self.bot.get_channel(channel_id)
@@ -33,6 +34,29 @@ class WelcomeCog(commands.Cog):
             channel = await self.bot.fetch_channel(channel_id)
 
         return channel
+
+    @commands.command(name="welcome")
+    @commands.has_permissions(administrator=True)
+    async def simulate_join(self, ctx, member: discord.Member = None):
+
+        if member is None:
+            member = ctx.author
+
+        channel_id = self.bot.CHANNELS.get("welcome")
+
+        if not channel_id:
+            await ctx.send("❌ Welcome channel not configured.")
+            return
+
+        try:
+            channel = await self.get_channel(int(channel_id))
+        except Exception:
+            await ctx.send("❌ Could not fetch welcome channel.")
+            return
+
+        await self.send_welcome_embed(channel, member)
+
+        await ctx.send(f"✅ Simulated join for {member.mention}")
 
     # -------------------- WELCOME EMBED --------------------
     async def send_welcome_embed(self, channel, member: discord.Member):
@@ -78,31 +102,6 @@ class DeptView(discord.ui.View):
     async def select(self, interaction: discord.Interaction, button: discord.ui.Button):
         channel = interaction.guild.get_channel(1502730838171713687)
         await interaction.response.send_message(f"Go here: {channel.mention}", ephemeral=True)
-
-    # -------------------- TEST COMMAND --------------------
-    @commands.command(name="welcome")
-    @commands.has_permissions(administrator=True)
-    async def simulate_join(self, ctx, member: discord.Member = None):
-
-        if member is None:
-            member = ctx.author
-
-        channel_id = self.bot.CHANNELS.get("welcome")
-
-        if not channel_id:
-            await ctx.send("❌ Welcome channel not configured.")
-            return
-
-        try:
-            channel = await self.get_channel(int(channel_id))
-        except Exception:
-            await ctx.send("❌ Could not fetch welcome channel.")
-            return
-
-        await self.send_welcome_embed(channel, member)
-
-        await ctx.send(f"✅ Simulated join for {member.mention}")
-
 
 # -------------------- SETUP --------------------
 async def setup(bot: commands.Bot):
