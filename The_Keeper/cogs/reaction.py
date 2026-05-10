@@ -9,11 +9,18 @@ from Data.xpdata import PRIMARY_ROLE_MAP, save_panel, get_panel
 
 def build_main_embed(guild: discord.Guild):
 
-    counts = {}
+    lines = []
 
     for role_name, role_id in PRIMARY_ROLE_MAP.items():
+
         role = guild.get_role(role_id)
-        counts[role_name] = len(role.members) if role else 0
+
+        # ALWAYS fresh count from role.members
+        count = len(role.members) if role else 0
+
+        lines.append(
+            f"• **{role_name.capitalize()}** — {count}"
+        )
 
     embed = discord.Embed(
         title="🌌 Department Control Panel",
@@ -24,11 +31,6 @@ def build_main_embed(guild: discord.Guild):
         ),
         color=discord.Color.blurple()
     )
-
-    lines = []
-
-    for role_name, count in counts.items():
-        lines.append(f"• **{role_name.capitalize()}** — {count}")
 
     embed.add_field(
         name="Departments",
@@ -61,11 +63,16 @@ class DepartmentView(discord.ui.View):
             return
 
         try:
+
+            # force fresh fetch
             msg = await channel.fetch_message(message_id)
 
+            # rebuild embed every update
+            new_embed = build_main_embed(guild)
+
             await msg.edit(
-                embed=build_main_embed(guild),
-                view=DepartmentView()
+                embed=new_embed,
+                view=self
             )
 
         except discord.NotFound:
@@ -99,27 +106,29 @@ class DepartmentView(discord.ui.View):
 
             role = guild.get_role(r_id)
 
-            if role in member.roles:
+            if role and role in member.roles:
                 await member.remove_roles(role)
 
         # add new role
         await member.add_roles(new_role)
 
-        # allow discord cache/member list to update
+        # wait for discord cache update
         await asyncio.sleep(1)
 
-        # update live embed stats
+        # FORCE panel refresh every selection
         await self.update_panel(guild)
 
         # response
+        response = f"Set primary role to {new_role.name}"
+
         if interaction.response.is_done():
             await interaction.followup.send(
-                f"Set primary role to {new_role.name}",
+                response,
                 ephemeral=True
             )
         else:
             await interaction.response.send_message(
-                f"Set primary role to {new_role.name}",
+                response,
                 ephemeral=True
             )
 
@@ -231,6 +240,7 @@ class ReactionRoles(commands.Cog):
                 continue
 
             try:
+
                 msg = await channel.fetch_message(message_id)
 
                 await msg.edit(
@@ -261,7 +271,10 @@ class ReactionRoles(commands.Cog):
             if old_channel:
 
                 try:
-                    old_msg = await old_channel.fetch_message(old_message_id)
+
+                    old_msg = await old_channel.fetch_message(
+                        old_message_id
+                    )
 
                     await old_msg.edit(
                         embed=embed,
