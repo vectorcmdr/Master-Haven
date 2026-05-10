@@ -321,14 +321,18 @@ class CommunityCog(commands.Cog):
 
         for r in data:
 
-            first_value = next(iter(r.values()), "")
-            name = str(first_value).lower()
+            name = str(r.get("Community Name", "")).strip().lower()
 
-            score = sum(1 for w in search_words if w in name)
+            if not name:
+                continue
+
+            score = sum(
+                1 for w in search_words
+                if w in name
+            )
 
             if score > 0:
                 scored.append((score, r))
-
         matches = [
             r for _, r in sorted(
                 scored,
