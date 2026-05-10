@@ -301,10 +301,10 @@ class CommandsRouter(commands.Cog):
 
 
 
-#assignment
-@bot.command(name="assignment")
-@commands.has_permissions(administrator=True)
-@commands.guild_only()
+#----------assignment-------------++
+    @commands.command(name="assignment")
+    @commands.has_permissions(administrator=True)
+    @commands.guild_only()
 async def assignment(ctx):
     guild = ctx.guild
 
