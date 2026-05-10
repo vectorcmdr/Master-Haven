@@ -17,8 +17,11 @@ def build_main_embed(guild: discord.Guild):
 
         if role:
 
-            # 🔥 RELIABLE LIVE COUNT (no guild.members dependency)
-            count = len(role.members)
+            # 🔥 ALWAYS FRESH COUNT (no cache dependency)
+            count = sum(
+                1 for member in guild.members
+                if role in member.roles
+            )
 
         else:
             count = 0
@@ -44,8 +47,6 @@ def build_main_embed(guild: discord.Guild):
     )
 
     return embed
-
-
 # ---------------- VIEW ----------------
 
 class DepartmentView(discord.ui.View):
