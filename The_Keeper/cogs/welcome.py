@@ -39,10 +39,9 @@ class WelcomeCog(commands.Cog):
         avatar = member.display_avatar.url
 
         embed = discord.Embed(
-            title=f"Welcome to The Haven, {member.display_name}!",
+            title=f"Welcome to The Haven, {member.mention}!",
             description=(
-                "Welcome to The Haven — stay and explore, connect, "
-                "and chart your journey among the stars."
+                "Welcome to The Voyager's Haven — a community dedicated to exploration, research and archiving the universe of No Mans Sky! Stay and connect with us!"
             ),
             color=0x8A00C4
         )
@@ -64,6 +63,12 @@ class WelcomeCog(commands.Cog):
         )
 
         await channel.send(embed=embed)
+
+class DeptView(discord.ui.View):
+    @discord.ui.button(label="Select Department", style=discord.ButtonStyle.primary)
+    async def select(self, interaction: discord.Interaction, button: discord.ui.Button):
+        channel = interaction.guild.get_channel(1502730838171713687)
+        await interaction.response.send_message(f"Go here: {channel.mention}", ephemeral=True)
 
     # -------------------- TEST COMMAND --------------------
     @commands.command(name="welcome")
