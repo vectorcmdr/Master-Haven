@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import asyncio, os, sys
+import json
 import logging
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 
@@ -251,7 +252,7 @@ async def on_command_error(ctx, error):
 # -------------------- RUN --------------------
 async def main():
     async def setup_hook():
-        await bot.tree.sync(guild=discord.Object(id=1423941004230135851))
+        await
 
     bot.setup_hook = setup_hook
 
