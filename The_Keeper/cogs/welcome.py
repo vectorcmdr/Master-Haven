@@ -11,7 +11,7 @@ class WelcomeCog(commands.Cog):
     async def on_member_join(self, member: discord.Member):
         print(f"[JOIN] {member} joined")
 
-        channel_id = getattr(self.bot, "WELCOME_CHANNEL_ID", None)
+        channel_id = self.bot.CHANNELS.get("welcome")
 
         if not channel_id:
             print("[ERROR] WELCOME_CHANNEL_ID not set.")
