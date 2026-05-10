@@ -17,7 +17,7 @@ def build_main_embed(guild: discord.Guild):
 
         if role:
 
-            # 🔥 ALWAYS FRESH COUNT (no cache dependency)
+           
             count = sum(
                 1 for member in guild.members
                 if role in member.roles
