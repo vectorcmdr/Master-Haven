@@ -259,74 +259,68 @@ class CommunityCog(commands.Cog):
             return list(csv.reader(StringIO(text)))
 
     async def run_search(self, interaction: discord.Interaction, search: str):
-        rows = await self.fetch_sheet()
-        headers = [h.strip() for h in rows[0]]
+    rows = await self.fetch_sheet()
+    headers = [h.strip() for h in rows[0]]
 
-        data = []
-        for r in rows[1:]:
-            if not r:
-                continue
-            row_dict = {headers[i]: (r[i] if i < len(r) else "") for i in range(len(headers))}
-            data.append(row_dict)
+    data = []
+    for r in rows[1:]:
+        if not r:
+            continue
+        row_dict = {headers[i]: (r[i] if i < len(r) else "") for i in range(len(headers))}
+        data.append(row_dict)
 
-        search_words = search.lower().strip().split()
+    search_words = search.lower().strip().split()
 
-scored = []
+    scored = []
 
-for r in data:
-    name = str(list(r.values())[0]).lower()
+    for r in data:
+        # safer: use first column as "name"
+        first_value = next(iter(r.values()), "")
+        name = str(first_value).lower()
 
-    score = sum(1 for w in search_words if w in name)
+        score = sum(1 for w in search_words if w in name)
 
-    if score > 0:
-        scored.append((score, r))
+        if score > 0:
+            scored.append((score, r))
 
-matches = [
-    r for _, r in sorted(
-        scored,
-        key=lambda x: x[0],
-        reverse=True
-    )
-][:10]
+    matches = [
+        r for _, r in sorted(scored, key=lambda x: x[0], reverse=True)
+    ][:10]
 
-        if not matches:
-            await interaction.edit_original_response(
-                content="No match found (try more specific terms).",
-                embed=None,
-                view=None
-            )
-            return
-
-        def build_embed(row, i):
-            e = discord.Embed(title=f"Result {i}")
-
-            allowed = ["Community Name", "Description", "Permanent Link"]
-            for k in allowed:
-                if row.get(k):
-                    e.add_field(name=k, value=row[k], inline=False)
-            link = next((v for k, v in row.items() if "link" in k.lower() and v), None)
-
-            if link:
-                if not link.startswith("http"):
-                    link = "https://" + link
-        
-                e.add_field(
-                    name="🔗 Link",
-                    value=f"[Open]({link})",
-                    inline=False
-                )
-
-            return e
-
-        view = SearchPaginator(self, matches, build_embed)
-        embed, content = view.build_page()
-
+    if not matches:
         await interaction.edit_original_response(
-            embed=embed,
-            content=content,
-            view=view
+            content="No match found (try more specific terms).",
+            embed=None,
+            view=None
         )
+        return
 
+    def build_embed(row, i):
+        e = discord.Embed(title=f"Result {i}")
+
+        allowed = ["Community Name", "Description", "Permanent Link"]
+        for k in allowed:
+            if row.get(k):
+                e.add_field(name=k, value=row[k], inline=False)
+
+        link = next((v for k, v in row.items() if "link" in k.lower() and v), None)
+
+        if link:
+            if not link.startswith("http"):
+                link = "https://" + link
+
+            e.add_field(name="🔗 Link", value=f"[Open]({link})", inline=False)
+
+        return e
+
+    view = SearchPaginator(self, matches, build_embed)
+    embed, content = view.build_page()
+
+    await interaction.edit_original_response(
+        embed=embed,
+        content=content,
+        view=view
+    )
 
 # -------------------- SETUP --------------------
 async def setup(bot: commands.Bot):
