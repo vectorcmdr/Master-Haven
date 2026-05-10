@@ -16,13 +16,8 @@ def build_main_embed(guild: discord.Guild):
         role = guild.get_role(role_id)
 
         if role:
-
-           
-            count = sum(
-                1 for member in guild.members
-                if role in member.roles
-            )
-
+            # 🔥 reliable live count from role membership cache
+            count = sum(1 for _ in role.members)
         else:
             count = 0
 
@@ -47,6 +42,8 @@ def build_main_embed(guild: discord.Guild):
     )
 
     return embed
+
+
 # ---------------- VIEW ----------------
 
 class DepartmentView(discord.ui.View):
@@ -57,24 +54,22 @@ class DepartmentView(discord.ui.View):
     async def update_panel(self, guild: discord.Guild):
 
         data = get_panel(guild.id)
-
         if not data:
             return
 
         channel_id, message_id = data
-
         channel = guild.get_channel(channel_id)
 
         if not channel:
             return
 
         try:
-
             msg = await channel.fetch_message(message_id)
 
+            # ALWAYS rebuild fresh embed at edit time
             await msg.edit(
                 embed=build_main_embed(guild),
-                view=self
+                view=DepartmentView()
             )
 
         except discord.NotFound:
@@ -88,42 +83,37 @@ class DepartmentView(discord.ui.View):
         role_id = PRIMARY_ROLE_MAP[role_key]
         new_role = guild.get_role(role_id)
 
-        if new_role is None:
+        if not new_role:
+
+            msg = "Role not found in server."
 
             if interaction.response.is_done():
-                await interaction.followup.send(
-                    "Role not found in server.",
-                    ephemeral=True
-                )
+                await interaction.followup.send(msg, ephemeral=True)
             else:
-                await interaction.response.send_message(
-                    "Role not found in server.",
-                    ephemeral=True
-                )
+                await interaction.response.send_message(msg, ephemeral=True)
 
             return
 
         # ---------------- REMOVE OLD ROLES ----------------
 
         for r_id in PRIMARY_ROLE_MAP.values():
-
             role = guild.get_role(r_id)
 
             if role and role in member.roles:
                 await member.remove_roles(role)
 
-        # small delay for role propagation
-        await asyncio.sleep(0.8)
+        # allow Discord role propagation
+        await asyncio.sleep(1)
 
         # ---------------- ADD NEW ROLE ----------------
 
         if new_role not in member.roles:
             await member.add_roles(new_role)
 
-        # ensure Discord updates role cache
-        await asyncio.sleep(0.8)
+        # ensure role cache updates before counting
+        await asyncio.sleep(1)
 
-        # ---------------- FORCE PANEL UPDATE ----------------
+        # ---------------- UPDATE PANEL ----------------
 
         await self.update_panel(guild)
 
@@ -183,14 +173,12 @@ class ReactionRoles(commands.Cog):
                 continue
 
             channel_id, message_id = data
-
             channel = guild.get_channel(channel_id)
 
             if not channel:
                 continue
 
             try:
-
                 msg = await channel.fetch_message(message_id)
 
                 await msg.edit(
@@ -214,13 +202,11 @@ class ReactionRoles(commands.Cog):
         if existing:
 
             old_channel_id, old_message_id = existing
-
             old_channel = ctx.guild.get_channel(old_channel_id)
 
             if old_channel:
 
                 try:
-
                     old_msg = await old_channel.fetch_message(old_message_id)
 
                     await old_msg.edit(
