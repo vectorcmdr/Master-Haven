@@ -41,7 +41,8 @@ class WelcomeCog(commands.Cog):
         embed = discord.Embed(
             title=f"Welcome to The Haven, {member.mention}!",
             description=(
-                "Welcome to The Voyager's Haven — a community dedicated to exploration, research and archiving the universe of No Mans Sky! Stay and connect with us!"
+                "Welcome to The Voyager's Haven — a community dedicated to exploration, research and archiving the universe of No Mans Sky! Stay and connect with us!\n"
+                "Check out some of our projects here!"
             ),
             color=0x8A00C4
         )
@@ -56,11 +57,19 @@ class WelcomeCog(commands.Cog):
             inline=False
         )
 
+        embed.add_field(
+        name="Join Us",
+        value="To become part of our mapping project, sign a charter or to talk to one of our staff please submit a ticket in <#1434762611504713829>",
+        inline=False
+    )
+
         embed.set_thumbnail(url=avatar)
 
         embed.set_image(
             url="https://cdn.discordapp.com/attachments/1483946204919501030/1483951736187256913/ezgif-36919d2af39654a6.gif"
         )
+        position = sorted(member.guild.members, key=lambda m: m.joined_at).index(member) + 1
+        embed.set_footer(text=f"You are #{position} in the server")
 
         await channel.send(embed=embed, view=DeptView())
 
