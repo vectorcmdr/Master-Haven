@@ -277,8 +277,8 @@ class CommunityCog(commands.Cog):
 
 score = sum(1 for w in search_words if w in name)
 
-            if score > 0:
-                scored.append((score, r))
+        if score > 0:
+            scored.append((score, r))
 
         matches = [r for _, r in sorted(scored, key=lambda x: x[0], reverse=True)][:10]
 
