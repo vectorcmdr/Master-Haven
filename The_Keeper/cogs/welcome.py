@@ -75,7 +75,7 @@ class WelcomeCog(commands.Cog):
             name="Learn More",
             value=(
                 "🌐 https://havenmap.online/\n"
-                "📖 https://docs.google.com/document/d/...\n"
+                "📖 https://docs.google.com/document/d/1T0xEMTddToEbG5HAgmwE9BAPAlxlosvwxC9f74wonxU/edit?usp=drivesdk\n"
                 "💫 https://travelers-exchange.online/"
             ),
             inline=False
