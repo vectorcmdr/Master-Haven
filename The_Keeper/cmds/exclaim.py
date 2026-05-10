@@ -18,7 +18,7 @@ from cogs import xp_system, personality, Haven_stats, Haven_upload, featured, co
 from cogs.xp_cog import DepartmentView
 from cogs.xp_system import get_user, get_level_from_xp, make_progress_bar, get_rank, xp_needed
 from cogs.community import SearchView, AddCivView
-from cogs.Data.xpdata import get_level, get_xp, CONFIG, get_global, system_xp
+from cogs.Data.xpdata import get_level, get_xp, CONFIG, get_global, system_xp, get_conn, ensure_user
 import logging
 log = logging.getLogger("commands")
    
@@ -299,6 +299,9 @@ class CommandsRouter(commands.Cog):
     async def setup(bot):
         await bot.add_cog(Department(bot))
 
+
+
+#assignment
 @bot.command(name="assignment")
 @commands.has_permissions(administrator=True)
 @commands.guild_only()
@@ -306,59 +309,83 @@ async def assignment(ctx):
     guild = ctx.guild
 
     assigned = 0
+    db_updated = 0
     skipped = 0
     failed = 0
 
-    await ctx.send("Assigning missing primary roles...")
+    await ctx.send("Running one-time primary role + DB sync...")
+
+    # Convert: "cartographer" -> role_id
+    role_map = {
+        name: role_id
+        for name, role_id in PRIMARY_ROLE_MAP.items()
+    }
+
+    conn = get_conn()
+    cur = conn.cursor()
 
     for member in guild.members:
-
         try:
-            role_names = [r.name.lower() for r in member.roles]
+            member_roles = {r.name.lower() for r in member.roles}
 
-            for primary_name, primary_role_id in PRIMARY_ROLE_MAP.items():
+            for role_name, primary_role_id in role_map.items():
 
-                # "primary Cartographer" -> "cartographer"
-                base_name = primary_name.replace("primary ", "").strip().lower()
+                initiate_role = f"initiate {role_name}"
 
-                # Required matching role
-                target_role_name = f"initiate {base_name}"
-
-                # User has initiate role?
-                if target_role_name not in role_names:
+                # MUST already have initiate role
+                if initiate_role not in member_roles:
                     continue
 
                 primary_role = guild.get_role(primary_role_id)
-
                 if not primary_role:
                     continue
 
-                # Already has primary role
-                if primary_role in member.roles:
+                # --- assign role if missing ---
+                if primary_role not in member.roles:
+                    await member.add_roles(
+                        primary_role,
+                        reason="One-time primary assignment"
+                    )
+                    assigned += 1
+                else:
                     skipped += 1
-                    continue
 
-                await member.add_roles(
-                    primary_role,
-                    reason="Automatic primary role assignment"
-                )
+                # --- DB SYNC ---
+                ensure_user(member.id)
 
-                assigned += 1
+                cur.execute("""
+                    UPDATE users
+                    SET primary_role = ?
+                    WHERE user_id = ?
+                """, (role_name, member.id))
+
+                # If row doesn't exist yet
+                cur.execute("""
+                    INSERT INTO users (user_id, primary_role)
+                    VALUES (?, ?)
+                    ON CONFLICT(user_id)
+                    DO UPDATE SET primary_role=excluded.primary_role
+                """, (member.id, role_name))
+
+                db_updated += 1
 
         except Exception as e:
-            print(f"[ASSIGNMENT ERROR] {member} -> {e}")
+            print(f"[ASSIGNMENT ERROR] {member}: {e}")
             failed += 1
 
-    embed = discord.Embed(
-        title="Primary Role Assignment Complete",
-        color=discord.Color.green()
+    conn.commit()
+    conn.close()
+
+    await ctx.send(
+        embed=discord.Embed(
+            title="One-Time Assignment + DB Sync Complete",
+            color=discord.Color.green()
+        )
+        .add_field(name="Roles Assigned", value=str(assigned))
+        .add_field(name="DB Updated", value=str(db_updated))
+        .add_field(name="Skipped", value=str(skipped))
+        .add_field(name="Failed", value=str(failed))
     )
-
-    embed.add_field(name="Assigned", value=str(assigned))
-    embed.add_field(name="Skipped", value=str(skipped))
-    embed.add_field(name="Failed", value=str(failed))
-
-    await ctx.send(embed=embed)
 
 # ---------------- Setup --------------------------
 async def setup(bot: commands.Bot):
