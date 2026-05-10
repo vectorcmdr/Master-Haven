@@ -51,13 +51,14 @@ class CommandsCog(commands.Cog):
         interaction: discord.Interaction,
         search: str | None = None
     ):
-        if interaction.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")):
-            return
-
+        
         community_cog = self.bot.get_cog("CommunityCog")
 
         if not community_cog:
             return await interaction.response.send_message("Community system not loaded.")
+            
+            await interaction.response.defer(thinking=True)
+            view = SearchView(community_cog)
 
         await interaction.response.send_message("Open search:", view=SearchView(community_cog))
 
