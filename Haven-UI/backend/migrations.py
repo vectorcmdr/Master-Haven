@@ -5832,3 +5832,213 @@ def migration_1_78_0(conn):
         cursor.execute("ALTER TABLE poster_cache ADD COLUMN system_count_at_render INTEGER")
         logger.info("Added poster_cache.system_count_at_render")
     conn.commit()
+
+
+@register_migration("1.79.0", "Backfill planet/moon biome/weather/sentinel/fauna/flora from the notes field where the upload parked them")
+def migration_1_79_0(conn):
+    """
+    Recover planet and moon detail data that legacy uploaders crammed into
+    the `notes` column instead of the dedicated biome/weather/sentinel/
+    fauna/flora columns.
+
+    Findings from investigation (Parker 2026-05-11):
+      - 898 planets have empty biome but populated notes
+      - Of those, 420 use the canonical `Biome: X, Weather: Y, Sentinels: Z,
+        Flora: W, Fauna: V` 5-part comma format (Wonders Guide format)
+      - 116 use a 4-part variant (usually missing flora or sentinel)
+      - 269 are real free-form user notes that should NOT be touched
+      - 174 moons have the same problem (some use space-separated labels)
+
+    This migration:
+      - Adds `notes_legacy` TEXT column on both `planets` and `moons` so the
+        original notes text is preserved for audit/rollback
+      - Walks rows where biome is empty/NULL AND notes contains the
+        `Biome:` label
+      - Parses labeled chunks tolerant to comma OR whitespace separators
+      - Backfills empty/N/A columns only — never clobbers data
+      - Strips trailing " planet" / " moon" from biome values
+      - Fixes the common 'Copius' → 'Copious' typo
+      - On successful parse, moves notes → notes_legacy and clears notes
+      - On free-form notes, leaves the row untouched
+
+    Safety:
+      - Idempotent (re-running is a no-op since notes is cleared post-parse)
+      - Never destructive — original text retained in notes_legacy
+      - Only fills columns that were empty; existing data is sacred
+    """
+    import re
+    cursor = conn.cursor()
+
+    # 1. Add notes_legacy columns (idempotent)
+    for table in ('planets', 'moons'):
+        cursor.execute(f"PRAGMA table_info({table})")
+        existing_cols = {row[1] for row in cursor.fetchall()}
+        if 'notes_legacy' not in existing_cols:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN notes_legacy TEXT")
+            logger.info(f"Added {table}.notes_legacy")
+
+    # 2. Compile regexes for parsing
+    # Match `Label: value` where value runs until the next label or end-of-string.
+    # The look-ahead handles both `,` separators and whitespace separators.
+    LABEL_PATTERN = re.compile(
+        r'\b(Biome|Weather|Sentinels?|Flora|Fauna)\s*:\s*'
+        r'(.+?)'
+        r'(?=\s*[,;.]?\s*\b(?:Biome|Weather|Sentinels?|Flora|Fauna)\s*:|$)',
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    def _is_empty(v):
+        """Return True if a column value should be considered empty."""
+        if v is None:
+            return True
+        if not isinstance(v, str):
+            return False
+        s = v.strip()
+        return s == '' or s.upper() in ('N/A', 'NONE')
+
+    def _normalize_value(field, raw):
+        s = raw.strip()
+        # Strip trailing punctuation
+        s = s.rstrip('.;, \t')
+        # Strip trailing " planet" / " moon" from biome
+        if field == 'biome':
+            for suffix in (' planet', ' Planet', ' moon', ' Moon'):
+                if s.endswith(suffix):
+                    s = s[: -len(suffix)].rstrip()
+                    break
+        # Common typo fixes
+        if s == 'Copius':
+            s = 'Copious'
+        # Capitalize first letter for biome / weather / sentinel
+        if s and s[0].islower() and field in ('biome', 'weather', 'sentinel'):
+            s = s[0].upper() + s[1:]
+        return s
+
+    def _strip_field_suffix(text, suffixes):
+        """Strip a trailing suffix word (case-insensitive). 'rich Flora' -> 'rich'."""
+        s = text.strip()
+        for suffix in suffixes:
+            if s.lower().endswith(' ' + suffix.lower()):
+                return s[: -(len(suffix) + 1)].strip()
+        return s
+
+    def _parse_notes(notes):
+        """Return dict of {biome, weather, sentinel, fauna, flora} parsed from
+        the notes string, or None if nothing parses.
+
+        Handles two formats observed in production:
+          1. Labeled: 'Biome: X, Weather: Y, Sentinels: Z, Flora: W, Fauna: V'
+          2. Positional 5-part: 'biome, weather, X sentinels, X Flora, X fauna'
+             (used in 302 of the 612 affected rows — strip the suffix word
+             off positions 3/4/5 to get the actual value)
+        """
+        if not notes:
+            return None
+        out = {}
+
+        # Path 1: labeled format
+        for m in LABEL_PATTERN.finditer(notes):
+            label = m.group(1).lower()
+            col = 'sentinel' if label.startswith('sentinel') else label
+            if col in ('biome', 'weather', 'sentinel', 'fauna', 'flora'):
+                value = _normalize_value(col, m.group(2))
+                if value:
+                    out.setdefault(col, value)
+        if out:
+            return out
+
+        # Path 2: positional 5-part split (no colons, comma-separated).
+        # Reject anything that looks even slightly free-form by requiring
+        # the trailing "sentinels"/"flora"/"fauna" suffix words on parts 3/4/5.
+        if ':' in notes:
+            return None  # Labeled format that path 1 couldn't parse — leave alone
+        parts = [p.strip() for p in notes.split(',')]
+        if len(parts) != 5:
+            return None  # 4-part is ambiguous; skip
+        p_biome, p_weather, p_sent, p_flora, p_fauna = parts
+        # Sentinels suffix is mandatory; flora/fauna labels are usually
+        # present but tolerated absent for safety.
+        sent_lc = p_sent.lower()
+        if not (sent_lc.endswith(' sentinels') or sent_lc.endswith(' sentinel')):
+            return None  # Doesn't match expected positional shape
+        out['biome']   = _normalize_value('biome',   p_biome)
+        out['weather'] = _normalize_value('weather', p_weather)
+        out['sentinel'] = _normalize_value('sentinel', _strip_field_suffix(p_sent, ['sentinels', 'sentinel']))
+        out['flora']   = _normalize_value('flora',   _strip_field_suffix(p_flora, ['Flora', 'flora']))
+        out['fauna']   = _normalize_value('fauna',   _strip_field_suffix(p_fauna, ['Fauna', 'fauna']))
+        # Drop any empty values that ended up as ''
+        out = {k: v for k, v in out.items() if v}
+        return out if out else None
+
+    def _backfill_table(table):
+        cursor.execute(f"""
+            SELECT id, notes, biome, weather, sentinel, fauna, flora
+            FROM {table}
+            WHERE notes IS NOT NULL AND notes != ''
+              AND (biome IS NULL OR biome = '')
+        """)
+        rows = cursor.fetchall()
+        parsed = 0
+        skipped = 0
+        for row in rows:
+            row_id, notes, biome, weather, sentinel, fauna, flora = row
+            fields = _parse_notes(notes)
+            # Fallback for bare positional rows: if the planet's fauna/flora
+            # are still the bogus default 'N/A' AND sentinel is 'None' AND
+            # notes has exactly 5 comma parts, this is almost certainly a
+            # misfile. Accept without requiring suffix labels.
+            if not fields and ':' not in (notes or ''):
+                parts = [p.strip() for p in (notes or '').split(',')]
+                if (len(parts) == 5
+                        and _is_empty(fauna) and _is_empty(flora)
+                        and (_is_empty(sentinel) or (sentinel or '').strip().lower() in ('none', 'n/a'))
+                        and all(len(p) < 80 for p in parts)):
+                    p_biome, p_weather, p_sent, p_flora, p_fauna = parts
+                    candidate = {
+                        'biome': _normalize_value('biome', p_biome),
+                        'weather': _normalize_value('weather', p_weather),
+                        'sentinel': _normalize_value('sentinel', _strip_field_suffix(p_sent, ['sentinels', 'sentinel'])),
+                        'flora': _normalize_value('flora', _strip_field_suffix(p_flora, ['Flora', 'flora'])),
+                        'fauna': _normalize_value('fauna', _strip_field_suffix(p_fauna, ['Fauna', 'fauna'])),
+                    }
+                    fields = {k: v for k, v in candidate.items() if v}
+            if not fields:
+                skipped += 1
+                continue
+            # Only update columns that are currently empty
+            updates = {}
+            if 'biome' in fields and _is_empty(biome):
+                updates['biome'] = fields['biome']
+            if 'weather' in fields and _is_empty(weather):
+                updates['weather'] = fields['weather']
+            if 'sentinel' in fields and _is_empty(sentinel):
+                updates['sentinel'] = fields['sentinel']
+            # sentinel_level is the older "amount" enum (Low/Standard/etc.);
+            # if it's also empty/None mirror sentinel into it for back-compat
+            # — only when sentinel value clearly fits the canonical set.
+            if 'fauna' in fields and _is_empty(fauna):
+                updates['fauna'] = fields['fauna']
+            if 'flora' in fields and _is_empty(flora):
+                updates['flora'] = fields['flora']
+
+            if not updates:
+                skipped += 1
+                continue
+
+            # Move original notes → notes_legacy, clear notes
+            set_clauses = [f"{k} = ?" for k in updates] + ['notes_legacy = ?', 'notes = NULL']
+            params = list(updates.values()) + [notes, row_id]
+            cursor.execute(
+                f"UPDATE {table} SET {', '.join(set_clauses)} WHERE id = ?",
+                params,
+            )
+            parsed += 1
+        logger.info(f"  {table}: parsed {parsed}, skipped {skipped} (no fields matched)")
+        return parsed
+
+    # 3. Run backfill on both tables
+    logger.info("Migration 1.79.0: backfilling planet+moon detail columns from notes…")
+    planets_updated = _backfill_table('planets')
+    moons_updated = _backfill_table('moons')
+    conn.commit()
+    logger.info(f"Migration 1.79.0 complete: {planets_updated} planets, {moons_updated} moons backfilled")
