@@ -137,91 +137,78 @@ def get_conn():
         check_same_thread=False
     )
 
-def init_db():
-    conn = get_conn()
-    cur = conn.cursor()
+async def init_db():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-    cur.execute("PRAGMA journal_mode=WAL;")
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA journal_mode=WAL;")
 
-    cur.execute("PRAGMA table_info(user_roles)")
-    
-
-    cols = [c[1] for c in cur.fetchall()]
-    
-    cur.execute("""
-CREATE TABLE IF NOT EXISTS panels (
-    guild_id INTEGER PRIMARY KEY,
-    channel_id INTEGER,
-    message_id INTEGER
-)
-""")
-                  
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        primary_role TEXT
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS user_roles (
-        user_id INTEGER,
-        role TEXT,
-        xp INTEGER DEFAULT 0,
-        level INTEGER DEFAULT 1,
-        PRIMARY KEY(user_id, role)
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS cooldowns (
-        user_id INTEGER,
-        key TEXT,
-        last_used REAL,
-        PRIMARY KEY(user_id, key)
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS global_levels (
-        user_id INTEGER PRIMARY KEY,
-        xp INTEGER DEFAULT 0,
-        level INTEGER DEFAULT 1,
-        senior_dm_sent INTEGER DEFAULT 0
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-    
-def system_xp(user_id: int, amount: int):
-    """Add system XP to a user."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS user_xp (
-            user_id INTEGER PRIMARY KEY,
-            xp INTEGER DEFAULT 0
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS panels (
+            guild_id INTEGER PRIMARY KEY,
+            channel_id INTEGER,
+            message_id INTEGER
         )
-    """)
+        """)
 
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            primary_role TEXT
+        )
+        """)
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS user_roles (
+            user_id INTEGER,
+            role TEXT,
+            xp INTEGER DEFAULT 0,
+            level INTEGER DEFAULT 1,
+            PRIMARY KEY(user_id, role)
+        )
+        """)
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS cooldowns (
+            user_id INTEGER,
+            key TEXT,
+            last_used REAL,
+            PRIMARY KEY(user_id, key)
+        )
+        """)
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS global_levels (
+            user_id INTEGER PRIMARY KEY,
+            xp INTEGER DEFAULT 0,
+            level INTEGER DEFAULT 1,
+            senior_dm_sent INTEGER DEFAULT 0
+        )
+        """)
+
+        await db.commit()
     
-    cursor.execute("""
-        INSERT OR IGNORE INTO user_xp (user_id, xp)
-        VALUES (?, 0)
-    """, (user_id,))
+async def system_xp(user_id: int, amount: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS user_xp (
+                user_id INTEGER PRIMARY KEY,
+                xp INTEGER DEFAULT 0
+            )
+        """)
 
-    
-    cursor.execute("""
-        UPDATE user_xp
-        SET xp = xp + ?
-        WHERE user_id = ?
-    """, (amount, user_id))
+        await db.execute("""
+            INSERT OR IGNORE INTO user_xp (user_id, xp)
+            VALUES (?, 0)
+        """, (user_id,))
 
-    conn.commit()
-    conn.close()
+        await db.execute("""
+            UPDATE user_xp
+            SET xp = xp + ?
+            WHERE user_id = ?
+        """, (amount, user_id))
+
+        await db.commit()
 
 # ---------------- CONFIG HELPERS ----------------
 def get_cfg(key, default=0):
@@ -240,40 +227,51 @@ def get_rank_data(level: int):
             return rank
 
     return CONFIG["ranks"][0]
+
 def get_rank_name(level: int):
     return get_rank_data(level)["name"]
 
-def get_xp_requirement(level: int):
+async def get_xp_requirement(level: int):
     rank = get_rank_data(level)
 
     if "xp_required" in rank:
         return rank["xp_required"]
 
-
-
     return rank.get("xp_per_level", 100)
-def ensure_user(user_id):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    conn.commit()
-    conn.close()
 
 
-def get_xp(user_id, role):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT xp FROM user_roles WHERE user_id=? AND role=?", (user_id, role))
-    row = cur.fetchone()
-    conn.close()
+async def ensure_user(user_id):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
+            (user_id,)
+        )
+        await db.commit()
+
+
+async def get_xp(user_id, role):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT xp FROM user_roles WHERE user_id=? AND role=?",
+            (user_id, role)
+        )
+
+        row = await cur.fetchone()
+        await cur.close()
+
     return row[0] if row else 0
 
+async def add_xp(user_id, role, amount):
+    await ensure_user(user_id)
 
-def add_xp(user_id, role, amount):
-    ensure_user(user_id)
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            UPDATE user_roles
+            SET xp = xp + ?
+            WHERE user_id=? AND role=?
+        """, (amount, user_id, role))
 
-    conn = get_conn()
-    cur = conn.cursor()
+        await db.commit()
 
     
     cur.execute("""
@@ -317,12 +315,16 @@ def add_xp(user_id, role, amount):
     return xp, level, leveled_up
 
 
-def get_level(user_id, role):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT level FROM user_roles WHERE user_id=? AND role=?", (user_id, role))
-    row = cur.fetchone()
-    conn.close()
+async def get_level(user_id, role):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT level FROM user_roles WHERE user_id=? AND role=?",
+            (user_id, role)
+        )
+
+        row = await cur.fetchone()
+        await cur.close()
+
     return row[0] if row else 1
 
 def get_rank(user_id, role):
@@ -330,44 +332,39 @@ def get_rank(user_id, role):
     return get_rank_name(level)
 
 
-def set_level(user_id, role, level):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-    UPDATE user_roles SET level=?
-    WHERE user_id=? AND role=?
-    """, (level, user_id, role))
-    conn.commit()
-    conn.close()
+async def set_level(user_id, role, level):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            UPDATE user_roles
+            SET level=?
+            WHERE user_id=? AND role=?
+        """, (level, user_id, role))
 
-def save_panel(guild_id, channel_id, message_id):
-    conn = get_conn()
-    cur = conn.cursor()
+        await db.commit()
 
-    cur.execute("""
-    INSERT INTO panels (guild_id, channel_id, message_id)
-    VALUES (?, ?, ?)
-    ON CONFLICT(guild_id)
-    DO UPDATE SET channel_id=excluded.channel_id,
-                  message_id=excluded.message_id
-    """, (guild_id, channel_id, message_id))
+async def save_panel(guild_id, channel_id, message_id):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO panels (guild_id, channel_id, message_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(guild_id)
+            DO UPDATE SET channel_id=excluded.channel_id,
+                          message_id=excluded.message_id
+        """, (guild_id, channel_id, message_id))
 
-    conn.commit()
-    conn.close()
+        await db.commit()
 
 
-def get_panel(guild_id):
-    conn = get_conn()
-    cur = conn.cursor()
+async def get_panel(guild_id):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("""
+            SELECT channel_id, message_id
+            FROM panels
+            WHERE guild_id=?
+        """, (guild_id,))
 
-    cur.execute("""
-    SELECT channel_id, message_id
-    FROM panels
-    WHERE guild_id=?
-    """, (guild_id,))
-
-    row = cur.fetchone()
-    conn.close()
+        row = await cur.fetchone()
+        await cur.close()
 
     return row
 
@@ -390,34 +387,35 @@ def check_cooldown(user_id, key, cooldown):
 
 
 # ---------------- GLOBAL XP ----------------
-def get_global(user_id):
-    conn = get_conn()
-    cur = conn.cursor()
+async def get_global(user_id):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO global_levels (user_id) VALUES (?)",
+            (user_id,)
+        )
+        await db.commit()
 
-    cur.execute("INSERT OR IGNORE INTO global_levels (user_id) VALUES (?)", (user_id,))
+        cur = await db.execute("""
+            SELECT xp, level, senior_dm_sent
+            FROM global_levels
+            WHERE user_id=?
+        """, (user_id,))
 
-    cur.execute("""
-    SELECT xp, level, senior_dm_sent
-    FROM global_levels WHERE user_id=?
-    """, (user_id,))
+        row = await cur.fetchone()
+        await cur.close()
 
-    row = cur.fetchone()
-    conn.close()
     return row
 
 
-def save_global(user_id, xp, level, dm_flag):
-    conn = get_conn()
-    cur = conn.cursor()
+async def save_global(user_id, xp, level, dm_flag):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("""
+            UPDATE global_levels
+            SET xp=?, level=?, senior_dm_sent=?
+            WHERE user_id=?
+        """, (xp, level, dm_flag, user_id))
 
-    cur.execute("""
-    UPDATE global_levels
-    SET xp=?, level=?, senior_dm_sent=?
-    WHERE user_id=?
-    """, (xp, level, dm_flag, user_id))
-    
-
-    conn.commit()
-    conn.close()
+        await db.commit()
+        await cur.close()
 
     return xp, level, dm_flag
