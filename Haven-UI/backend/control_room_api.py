@@ -749,6 +749,63 @@ def parse_station_data(station_row):
     return station
 
 
+def _persist_system_coauthors(cursor, system_id, coauthors):
+    """Replace the system_coauthors rows for this system_id.
+
+    Wizard v1 (May 2026). coauthors is a list of strings (Discord usernames)
+    or {username, profile_id?} objects. We normalize via the same Discord
+    discriminator-stripping rules used by analytics, look up matching profiles
+    when possible, and dedup by normalized username.
+
+    Per Parker's Phase 1 decision: co-author counts are tracked SEPARATELY
+    from primary submission counts. Each system_coauthors row contributes
+    one coauthored-systems credit per profile, never to the primary count.
+    """
+    from services.auth_service import normalize_username_for_dedup
+    from datetime import datetime, timezone
+
+    # Always replace — frontend sends the canonical full list
+    cursor.execute('DELETE FROM system_coauthors WHERE system_id = ?', (system_id,))
+
+    if not coauthors:
+        return 0
+
+    seen = set()
+    inserted = 0
+    now = datetime.now(timezone.utc).isoformat()
+    for entry in coauthors:
+        if isinstance(entry, dict):
+            username = (entry.get('username') or '').strip()
+            profile_id = entry.get('profile_id')
+        else:
+            username = str(entry or '').strip()
+            profile_id = None
+        if not username:
+            continue
+        norm = normalize_username_for_dedup(username)
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+
+        # Best-effort profile lookup
+        if not profile_id:
+            cursor.execute(
+                'SELECT id FROM user_profiles WHERE username_normalized = ? AND is_active = 1',
+                (norm,),
+            )
+            row = cursor.fetchone()
+            if row:
+                profile_id = row[0]
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO system_coauthors
+            (system_id, profile_id, username, username_normalized, credited_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (system_id, profile_id, username, norm, now))
+        inserted += 1
+    return inserted
+
+
 def init_database():
     """Initialize the Haven database with required tables."""
     db_path = get_db_path()
@@ -1613,8 +1670,10 @@ from routes.regions import router as regions_router
 from routes.extractor import router as extractor_router
 from routes.csv_import import router as csv_import_router
 from routes.posters import router as posters_router
-from routes.ssr import router as ssr_router
+from routes.expeditions import router as expeditions_router
+from routes.wizard import router as wizard_router
 from routes.user import router as user_router
+from routes.ssr import router as ssr_router
 
 app.include_router(auth_router)
 app.include_router(systems_router)
@@ -1629,6 +1688,8 @@ app.include_router(extractor_router)
 app.include_router(csv_import_router)
 app.include_router(warroom_router)
 app.include_router(posters_router)
+app.include_router(expeditions_router)
+app.include_router(wizard_router)
 app.include_router(user_router)
 
 # SSR shim catches share-friendly URLs like /voyager/:user and /atlas/:galaxy
@@ -2135,6 +2196,43 @@ async def get_system(system_id: str, session: Optional[str] = Cookie(None)):
             system['completeness_score'] = completeness['score']
             system['completeness_breakdown'] = completeness['breakdown']
 
+            # ----- Wizard v1: co-authors, expedition, edit history -----
+            # Coauthors: rows from system_coauthors. SEPARATE count from primary submitter.
+            cursor.execute("""
+                SELECT username, profile_id, credited_at
+                FROM system_coauthors WHERE system_id = ?
+                ORDER BY credited_at ASC
+            """, (sys_id,))
+            system['coauthors'] = [dict(r) for r in cursor.fetchall()]
+
+            # Expedition (if linked)
+            if system.get('expedition_id'):
+                cursor.execute(
+                    'SELECT id, name, slug, status, discord_tag FROM expeditions WHERE id = ?',
+                    (system['expedition_id'],)
+                )
+                exp_row = cursor.fetchone()
+                system['expedition'] = dict(exp_row) if exp_row else None
+            else:
+                system['expedition'] = None
+
+            # Edit history derived from contributors JSON. Frontend uses these for
+            # the edit-mode banner (edit_count + N prior edits + original submitter).
+            try:
+                contribs = json.loads(system.get('contributors') or '[]')
+            except (json.JSONDecodeError, TypeError):
+                contribs = []
+            system['edit_count'] = sum(1 for c in contribs if c.get('action') == 'edit')
+            system['prior_edits'] = [
+                {'name': c.get('name'), 'date': c.get('date')}
+                for c in contribs if c.get('action') == 'edit'
+            ]
+            # Original submitter = first 'upload' entry; falls back to discovered_by
+            original = next((c for c in contribs if c.get('action') == 'upload'), None)
+            system['original_submitter'] = (
+                (original or {}).get('name') or system.get('discovered_by')
+            )
+
             # Apply field restrictions if applicable
             if restriction and restriction.get('hidden_fields'):
                 system = apply_field_restrictions(system, restriction['hidden_fields'])
@@ -2509,7 +2607,15 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
 
             contributors_list.append({"name": editor_username, "action": "edit", "date": now_iso})
 
-            # Update existing system (including contributor tracking, clear stub flag)
+            # Wizard v1: pull new fields off payload (game_version, expedition_id)
+            wizard_game_version = payload.get('game_version') or None
+            wizard_expedition_id = payload.get('expedition_id')
+            try:
+                wizard_expedition_id = int(wizard_expedition_id) if wizard_expedition_id else None
+            except (TypeError, ValueError):
+                wizard_expedition_id = None
+
+            # Update existing system (including contributor tracking, clear stub flag, wizard v1 fields)
             cursor.execute('''
                 UPDATE systems SET
                     name = ?, galaxy = ?, reality = ?, x = ?, y = ?, z = ?,
@@ -2521,6 +2627,7 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                     conflict_level = ?, dominant_lifeform = ?, discord_tag = ?,
                     stellar_classification = ?,
                     last_updated_by = ?, last_updated_at = ?, contributors = ?,
+                    game_version = ?, expedition_id = ?,
                     is_stub = 0
                 WHERE id = ?
             ''', (
@@ -2550,6 +2657,8 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                 editor_username,
                 datetime.now(timezone.utc).isoformat(),
                 json.dumps(contributors_list),
+                wizard_game_version,
+                wizard_expedition_id,
                 sys_id
             ))
             logger.info(f"Updated system {sys_id}, last_updated_by: {editor_username}")
@@ -2563,14 +2672,23 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
             # Generate new ID
             import uuid
             sys_id = str(uuid.uuid4())
-            # Insert new system (including contributor tracking)
+            # Wizard v1 fields (game_version, expedition_id)
+            wizard_game_version = payload.get('game_version') or None
+            wizard_expedition_id = payload.get('expedition_id')
+            try:
+                wizard_expedition_id = int(wizard_expedition_id) if wizard_expedition_id else None
+            except (TypeError, ValueError):
+                wizard_expedition_id = None
+
+            # Insert new system (including contributor tracking, wizard v1 fields)
             cursor.execute('''
                 INSERT INTO systems (id, name, galaxy, reality, x, y, z, star_x, star_y, star_z, description,
                     glyph_code, glyph_planet, glyph_solar_system, region_x, region_y, region_z,
                     star_type, economy_type, economy_level, conflict_level, dominant_lifeform, discord_tag,
                     stellar_classification, discovered_by, discovered_at, contributors,
-                    profile_id, personal_discord_username, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    profile_id, personal_discord_username, source,
+                    game_version, expedition_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 sys_id,
                 name,
@@ -2601,7 +2719,9 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                 json.dumps([{"name": editor_username, "action": "upload", "date": now_iso}]),
                 session_data.get('profile_id'),
                 session_data.get('username') or payload.get('personal_discord_username'),
-                'manual'
+                'manual',
+                wizard_game_version,
+                wizard_expedition_id,
             ))
             logger.info(f"Created new system {sys_id}, discovered_by: {editor_username}")
 
@@ -2618,9 +2738,10 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                     weather_text, sentinels_text, flora_text, fauna_text,
                     has_rings, is_dissonant, is_infested, extreme_weather, water_world, vile_brood,
                     ancient_bones, salvageable_scrap, storm_crystals, gravitino_balls, is_gas_giant, exotic_trophy,
-                    is_bubble, is_floating_islands
+                    is_bubble, is_floating_islands,
+                    estimated_age, core_element, lore_notes, root_structure, nutrient_source
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 sys_id,
                 planet.get('name', 'Unknown'),
@@ -2673,7 +2794,15 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                 1 if planet.get('is_gas_giant') else 0,
                 planet.get('exotic_trophy'),
                 1 if planet.get('is_bubble') else 0,
-                1 if planet.get('is_floating_islands') else 0
+                1 if planet.get('is_floating_islands') else 0,
+                # Wonders Page Notes — free-form text NMS prints on the Log
+                # Exploration Guide page (surfaced in the Wonders catalogue
+                # after upload). Migration 1.76.0.
+                planet.get('estimated_age'),
+                planet.get('core_element'),
+                planet.get('lore_notes'),
+                planet.get('root_structure'),
+                planet.get('nutrient_source')
             ))
             planet_id = cursor.lastrowid
 
@@ -2683,8 +2812,9 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                     INSERT INTO moons (planet_id, name, orbit_radius, orbit_speed, climate, sentinel, fauna, flora, materials, notes, description, photo,
                         has_rings, is_dissonant, is_infested, extreme_weather, water_world, vile_brood, exotic_trophy,
                         ancient_bones, salvageable_scrap, storm_crystals, gravitino_balls, infested, is_gas_giant,
-                        is_bubble, is_floating_islands)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        is_bubble, is_floating_islands,
+                        estimated_age, core_element, lore_notes, root_structure, nutrient_source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     planet_id,
                     moon.get('name', 'Unknown'),
@@ -2712,7 +2842,13 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                     1 if moon.get('infested') else 0,
                     1 if moon.get('is_gas_giant') else 0,
                     1 if moon.get('is_bubble') else 0,
-                    1 if moon.get('is_floating_islands') else 0
+                    1 if moon.get('is_floating_islands') else 0,
+                    # Wonders Page Notes (migration 1.76.0)
+                    moon.get('estimated_age'),
+                    moon.get('core_element'),
+                    moon.get('lore_notes'),
+                    moon.get('root_structure'),
+                    moon.get('nutrient_source')
                 ))
 
         # Insert space station if present
@@ -2732,6 +2868,69 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                 station.get('z', 0),
                 trade_goods_json
             ))
+
+        # Wizard v1: persist coauthors (separate count from primary submitter)
+        _persist_system_coauthors(cursor, sys_id, payload.get('coauthors') or [])
+
+        # ----- Deferred region name (Wizard v1 Option B, admin direct path) -----
+        # Admins bypass the approval queue, so write straight to the `regions`
+        # table when a proposed name is included AND the region is unnamed.
+        # Existing pending name (if any) is left alone — admin direct write
+        # supersedes the queue.
+        proposed_region_name_raw = payload.get('proposed_region_name')
+        proposed_region_name = (
+            proposed_region_name_raw.strip()
+            if isinstance(proposed_region_name_raw, str) else ''
+        )
+        if proposed_region_name and payload.get('region_x') is not None:
+            rx = payload.get('region_x')
+            ry = payload.get('region_y')
+            rz = payload.get('region_z')
+            r_reality = payload.get('reality', 'Normal') or 'Normal'
+            r_galaxy = payload.get('galaxy', 'Euclid') or 'Euclid'
+            try:
+                cursor.execute('''
+                    SELECT custom_name FROM regions
+                    WHERE region_x = ? AND region_y = ? AND region_z = ?
+                      AND reality = ? AND galaxy = ?
+                ''', (rx, ry, rz, r_reality, r_galaxy))
+                row = cursor.fetchone()
+                already_named = bool(row and row[0])
+                if not already_named:
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    if row:
+                        # Row exists with NULL/empty custom_name — update in place
+                        cursor.execute('''
+                            UPDATE regions
+                            SET custom_name = ?, updated_at = ?
+                            WHERE region_x = ? AND region_y = ? AND region_z = ?
+                              AND reality = ? AND galaxy = ?
+                        ''', (proposed_region_name, now_iso, rx, ry, rz, r_reality, r_galaxy))
+                    else:
+                        cursor.execute('''
+                            INSERT INTO regions
+                            (region_x, region_y, region_z, custom_name,
+                             reality, galaxy, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (rx, ry, rz, proposed_region_name,
+                              r_reality, r_galaxy, now_iso, now_iso))
+                    # Drop any pending name for this region — admin write wins
+                    cursor.execute('''
+                        UPDATE pending_region_names
+                        SET status = 'approved', reviewed_by = ?, review_date = ?
+                        WHERE region_x = ? AND region_y = ? AND region_z = ?
+                          AND reality = ? AND galaxy = ? AND status = 'pending'
+                    ''', (
+                        editor_username,
+                        now_iso,
+                        rx, ry, rz, r_reality, r_galaxy,
+                    ))
+                    logger.info(
+                        f"Admin direct-named region '{proposed_region_name}' at "
+                        f"({rx},{ry},{rz})/{r_galaxy}/{r_reality} by {editor_username}"
+                    )
+            except Exception as region_err:
+                logger.warning(f"Admin region direct-write failed: {region_err}")
 
         # Calculate and store completeness score
         update_completeness_score(cursor, sys_id)

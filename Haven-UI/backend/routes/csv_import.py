@@ -339,13 +339,23 @@ def _normalize_economy_type(raw):
 
 
 def _normalize_lifeform(raw):
-    """Normalize dominant lifeform values from CSV."""
+    """Normalize dominant lifeform values from CSV.
+
+    Canonical values: 'Gek', "Vy'keen", 'Korvax', 'None', 'Abandoned'.
+    'None' (string) means "no race, never was".
+    'Abandoned' means "empty buildings, race left" — semantically distinct.
+    Empty input → Python None (no value submitted).
+    """
     if not raw:
         return None
     raw = raw.strip()
     mapping = {
-        'gek': 'Gek', "vy'keen": "Vy'keen", 'vykeen': "Vy'keen",
-        'korvax': 'Korvax', 'uncharted': None, 'none': None,
+        'gek': 'Gek',
+        "vy'keen": "Vy'keen", 'vykeen': "Vy'keen", 'vy keen': "Vy'keen",
+        'korvax': 'Korvax',
+        'none': 'None', 'no race': 'None', 'no lifeform': 'None',
+        'abandoned': 'Abandoned', 'derelict': 'Abandoned', 'empty': 'Abandoned',
+        'uncharted': None,
     }
     return mapping.get(raw.lower(), raw)
 

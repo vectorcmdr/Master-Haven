@@ -287,11 +287,26 @@ async def submit_system(
             _raw_for_norm = personal_discord_username or payload.get('discovered_by') or 'Unknown'
         username_normalized = normalize_username_for_dedup(_raw_for_norm)
 
-        # Insert submission with source tracking, discord_tag, personal_discord_username, edit tracking, and submitter identity
+        # ----- Wizard v1 fields (May 2026 rebuild) -----
+        # game_version, submitter_notes, expedition_id are stored as dedicated
+        # columns. coauthors[] stays in the system_data JSON blob; on approve
+        # it expands into system_coauthors rows. conflict_resolution is a
+        # transient per-field {field: 'mine'|'theirs'} map applied at approval
+        # time — kept in the JSON blob for the approver to inspect.
+        wizard_game_version = payload.get('game_version') or None
+        wizard_submitter_notes = payload.get('submitter_notes') or None
+        wizard_expedition_id = payload.get('expedition_id')
+        try:
+            wizard_expedition_id = int(wizard_expedition_id) if wizard_expedition_id else None
+        except (TypeError, ValueError):
+            wizard_expedition_id = None
+
+        # Insert submission with source tracking, discord_tag, personal_discord_username,
+        # edit tracking, submitter identity, and wizard v1 fields.
         cursor.execute('''
             INSERT INTO pending_systems
-            (submitted_by, submitted_by_ip, submission_date, system_data, status, system_name, system_region, galaxy, source, api_key_name, discord_tag, personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type, submitter_profile_id, username_normalized)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (submitted_by, submitted_by_ip, submission_date, system_data, status, system_name, system_region, galaxy, source, api_key_name, discord_tag, personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type, submitter_profile_id, username_normalized, game_version, submitter_notes, expedition_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             submitter_identity['username'] if submitter_identity['username'] else submitted_by,
             client_ip,
@@ -310,9 +325,77 @@ async def submit_system(
             submitter_identity['type'] if submitter_identity['type'] != 'anonymous' else None,
             submitter_identity.get('profile_id'),
             username_normalized,
+            wizard_game_version,
+            wizard_submitter_notes,
+            wizard_expedition_id,
         ))
 
         submission_id = cursor.lastrowid
+
+        # ----- Deferred region name submission (Wizard v1 Option B) -----
+        # The wizard now holds the proposed region name in local state and
+        # ships it with the system payload so the user's discord identity
+        # is attached. Only insert when the region is genuinely unnamed
+        # AND has no pending name AND the caller actually included one.
+        proposed_region_name_raw = payload.get('proposed_region_name')
+        proposed_region_name = (
+            proposed_region_name_raw.strip()
+            if isinstance(proposed_region_name_raw, str) else ''
+        )
+        if proposed_region_name and payload.get('region_x') is not None:
+            rx = payload.get('region_x')
+            ry = payload.get('region_y')
+            rz = payload.get('region_z')
+            r_reality = payload.get('reality', 'Normal') or 'Normal'
+            r_galaxy = payload.get('galaxy', 'Euclid') or 'Euclid'
+
+            try:
+                cursor.execute('''
+                    SELECT 1 FROM regions
+                    WHERE region_x = ? AND region_y = ? AND region_z = ?
+                      AND reality = ? AND galaxy = ?
+                      AND custom_name IS NOT NULL
+                ''', (rx, ry, rz, r_reality, r_galaxy))
+                already_named = cursor.fetchone()
+
+                cursor.execute('''
+                    SELECT 1 FROM pending_region_names
+                    WHERE region_x = ? AND region_y = ? AND region_z = ?
+                      AND reality = ? AND galaxy = ?
+                      AND status = 'pending'
+                ''', (rx, ry, rz, r_reality, r_galaxy))
+                already_pending = cursor.fetchone()
+
+                if not already_named and not already_pending:
+                    region_submitted_by = (
+                        (personal_discord_username or '').strip()
+                        or (submitter_identity.get('username') or '').strip()
+                        or 'anonymous'
+                    )
+                    cursor.execute('''
+                        INSERT INTO pending_region_names
+                        (region_x, region_y, region_z, proposed_name,
+                         submitted_by, submitted_by_ip, submission_date,
+                         status, discord_tag, personal_discord_username,
+                         reality, galaxy, submitter_profile_id, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        rx, ry, rz, proposed_region_name,
+                        region_submitted_by, client_ip,
+                        datetime.now(timezone.utc).isoformat(),
+                        discord_tag, personal_discord_username,
+                        r_reality, r_galaxy,
+                        submitter_identity.get('profile_id'),
+                        source,
+                    ))
+                    logger.info(
+                        f"Deferred region name '{proposed_region_name}' queued for "
+                        f"({rx},{ry},{rz})/{r_galaxy}/{r_reality} by {region_submitted_by}"
+                    )
+            except Exception as region_err:
+                # A region-name failure must NOT block the system submission.
+                logger.warning(f"Deferred region name insert failed: {region_err}")
+
         conn.commit()
 
         source_info = f" via {api_key_name}" if api_key_name else ""
@@ -1015,6 +1098,16 @@ async def approve_system(
             # Add edit entry (same person can appear multiple times with different edits)
             contributors_list.append({"name": updater_username, "action": "edit", "date": now_iso})
 
+            # Wizard v1: copy game_version + expedition_id from pending row to systems
+            wizard_game_version = (
+                submission.get('game_version')
+                or system_data.get('game_version')
+            )
+            wizard_expedition_id = (
+                submission.get('expedition_id')
+                or system_data.get('expedition_id')
+            )
+
             # UPDATE existing system - PRESERVE discovered_by/discovered_at, UPDATE last_updated_by/last_updated_at
             cursor.execute('''
                 UPDATE systems
@@ -1027,7 +1120,9 @@ async def approve_system(
                     conflict_level = ?, dominant_lifeform = ?,
                     discord_tag = ?, personal_discord_username = ?,
                     stellar_classification = ?,
-                    last_updated_by = ?, last_updated_at = ?, contributors = ?
+                    last_updated_by = ?, last_updated_at = ?, contributors = ?,
+                    game_version = COALESCE(?, game_version),
+                    expedition_id = COALESCE(?, expedition_id)
                 WHERE id = ?
             ''', (
                 system_data.get('name'),
@@ -1056,6 +1151,8 @@ async def approve_system(
                 updater_username,
                 datetime.now(timezone.utc).isoformat(),
                 json.dumps(contributors_list),
+                wizard_game_version,
+                wizard_expedition_id,
                 system_id
             ))
             logger.info(f"Updated system {system_id}, preserving discovered_by='{original_discovered_by}', added contributor '{updater_username}'")
@@ -1075,14 +1172,25 @@ async def approve_system(
             discoverer_username = submission.get('personal_discord_username') or submission.get('submitted_by') or 'Unknown'
             now_iso = datetime.now(timezone.utc).isoformat()
 
-            # INSERT new system (including new tracking fields)
+            # Wizard v1: pull game_version + expedition_id from pending row
+            new_game_version = (
+                submission.get('game_version')
+                or system_data.get('game_version')
+            )
+            new_expedition_id = (
+                submission.get('expedition_id')
+                or system_data.get('expedition_id')
+            )
+
+            # INSERT new system (including new tracking fields + wizard v1 fields)
             cursor.execute('''
                 INSERT INTO systems (id, name, galaxy, reality, x, y, z, star_x, star_y, star_z, description,
                     glyph_code, glyph_planet, glyph_solar_system, region_x, region_y, region_z,
                     star_type, economy_type, economy_level, conflict_level, dominant_lifeform,
                     discovered_by, discovered_at, discord_tag, personal_discord_username, stellar_classification,
-                    contributors, created_at, game_mode, profile_id, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    contributors, created_at, game_mode, profile_id, source,
+                    game_version, expedition_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 system_id,
                 system_data.get('name'),
@@ -1116,6 +1224,8 @@ async def approve_system(
                 system_data.get('game_mode') or submission.get('game_mode', 'Normal'),
                 submission.get('submitter_profile_id'),
                 submission.get('source', 'manual'),
+                new_game_version,
+                new_expedition_id,
             ))
 
         # Handle planets - for edits, merge by name; for new systems, insert all
@@ -1150,7 +1260,12 @@ async def approve_system(
                         weather_text = ?, sentinels_text = ?, flora_text = ?, fauna_text = ?,
                         has_rings = ?, is_dissonant = ?, is_infested = ?, extreme_weather = ?, water_world = ?, vile_brood = ?,
                         ancient_bones = ?, salvageable_scrap = ?, storm_crystals = ?, gravitino_balls = ?, is_gas_giant = ?, exotic_trophy = ?,
-                        is_bubble = ?, is_floating_islands = ?
+                        is_bubble = ?, is_floating_islands = ?,
+                        estimated_age = COALESCE(?, estimated_age),
+                        core_element = COALESCE(?, core_element),
+                        lore_notes = COALESCE(?, lore_notes),
+                        root_structure = COALESCE(?, root_structure),
+                        nutrient_source = COALESCE(?, nutrient_source)
                     WHERE id = ?
                 ''', (
                     planet.get('x', 0),
@@ -1201,6 +1316,13 @@ async def approve_system(
                     planet.get('exotic_trophy'),
                     1 if planet.get('is_bubble') else 0,
                     1 if planet.get('is_floating_islands') else 0,
+                    # Wonders Page Notes — COALESCE protects existing values
+                    # on edit when the submitter leaves them blank.
+                    planet.get('estimated_age') or None,
+                    planet.get('core_element') or None,
+                    planet.get('lore_notes') or None,
+                    planet.get('root_structure') or None,
+                    planet.get('nutrient_source') or None,
                     existing_planet_id
                 ))
                 planet_id = existing_planet_id
@@ -1218,9 +1340,10 @@ async def approve_system(
                         weather_text, sentinels_text, flora_text, fauna_text,
                         has_rings, is_dissonant, is_infested, extreme_weather, water_world, vile_brood,
                         ancient_bones, salvageable_scrap, storm_crystals, gravitino_balls, is_gas_giant, exotic_trophy,
-                        is_bubble, is_floating_islands
+                        is_bubble, is_floating_islands,
+                        estimated_age, core_element, lore_notes, root_structure, nutrient_source
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     system_id,
                     planet_name,
@@ -1271,7 +1394,13 @@ async def approve_system(
                     1 if planet.get('is_gas_giant') else 0,
                     planet.get('exotic_trophy'),
                     1 if planet.get('is_bubble') else 0,
-                    1 if planet.get('is_floating_islands') else 0
+                    1 if planet.get('is_floating_islands') else 0,
+                    # Wonders Page Notes (migration 1.76.0)
+                    planet.get('estimated_age'),
+                    planet.get('core_element'),
+                    planet.get('lore_notes'),
+                    planet.get('root_structure'),
+                    planet.get('nutrient_source')
                 ))
                 planet_id = cursor.lastrowid
                 if is_edit:
@@ -1289,8 +1418,9 @@ async def approve_system(
                         has_rings, is_dissonant, is_infested, extreme_weather, water_world, vile_brood, exotic_trophy,
                         ancient_bones, salvageable_scrap, storm_crystals, gravitino_balls, infested, is_gas_giant,
                         is_bubble, is_floating_islands,
-                        biome, biome_subtype, weather, planet_size, common_resource, uncommon_resource, rare_resource, plant_resource)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        biome, biome_subtype, weather, planet_size, common_resource, uncommon_resource, rare_resource, plant_resource,
+                        estimated_age, core_element, lore_notes, root_structure, nutrient_source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     planet_id,
                     moon.get('name'),
@@ -1327,6 +1457,12 @@ async def approve_system(
                     moon.get('uncommon_resource'),
                     moon.get('rare_resource'),
                     moon.get('plant_resource'),
+                    # Wonders Page Notes (migration 1.76.0)
+                    moon.get('estimated_age'),
+                    moon.get('core_element'),
+                    moon.get('lore_notes'),
+                    moon.get('root_structure'),
+                    moon.get('nutrient_source'),
                 ))
 
         # Handle root-level moons (from Haven Extractor which sends moons as flat list)
@@ -1342,8 +1478,9 @@ async def approve_system(
                         has_rings, is_dissonant, is_infested, extreme_weather, water_world, vile_brood, exotic_trophy,
                         ancient_bones, salvageable_scrap, storm_crystals, gravitino_balls, infested, is_gas_giant,
                         is_bubble, is_floating_islands,
-                        biome, biome_subtype, weather, planet_size, common_resource, uncommon_resource, rare_resource, plant_resource)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        biome, biome_subtype, weather, planet_size, common_resource, uncommon_resource, rare_resource, plant_resource,
+                        estimated_age, core_element, lore_notes, root_structure, nutrient_source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     planet_id,  # Attach to last planet
                     moon.get('name'),
@@ -1380,6 +1517,12 @@ async def approve_system(
                     moon.get('uncommon_resource'),
                     moon.get('rare_resource'),
                     moon.get('plant_resource'),
+                    # Wonders Page Notes (migration 1.76.0)
+                    moon.get('estimated_age'),
+                    moon.get('core_element'),
+                    moon.get('lore_notes'),
+                    moon.get('root_structure'),
+                    moon.get('nutrient_source'),
                 ))
 
         # Insert space station if present
@@ -1399,6 +1542,14 @@ async def approve_system(
                 station.get('z') or 0,
                 trade_goods_json
             ))
+
+        # Wizard v1: persist coauthors. coauthors[] lives in system_data JSON;
+        # SEPARATE from primary submitter — leaderboard treats them distinctly.
+        try:
+            from control_room_api import _persist_system_coauthors
+            _persist_system_coauthors(cursor, system_id, system_data.get('coauthors') or [])
+        except Exception as e:
+            logger.warning(f"Failed to persist coauthors for system {system_id}: {e}")
 
         # Calculate and store completeness score
         update_completeness_score(cursor, system_id)
@@ -2081,9 +2232,10 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                             weather_text, sentinels_text, flora_text, fauna_text,
                             has_rings, is_dissonant, is_infested, extreme_weather, water_world, vile_brood,
                             ancient_bones, salvageable_scrap, storm_crystals, gravitino_balls, is_gas_giant, exotic_trophy,
-                            is_bubble, is_floating_islands
+                            is_bubble, is_floating_islands,
+                            estimated_age, core_element, lore_notes, root_structure, nutrient_source
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         system_id,
                         planet.get('name'),
@@ -2134,7 +2286,13 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                         1 if planet.get('is_gas_giant') else 0,
                         planet.get('exotic_trophy'),
                         1 if planet.get('is_bubble') else 0,
-                        1 if planet.get('is_floating_islands') else 0
+                        1 if planet.get('is_floating_islands') else 0,
+                        # Wonders Page Notes (migration 1.76.0)
+                        planet.get('estimated_age'),
+                        planet.get('core_element'),
+                        planet.get('lore_notes'),
+                        planet.get('root_structure'),
+                        planet.get('nutrient_source')
                     ))
                     planet_id = cursor.lastrowid
 
@@ -2144,8 +2302,9 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                                 has_rings, is_dissonant, is_infested, extreme_weather, water_world, vile_brood, exotic_trophy,
                                 ancient_bones, salvageable_scrap, storm_crystals, gravitino_balls, infested, is_gas_giant,
                                 is_bubble, is_floating_islands,
-                                biome, biome_subtype, weather, planet_size, common_resource, uncommon_resource, rare_resource, plant_resource)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                biome, biome_subtype, weather, planet_size, common_resource, uncommon_resource, rare_resource, plant_resource,
+                                estimated_age, core_element, lore_notes, root_structure, nutrient_source)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (
                             planet_id,
                             moon.get('name'),
@@ -2182,6 +2341,12 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                             moon.get('uncommon_resource'),
                             moon.get('rare_resource'),
                             moon.get('plant_resource'),
+                            # Wonders Page Notes (migration 1.76.0)
+                            moon.get('estimated_age'),
+                            moon.get('core_element'),
+                            moon.get('lore_notes'),
+                            moon.get('root_structure'),
+                            moon.get('nutrient_source'),
                         ))
 
                 # Insert space station if present

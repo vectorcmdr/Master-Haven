@@ -5648,8 +5648,127 @@ def migration_1_74_0(conn):
     logger.info("Created batch_jobs table for async batch-approval tracking")
 
 
-@register_migration("1.75.0", "Systems Tab v2.0: user_saved_searches table for named filter sets")
+@register_migration("1.75.0", "Wizard v1 rebuild: game_version, submitter_notes, expedition_id, expeditions table, system_coauthors table")
 def migration_1_75_0(conn):
+    """
+    Schema additions for the Wizard v1 rebuild (May 2026).
+
+    New columns:
+    - systems.game_version              TEXT  — NMS engine version (e.g. "6.18", "Worlds Part 2")
+    - pending_systems.game_version      TEXT  — same, on pending row for round-trip
+    - pending_systems.submitter_notes   TEXT  — admin-only review context. NOT copied to systems on approve
+    - systems.expedition_id             INTEGER  — link to expeditions(id)
+    - pending_systems.expedition_id     INTEGER  — same, on pending row
+
+    New tables:
+    - expeditions          — community-scoped charting campaigns
+    - system_coauthors     — many-to-many credit table; co-author counts are tracked
+                             SEPARATELY from primary submission counts in analytics
+    """
+    cursor = conn.cursor()
+
+    # --- Column additions (idempotent) ---
+    def _add_col(table: str, name: str, type_def: str):
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {name} {type_def}")
+            logger.info(f"Added {table}.{name}")
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():
+                raise
+
+    _add_col('systems', 'game_version', 'TEXT')
+    _add_col('pending_systems', 'game_version', 'TEXT')
+    _add_col('pending_systems', 'submitter_notes', 'TEXT')
+    _add_col('systems', 'expedition_id', 'INTEGER')
+    _add_col('pending_systems', 'expedition_id', 'INTEGER')
+
+    # --- expeditions table ---
+    # status: 'active' | 'completed' | 'archived'. discord_tag scopes visibility
+    # to a community (per Parker: "whole community can see expeditions").
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS expeditions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL,
+            owner_profile_id INTEGER,
+            owner_username TEXT,
+            discord_tag TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            description TEXT,
+            started_at TEXT,
+            ended_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT,
+            UNIQUE(slug)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_expeditions_status ON expeditions(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_expeditions_discord_tag ON expeditions(discord_tag, status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_expeditions_owner ON expeditions(owner_profile_id)")
+    logger.info("Created expeditions table")
+
+    # --- system_coauthors table ---
+    # Composite PK avoids dupes; profile_id may be NULL for legacy/anon coauthors so
+    # username_normalized is the dedup field. credited_at is the approval timestamp.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS system_coauthors (
+            system_id TEXT NOT NULL,
+            profile_id INTEGER,
+            username TEXT NOT NULL,
+            username_normalized TEXT NOT NULL,
+            credited_at TEXT NOT NULL,
+            PRIMARY KEY (system_id, username_normalized)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_coauthors_profile ON system_coauthors(profile_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_coauthors_username ON system_coauthors(username_normalized)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_coauthors_system ON system_coauthors(system_id)")
+    logger.info("Created system_coauthors table")
+
+    # --- expedition_id index on systems for leaderboard queries ---
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_systems_expedition ON systems(expedition_id)")
+
+    conn.commit()
+    logger.info("Migration 1.75.0 complete")
+
+
+@register_migration("1.76.0", "Wonders Page Notes: estimated_age, core_element, lore_notes, root_structure, nutrient_source on planets + moons")
+def migration_1_76_0(conn):
+    """
+    Preserve the procedurally-generated narrative text NMS surfaces on a
+    planet/moon's Log Exploration Guide page (visible in the Wonders
+    Catalogue after upload). All five are free-form text — no record math.
+
+    Columns added to both planets and moons:
+    - estimated_age      TEXT  — e.g. "approximately 6.04 billion years"
+    - core_element       TEXT  — e.g. "Gold", "Cadmium", "Water"
+    - lore_notes         TEXT  — multi-paragraph procgen origin/history blurb
+    - root_structure     TEXT  — lush/exotic biome flora-system description
+    - nutrient_source    TEXT  — how local life feeds
+    """
+    cursor = conn.cursor()
+
+    def _add_col(table: str, name: str, type_def: str):
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {name} {type_def}")
+            logger.info(f"Added {table}.{name}")
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():
+                raise
+
+    for table in ('planets', 'moons'):
+        _add_col(table, 'estimated_age', 'TEXT')
+        _add_col(table, 'core_element', 'TEXT')
+        _add_col(table, 'lore_notes', 'TEXT')
+        _add_col(table, 'root_structure', 'TEXT')
+        _add_col(table, 'nutrient_source', 'TEXT')
+
+    conn.commit()
+    logger.info("Migration 1.76.0 complete")
+
+
+@register_migration("1.77.0", "Systems Tab v2.0: user_saved_searches table for named filter sets")
+def migration_1_77_0(conn):
     """
     Per-user named filter sets that follow a user across devices.
 

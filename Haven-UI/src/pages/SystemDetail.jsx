@@ -523,6 +523,40 @@ function ShowOnMapButton({ system, variant = 'ghost' }) {
   )
 }
 
+// Wonders Page Notes (migration v1.76.0 — wizard rebuild). Renders only when
+// at least one field is populated so old systems show no extra chrome.
+function WondersNotes({ row }) {
+  if (!row) return null
+  const fields = [
+    ['Estimated Age', row.estimated_age],
+    ['Core Element', row.core_element],
+    ['Root Structure', row.root_structure],
+    ['Nutrient Source', row.nutrient_source],
+  ].filter(([, v]) => v != null && v !== '')
+  if (fields.length === 0 && !row.lore_notes) return null
+  return (
+    <div
+      className="mt-2 p-2 rounded text-[10px] space-y-0.5"
+      style={{
+        background: 'rgba(255, 180, 76, 0.07)',
+        border: '1px solid rgba(255, 180, 76, 0.30)',
+      }}
+    >
+      <div className="font-semibold uppercase tracking-wider flex items-center gap-1" style={{ color: 'var(--app-accent-amber)' }}>
+        ★ Wonders Notes
+      </div>
+      {fields.map(([label, v]) => (
+        <div key={label}><span style={{ color: 'var(--muted)' }}>{label}: </span><span>{v}</span></div>
+      ))}
+      {row.lore_notes && (
+        <div className="italic whitespace-pre-line mt-1" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          {row.lore_notes}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PlanetCard({ p, index }) {
   const tint = BIOME_TINT[p.biome] || 'rgba(255,255,255,0.2)'
   const moonCount = (p.moons || []).length
@@ -548,6 +582,7 @@ function PlanetCard({ p, index }) {
         <div><div style={{ color: 'var(--muted)' }}>Flora</div><div className="font-bold">{p.flora || p.flora_count || '—'}</div></div>
         <div><div style={{ color: 'var(--muted)' }}>Sent.</div><div className="font-bold truncate" title={p.sentinel || ''}>{p.sentinel || '—'}</div></div>
       </div>
+      <WondersNotes row={p} />
       {moonCount > 0 && (
         <div className="text-[10px] mt-2 pt-2" style={{ color: 'var(--muted)', borderTop: '1px solid var(--border-soft)' }}>
           {moonCount} moon{moonCount === 1 ? '' : 's'}: {(p.moons || []).map((m) => m.name || 'unnamed').join(', ')}
