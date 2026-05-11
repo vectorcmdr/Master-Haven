@@ -356,18 +356,25 @@ class CommunityCog(commands.Cog):
             e = discord.Embed(title=f"Result {i}")
 
             allowed = [
-                "Community Name",
+                "Community",
                 "Description",
-                "Permanent Link"
+                "perma-link"
             ]
 
+            label_map = {
+                "Community": "Community Name",
+                "Description": "Description",
+                "perma-link": "Permanent Link"
+            }
+
             for k in allowed:
-                if row.get(k):
+                value = row.get(k)
+                if value and str(value).strip():
                     e.add_field(
-                        name=k,
-                        value=row[k],
+                        name=label_map.get(k, k),
+                        value=value,
                         inline=False
-                    )
+                    )          
 
             link = next(
                 (
