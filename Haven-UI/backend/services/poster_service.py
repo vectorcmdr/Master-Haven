@@ -160,6 +160,30 @@ REGISTRY: dict[str, PosterTemplate] = {
         ttl_hours=24,
         description='Per-community OG card for /community-stats/:tag share embeds',
     ),
+    'region_thumb': PosterTemplate(
+        type='region_thumb',
+        version=1,
+        width=600,
+        height=300,
+        # Region thumbs are keyed by `rx_ry_rz` and pass `galaxy`+`reality`
+        # via the query string — see RegionThumb.jsx. The SPA route ignores
+        # the query string but Playwright passes the full URL we build, so
+        # the component still receives them through useSearchParams.
+        spa_route='/poster/region_thumb/{key}',
+        ttl_hours=24,
+        description='Region thumbnail — 600x300 isometric voxel view of all systems in a region',
+    ),
+    'system_thumb': PosterTemplate(
+        type='system_thumb',
+        version=1,
+        width=600,
+        height=400,
+        # Keyed by system_id. Pulls /api/systems/{id} and renders an orbital
+        # diagram + stat tiles + glyph row.
+        spa_route='/poster/system_thumb/{key}',
+        ttl_hours=24,
+        description='System thumbnail — 600x400 landscape with orbital diagram and stats',
+    ),
 }
 
 

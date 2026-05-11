@@ -40,6 +40,13 @@ export async function apiDelete(path){
   return await res.json()
 }
 
+/** PATCH JSON to an endpoint. */
+export async function apiPatch(path, body){
+  const res = await fetch(path, { method: 'PATCH', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  if(!res.ok) throw new Error(await res.text())
+  return await res.json()
+}
+
 // ============================================================================
 // Typed Endpoint Functions
 // Each wraps a specific API call with consistent error handling.
@@ -93,6 +100,16 @@ export const getSourceBreakdown = () => axios.get('/api/analytics/source-breakdo
 export const getPartnerOverview = (params = {}) => axios.get('/api/analytics/partner-overview', { params }).then(r => r.data)
 
 // --- Public Community Stats ---
+// --- Systems Tab v2.0: user-scoped state ---
+// Saved searches require tier <= 4 (password-set member or above); the backend
+// returns 403 for tier 5. UI components should fall back to localStorage for
+// anonymous / read-only users.
+export const listSavedSearches = () => apiGet('/api/user/saved_searches')
+export const createSavedSearch = (name, filters) => apiPost('/api/user/saved_searches', { name, filters })
+export const updateSavedSearch = (id, patch) => apiPatch(`/api/user/saved_searches/${id}`, patch)
+export const deleteSavedSearch = (id) => apiDelete(`/api/user/saved_searches/${id}`)
+export const getUserTheme = () => apiGet('/api/user/theme')
+
 export const getCommunityOverview = () => axios.get('/api/public/community-overview').then(r => r.data)
 export const getContributors = (params = {}) => axios.get('/api/public/contributors', { params }).then(r => r.data)
 export const getActivityTimeline = (params = {}) => axios.get('/api/public/activity-timeline', { params }).then(r => r.data)

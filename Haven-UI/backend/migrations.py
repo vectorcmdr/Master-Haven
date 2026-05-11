@@ -2059,7 +2059,15 @@ def migration_1_32_0_filter_indexes(conn: sqlite3.Connection):
     # Planet-level filter indexes
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_planets_system_id ON planets(system_id)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_planets_biome ON planets(biome)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_planets_sentinel_level ON planets(sentinel_level)')
+    # Column renamed sentinel_level → sentinel in v1.45.2; check before
+    # indexing so fresh-init DBs (where init_database created the new schema)
+    # don't fail when applying this historical migration.
+    cursor.execute("PRAGMA table_info(planets)")
+    planet_cols = {row[1] for row in cursor.fetchall()}
+    if 'sentinel_level' in planet_cols:
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_planets_sentinel_level ON planets(sentinel_level)')
+    elif 'sentinel' in planet_cols:
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_planets_sentinel ON planets(sentinel)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_planets_weather ON planets(weather)')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_planets_is_moon ON planets(is_moon)')
     logger.info("Created planet-level filter indexes")
@@ -5638,3 +5646,47 @@ def migration_1_74_0(conn):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_jobs_created_at ON batch_jobs(created_at DESC)")
     conn.commit()
     logger.info("Created batch_jobs table for async batch-approval tracking")
+
+
+@register_migration("1.75.0", "Systems Tab v2.0: user_saved_searches table for named filter sets")
+def migration_1_75_0(conn):
+    """
+    Per-user named filter sets that follow a user across devices.
+
+    Owned by the Systems Tab v2.0 redesign (spec section 3.5). The Saved
+    Searches dropdown sits next to the search bar and lets a user persist
+    full filter snapshots ("T3 Wealthy Tech w/ Moons", "Paradise Hunting",
+    etc.). State is profile-scoped, not device-local — recently-viewed
+    history stays in localStorage; saved searches live here.
+
+    Schema choices to call out:
+    - INTEGER PK to match the rest of Haven's schema (user_profiles.id,
+      systems.id, etc.). The dispatch's example SQL used TEXT ids — that
+      was a copy-paste shape from the mockup, not a real constraint.
+    - filters_json stores the full filter snapshot serialized; the
+      shape is owned by the frontend and validated at write time in
+      routes/user.py (we just check it parses as JSON).
+    - 50-row hard cap enforced in the route handler, not at the DB
+      layer, so we can return a friendly 400 instead of a constraint
+      violation.
+    - Cascade delete on profile removal so we don't leak saved searches
+      when a profile is deleted.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_saved_searches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            filters_json TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES user_profiles(id) ON DELETE CASCADE
+        )
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_user_saved_searches_user
+        ON user_saved_searches(user_id, created_at DESC)
+    """)
+    conn.commit()
+    logger.info("Created user_saved_searches table for Systems Tab v2.0 saved filter sets")

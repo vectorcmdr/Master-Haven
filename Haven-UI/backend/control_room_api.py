@@ -1614,6 +1614,7 @@ from routes.extractor import router as extractor_router
 from routes.csv_import import router as csv_import_router
 from routes.posters import router as posters_router
 from routes.ssr import router as ssr_router
+from routes.user import router as user_router
 
 app.include_router(auth_router)
 app.include_router(systems_router)
@@ -1628,6 +1629,7 @@ app.include_router(extractor_router)
 app.include_router(csv_import_router)
 app.include_router(warroom_router)
 app.include_router(posters_router)
+app.include_router(user_router)
 
 # SSR shim catches share-friendly URLs like /voyager/:user and /atlas/:galaxy
 # BEFORE the SPA index falls through. Discord/Twitter scrapers stop at the
