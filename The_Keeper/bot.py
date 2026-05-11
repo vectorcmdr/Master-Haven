@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import asyncio, os, sys
+import json
 import logging
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(name)s: %(message)s")
 
@@ -84,7 +85,7 @@ ROLES = {
     },
 }
 
-# -------------------- PRIMARY ROLE MAP (NEW FIXED LAYER) --------------------
+# -------------------- PRIMARY ROLE MAP --------------------
 PRIMARY_ROLES = {
     "cartographer": get_env_int("ROLE_PRIMARY_CARTOGRAPHER"),
     "xenobiologist": get_env_int("ROLE_PRIMARY_XENOBIOLOGIST"),
@@ -194,6 +195,7 @@ COGS = [
     "cogs.personality",
     "cogs.xp_system",
     "cogs.xp_cog",
+    "cogs.reaction",
     "cogs.Haven_stats",
     "cogs.featured",
     "cogs.community",
@@ -205,11 +207,55 @@ COGS = [
     "cmds.list",
     "cmds.slash",
     "cmds.voyager",
+    "setup",
 ]
-channel_id = bot.CHANNELS.get("welcome")
+@bot.tree.interaction_check
+async def check_channel_allowed(interaction: discord.Interaction) -> bool:
+    if not interaction.guild:
+        return True
+
+    import os, json
+
+    path = f"Data/guilds/{interaction.guild.id}.json"
+
+    if not os.path.exists(path):
+        return False
+
+    with open(path, "r") as f:
+        config = json.load(f)
+
+   
+    command = interaction.command
+    if command is None:
+        return True
+
+    command_name = command.qualified_name  # FIXED (supports subcommands)
+
+    allowed_channels = config.get(command_name)
+
+    
+    if not allowed_channels:
+        return False
+
+    return interaction.channel.id in allowed_channels
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
+    guild_folder = "Data/guilds"
+
+    try:
+        if os.path.exists(guild_folder):
+            for file in os.listdir(guild_folder):
+                if file.endswith(".json"):
+                    gid = int(file.replace(".json", ""))
+                    await bot.tree.sync(guild=discord.Object(id=gid))
+
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} command(s)")
+
+    except Exception as e:
+        print(e)
+
     print("COMMANDS:", [cmd.name for cmd in bot.commands])
     print("[...The Keeper is watching...]")
 
@@ -244,10 +290,9 @@ async def on_command_error(ctx, error):
 
 # -------------------- RUN --------------------
 async def main():
-    async def setup_hook():
-        await bot.tree.sync(guild=discord.Object(id=1423941004230135851))
+    async def setup_hook():        
 
-    bot.setup_hook = setup_hook
+        bot.setup_hook = setup_hook
 
     for cog in COGS:
         await bot.load_extension(cog)

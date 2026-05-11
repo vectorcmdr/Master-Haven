@@ -1,77 +1,72 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import requests
-import os, sys
-import logging
-from cogs.community import SearchView, AddCivView, EditConfirmView
-
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, BASE_DIR)
-
-sys.path.append(os.path.join(BASE_DIR, "cogs"))
-
-log = logging.getLogger("commands")
+import os
 
 from announcements import GoogleDocParser
+from cogs.community import SearchView, AddCivView
+
 DOC_URL = "https://docs.google.com/document/d/1FRfxnmXdhU_O-OGTxG52lM0298zzKnGp7W2Qs5njBPo/export?format=txt"
 
 
 class CommandsCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.parser = GoogleDocParser(DOC_URL)
 
+
+    # ---------------- Announce ----------------
     @app_commands.command(name="announce", description="Send doc to selected channel")
     @app_commands.describe(
         channel="Channel to send to",
-        tag="User or role to mention"
+        tag="User or role to mention (optional)"
     )
     async def announce(
         self,
         interaction: discord.Interaction,
         channel: discord.TextChannel,
-        tag: discord.Member | discord.Role
+        tag: discord.Member | discord.Role | None = None
     ):
         await interaction.response.defer()
 
         text = self.parser.get_doc_text()
         sections = self.parser.parse_blocks(text)
 
-        # Send all sections first
         for section in sections:
             if section:
                 await channel.send(section[:2000])
 
-        # Send ONE mention at the end
         if tag:
-            await channel.send(f"{tag.mention}")
+            await channel.send(tag.mention)
 
         await interaction.followup.send(
             f"Sent to {channel.mention}",
             ephemeral=True
         )
 
-# ---------------- Community ----------------
-    @app_commands.command(name="community", description="Look up a No Man's Sky civ or commmunity")    
-    async def community(self, interaction: discord.Interaction, *, search: str = None):
-        if interaction.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
-        community_cog = self.bot.get_cog("CommunityCog")
+    # ---------------- COMMUNITY ----------------
+    @app_commands.command(name="community", description="Look up a civ/community")
+    async def community(
+        self,
+        interaction: discord.Interaction,
+        search: str | None = None
+    ):
         
+        community_cog = self.bot.get_cog("CommunityCog")
 
         if not community_cog:
             return await interaction.response.send_message("Community system not loaded.")
+            
+            await interaction.response.defer(thinking=True)
+            view = SearchView(community_cog)
 
         await interaction.response.send_message("Open search:", view=SearchView(community_cog))
 
-        if not search:
-            return
+        if search:
+            await community_cog.run_search(interaction, search)
 
-        await community_cog.run_search(interaction, search)
-
-# ---------------- Add Civ ----------------
-    @app_commands.command(name="addciv", description="add a civ or community to our ever growing list!")
+    # ---------------- ADD CIV ----------------
+    @app_commands.command(name="addciv", description="Add a civ/community")
     async def addciv(self, interaction: discord.Interaction):
         cog = self.bot.get_cog("CommunityCog")
 

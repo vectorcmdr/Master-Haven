@@ -18,7 +18,7 @@ from cogs import xp_system, personality, Haven_stats, Haven_upload, featured, co
 from cogs.xp_cog import DepartmentView
 from cogs.xp_system import get_user, get_level_from_xp, make_progress_bar, get_rank, xp_needed
 from cogs.community import SearchView, AddCivView
-from cogs.Data.xpdata import get_level, get_xp, CONFIG, get_global, system_xp
+from cogs.Data.xpdata import get_level, get_xp, CONFIG, get_global, system_xp, get_conn, ensure_user
 import logging
 log = logging.getLogger("commands")
    
@@ -106,7 +106,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Systems ----------------
     @commands.command(name="newsystem", help="upload a system directly from the server")
     async def addlog(self, ctx):
-        if ctx.channel.id != int(os.getenv("SYSTEM_CHANNEL_ID")): return
+        
         haven_cog = self.bot.get_cog("HavenSubmission")
         if not haven_cog:
             await ctx.send("⚠️ HavenSubmission cog is not loaded.")
@@ -136,39 +136,30 @@ class CommandsRouter(commands.Cog):
         view.message = message
 
 # ---------------- Discoveries ----------------
-    @commands.command(name="discovery", help="upload a disxovery directly from the server")
-    async def discovery(self, ctx):       
-        if ctx.channel.id not in [
-            int(os.getenv("BASE_CHANNEL_ID")),
-            int(os.getenv("OUT_CHANNEL_ID")),
-            int(os.getenv("CRASH_CHANNEL_ID")),
-            int(os.getenv("SENTINEL_CHANNEL_ID")),
-            int(os.getenv("TOOL_CHANNEL_ID")),
-            int(os.getenv("STAFF_CHANNEL_ID")),
-            int(os.getenv("FAUNA_CHANNEL_ID")),
-            int(os.getenv("FLORA_CHANNEL_ID")),
-        ]:
-            return
+    @commands.command(name="discovery", help="upload a discovery directly from the server")
+    async def discovery(self, ctx):
 
         haven_cog = self.bot.get_cog("HavenSubmission")
         if not haven_cog:
             await ctx.send("⚠️ HavenSubmission cog is not loaded.")
             return
-        
+
         DiscoveryTypeSelect = getattr(haven_cog, "DiscoveryTypeSelect", None)
         if DiscoveryTypeSelect is None:
             await ctx.send("⚠️ DiscoveryTypeSelect not found.")
             return
-
+  
         api = getattr(haven_cog, "api", None)
         if api is None:
             await ctx.send("⚠️ HavenSubmission API missing.")
             return
 
         glyph_emojis = getattr(haven_cog, "glyph_emojis", {})
+
         view = DiscoveryTypeSelect(api, glyph_emojis, ctx.author.id)
 
         await ctx.send("Select the type of discovery to submit:", view=view)
+
         system_xp(ctx.author.id, 3)
 
 # ---------------- Leaderboard ----------------
@@ -187,7 +178,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Map ----------------
     @commands.command(name="map", help="a link to the Haven map")
     async def map_command(self, ctx: commands.Context):
-        if ctx.channel.id not in [int(os.getenv("GENERAL_CHANNEL_ID")), int(os.getenv("HELP_CHANNEL_ID")), int(os.getenv("LIBRARY_CHANNEL_ID"))]: return
+        
         HAVEN_MAP_URL = "https://havenmap.online/map/latest"
 
         button = discord.ui.Button(label="✨ Open the Haven Map 🌌", url=HAVEN_MAP_URL)
@@ -199,7 +190,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Stats ----------------
     @commands.command(name="stats", help="a general overview of Haven map stats")
     async def stats(self, ctx):
-        if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
+        
         cog = self.bot.get_cog("Haven_statsCog")
         if not cog:
             return await ctx.send("Stats system not loaded.")
@@ -220,7 +211,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Systems Count ----------------
     @commands.command(name="systems", help="number of current systems")
     async def system(self, ctx):
-        if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
+        
         cog = self.bot.get_cog("AnnouncementCog")
 
         if not cog:
@@ -251,7 +242,7 @@ class CommandsRouter(commands.Cog):
 # ---------------- Planets Count ----------------
     @commands.command(name="planets", help="number if current planets")
     async def planets(self, ctx):
-        if ctx.channel.id != int(os.getenv("LIBRARY_CHANNEL_ID")): return
+        
         cog = self.bot.get_cog("AnnouncementCog")
 
         if not cog:
@@ -307,6 +298,7 @@ class CommandsRouter(commands.Cog):
     
     async def setup(bot):
         await bot.add_cog(Department(bot))
+
 
 # ---------------- Setup --------------------------
 async def setup(bot: commands.Bot):
