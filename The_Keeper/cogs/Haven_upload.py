@@ -495,7 +495,7 @@ class DiscoveryConfirmView(discord.ui.View):
                  system_id=None,
                  notes=None,
                  discovery_name=None,
-                 community_tag=None):  
+                 community_tag=None):
 
         super().__init__(timeout=None)
 
@@ -504,10 +504,10 @@ class DiscoveryConfirmView(discord.ui.View):
         self.api = api
         self.discovery_type = discovery_type
         self.system_exists = system_exists
-        self.galaxy_name = galaxy_name  
+        self.galaxy_name = galaxy_name
         self.system_name = system_name
-        self.system_id = system_id 
-        self.prefill_notes = notes  
+        self.system_id = system_id
+        self.prefill_notes = notes
         self.discovery_name = discovery_name
         self.community_tag = community_tag
 
@@ -526,12 +526,20 @@ class DiscoveryConfirmView(discord.ui.View):
                 )
                 return
 
-            discovery_name = self.discovery_name or f"{self.discovery_type} {self.glyph}"
+            discovery_name = (
+                self.discovery_name
+                or f"{self.discovery_type} {self.glyph}"
+            )
 
             await interaction.response.defer(ephemeral=True)
 
             system_id = self.system_id
 
+        except Exception as e:
+            await interaction.followup.send(
+                f"Error: `{e}`",
+                ephemeral=True
+            )
 # ---------------- SYSTEM CREATION -----------
             if not self.system_exists:
                 system_payload = {
