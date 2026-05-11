@@ -6,7 +6,7 @@ from discord.ui import Select, Button, TextInput
 import traceback
 import sys, os
 import json
-from cogs.Data.xpdata import process_system_xp
+
 
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -582,9 +582,10 @@ class DiscoveryConfirmView(discord.ui.View):
             if system_xp:
                 msg += f"\n✨ +{system_xp} XP for system creation"
             
-            xp_gained = await process_discovery_xp(
-                user_id=self.user_id,
-                discovery_type=self.discovery_type.lower(),
+            xp_gained = await         process_system_xp(
+            user_id=self.user_id,
+             base_amount=CONFIG["xp_bonus"]["base_discovery_xp"]
+),
                 channel_id=interaction.channel.id,
             )
             if xp_gained:
