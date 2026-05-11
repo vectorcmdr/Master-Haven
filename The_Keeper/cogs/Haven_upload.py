@@ -6,6 +6,7 @@ from discord.ui import Select, Button, TextInput
 import traceback
 import sys, os
 import json
+from cogs.Data.xpdata import process_system_xp
 
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
