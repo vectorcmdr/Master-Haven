@@ -25,8 +25,12 @@ import { fetchTagColorsForPoster, getTagColorFromAPI, getDisplayTagName } from '
 //   E glyph row · F space station = diamond marker
 // ============================================================================
 
-const W = 600
-const H = 400
+// Native canvas bumped 600x400 → 720x480 + internal font sizes scaled up
+// (Parker 2026-05-11: the 6 stat tiles were unreadable when displayed in
+// the L4 card grid at ~250px wide, since fonts were sized for the native
+// poster view, not the scaled-down card view). Aspect stays 3:2.
+const W = 720
+const H = 480
 
 const STAR_COLORS = {
   Yellow: '#facc15',
@@ -133,14 +137,15 @@ export default function SystemThumb({ routeKey }) {
 
       {/* Header eyebrow */}
       <div style={{
-        position: 'absolute', top: 14, left: 24, right: 24,
+        position: 'absolute', top: 16, left: 28, right: 28,
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        fontFamily: POSTER_FONTS.mono, fontSize: 9, letterSpacing: 2,
+        fontFamily: POSTER_FONTS.mono, fontSize: 11, letterSpacing: 2,
         color: POSTER_COLORS.dim,
+        fontWeight: 600,
       }}>
         <span>VOYAGER'S HAVEN · STAR SYSTEM</span>
         {hasStation && (
-          <span style={{ color: POSTER_COLORS.primary, letterSpacing: 1.5 }}>
+          <span style={{ color: POSTER_COLORS.primary, letterSpacing: 1.5, fontWeight: 700 }}>
             ◆ STATION
           </span>
         )}
@@ -148,8 +153,8 @@ export default function SystemThumb({ routeKey }) {
 
       {/* Main row: orbital diagram + text panel */}
       <div style={{
-        position: 'absolute', top: 36, left: 24, right: 24, bottom: 70,
-        display: 'flex', gap: 18,
+        position: 'absolute', top: 46, left: 28, right: 28, bottom: 84,
+        display: 'flex', gap: 22,
       }}>
         <div style={{ width: 240, flexShrink: 0, position: 'relative' }}>
           <OrbitalDiagram
@@ -163,22 +168,26 @@ export default function SystemThumb({ routeKey }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div>
             <div style={{
-              fontFamily: POSTER_FONTS.serif, fontSize: 28, fontStyle: 'italic',
+              fontFamily: POSTER_FONTS.serif, fontSize: 32, fontStyle: 'italic',
               color: POSTER_COLORS.text, lineHeight: 1.05,
               textShadow: '0 2px 12px rgba(0,0,0,0.5)',
             }}>
               {data.name || 'Unknown'}
             </div>
             <div style={{
-              fontFamily: POSTER_FONTS.mono, fontSize: 10, letterSpacing: 1.4,
-              color: POSTER_COLORS.dim, marginTop: 3,
+              fontFamily: POSTER_FONTS.mono, fontSize: 14, letterSpacing: 1.4,
+              color: POSTER_COLORS.dim, marginTop: 4,
+              fontWeight: 500,
             }}>
               {data.galaxy || 'Euclid'} · {data.reality || 'Normal'}
             </div>
           </div>
 
+          {/* 2-col tile grid (was 3-col) so each of the 6 stat tiles gets
+              ~200 px of horizontal room instead of ~130 px — fonts inside
+              StatTile bumped up to read clearly at L4 card scale. */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6,
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7,
           }}>
             <Stat label="ECONOMY" value={data.economy_type || '—'} sub={data.economy_level || null} />
             <Stat label="CONFLICT" value={data.conflict_level || '—'} valueColor={conflictColor(data.conflict_level)} />
@@ -201,15 +210,15 @@ export default function SystemThumb({ routeKey }) {
 
       {/* Glyph row */}
       <div style={{
-        position: 'absolute', bottom: 14, left: 24, right: 24,
-        display: 'flex', alignItems: 'center', gap: 4,
+        position: 'absolute', bottom: 18, left: 28, right: 28,
+        display: 'flex', alignItems: 'center', gap: 5,
       }}>
         {glyphChars.length === 12 ? (
           glyphChars.map((c, i) => <GlyphIcon key={i} hex={c} />)
         ) : (
           <span style={{
-            fontFamily: POSTER_FONTS.mono, fontSize: 10, color: POSTER_COLORS.dim,
-            letterSpacing: 2,
+            fontFamily: POSTER_FONTS.mono, fontSize: 13, color: POSTER_COLORS.dim,
+            letterSpacing: 2, fontWeight: 600,
           }}>
             GLYPH PENDING
           </span>
@@ -217,8 +226,8 @@ export default function SystemThumb({ routeKey }) {
         <div style={{ flex: 1 }} />
         {glyphChars.length === 12 && (
           <span style={{
-            fontFamily: POSTER_FONTS.mono, fontSize: 10, color: POSTER_COLORS.dim,
-            letterSpacing: 1.5,
+            fontFamily: POSTER_FONTS.mono, fontSize: 13, color: POSTER_COLORS.dim,
+            letterSpacing: 1.5, fontWeight: 500,
           }}>
             {glyphChars.join('')}
           </span>
@@ -351,14 +360,12 @@ function Stat({ label, value, sub, valueColor, tile, truncate }) {
 
 function GlyphIcon({ hex }) {
   const file = GLYPH_FILE[hex]
-  if (!file) return <span style={{ width: 24, height: 24 }} />
-  // mix-blend-mode: screen drops the black background (NMS glyph photos are
-  // light symbol on solid black). Once we get transparent PNGs we can drop
-  // the blend mode for true alpha.
+  // Bumped 28→36 (Parker 2026-05-11) for legibility at L4 card scale.
+  if (!file) return <span style={{ width: 36, height: 36 }} />
   return (
     <div style={{
-      width: 28, height: 28,
-      borderRadius: 4,
+      width: 36, height: 36,
+      borderRadius: 5,
       border: '1px solid rgba(255,255,255,0.08)',
       background: 'rgba(0,0,0,0.30)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -368,7 +375,7 @@ function GlyphIcon({ hex }) {
         src={`/haven-ui-photos/${file}`}
         alt={hex}
         style={{
-          width: 28, height: 28, objectFit: 'cover',
+          width: 36, height: 36, objectFit: 'cover',
           mixBlendMode: 'screen',
           filter: 'brightness(1.4)',
         }}

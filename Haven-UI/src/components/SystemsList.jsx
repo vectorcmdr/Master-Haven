@@ -155,7 +155,11 @@ export default function SystemsList() {
         />
       ) : view === 'cards' ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {/* Grid caps at 3 columns on PC (was xl:grid-cols-4). Parker
+              2026-05-11: at 4-up the system_thumb poster squashed to
+              ~250 px wide which made the 6 stat tiles unreadable.
+              Mobile breakpoints unchanged. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {paged.map((s) => <SystemCard key={s.id} s={s} onClick={() => handleClick(s)} pinned={pinnedIds.has(s.id)} pinning={pinning} />)}
           </div>
           {totalPages > 1 && (
@@ -232,28 +236,39 @@ function SystemCard({ s, onClick, pinned, pinning }) {
         )}
       </div>
 
+      {/* Card text section — bumped contrast and font sizes per Parker
+          (2026-05-11) since the cards felt cramped under the poster. Labels
+          stay subtly muted; values are bright white for legibility. */}
       <div className="p-4">
-        <div className="flex items-start justify-between mb-2 gap-2">
-          <h3 className="text-base font-semibold truncate flex-1 min-w-0">{s.name}</h3>
+        <div className="flex items-start justify-between mb-3 gap-2">
+          <h3 className="text-lg font-semibold truncate flex-1 min-w-0" style={{ color: 'var(--app-text)' }}>{s.name}</h3>
           {s.discord_tag && s.discord_tag !== 'personal' && (
-            <span className="pill pill-purple shrink-0 text-[10px]">{s.discord_tag}</span>
+            <span className="pill pill-purple shrink-0 text-[11px]">{s.discord_tag}</span>
           )}
         </div>
-        <div className="space-y-1.5 text-xs mb-3">
-          <div className="flex items-center gap-2" style={{ color: 'var(--muted)' }}>
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v8m-4-4h8M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>{s.economy_type || '—'}{s.economy_level ? ` / ${s.economy_level}` : ''}</span>
-            <span className="ml-auto">{s.conflict_level || '—'}</span>
+        <div className="space-y-2 text-sm mb-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v8m-4-4h8M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span style={{ color: 'rgba(255,255,255,0.92)' }}>
+              {s.economy_type || '—'}{s.economy_level ? ` / ${s.economy_level}` : ''}
+            </span>
+            <span className="ml-auto" style={{ color: 'rgba(255,255,255,0.78)' }}>
+              {s.conflict_level || '—'}
+            </span>
           </div>
-          <div className="flex items-center gap-2" style={{ color: 'var(--muted)' }}>
-            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-            <span>{planetCount} planets{moonCount ? ` · ${moonCount} moons` : ''}</span>
-            <span className="ml-auto">{s.dominant_lifeform || '—'}</span>
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+            <span style={{ color: 'rgba(255,255,255,0.92)' }}>
+              {planetCount} planet{planetCount === 1 ? '' : 's'}{moonCount ? ` · ${moonCount} moon${moonCount === 1 ? '' : 's'}` : ''}
+            </span>
+            <span className="ml-auto" style={{ color: 'rgba(255,255,255,0.78)' }}>
+              {s.dominant_lifeform || '—'}
+            </span>
           </div>
         </div>
-        <div className="pt-3 flex items-center justify-between text-[10px]" style={{ borderTop: '1px solid var(--border-soft)', color: 'var(--muted)' }}>
+        <div className="pt-3 flex items-center justify-between text-[11px]" style={{ borderTop: '1px solid var(--border-soft)', color: 'rgba(255,255,255,0.7)' }}>
           <span className="mono">{s.completeness_score != null ? `${s.completeness_score}% complete` : '—'}</span>
-          <span className="truncate">{s.discovered_by || s.personal_discord_username || '—'}</span>
+          <span className="truncate ml-2">{s.discovered_by || s.personal_discord_username || '—'}</span>
         </div>
       </div>
     </button>

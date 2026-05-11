@@ -939,9 +939,18 @@ async def api_systems(
         total_pages = (total + limit - 1) // limit if total > 0 else 0
         offset = (page - 1) * limit
 
-        # Fetch systems with pagination
+        # Fetch systems with pagination.
+        # Parker 2026-05-11: include planet_count + moon_count subqueries so
+        # the L4 SystemCard text doesn't say "0 planets" when the system_thumb
+        # poster correctly shows 4 planets. Both columns are indexed
+        # (idx_planets_system_id from v1.32.0) so the subqueries are cheap.
         cursor.execute(f'''
-            SELECT s.*, r.custom_name as region_name
+            SELECT s.*, r.custom_name as region_name,
+                   (SELECT COUNT(*) FROM planets p
+                    WHERE p.system_id = s.id
+                      AND COALESCE(p.is_moon, 0) = 0) AS planet_count,
+                   (SELECT COUNT(*) FROM moons m
+                    WHERE m.planet_id IN (SELECT id FROM planets WHERE system_id = s.id)) AS moon_count
             FROM systems s
             LEFT JOIN regions r ON s.region_x = r.region_x
                 AND s.region_y = r.region_y AND s.region_z = r.region_z

@@ -37,6 +37,7 @@ import { getThumbnailUrl, getPhotoUrl } from '../utils/api'
 import Lightbox from '../components/Lightbox'
 import FromMapBanner from '../components/FromMapBanner'
 import ActivityFeed from '../components/ActivityFeed'
+import PlanetSphere from '../components/shared/PlanetSphere'
 
 const STAR_HEX = { Yellow: '#facc15', Blue: '#3b82f6', Red: '#ef4444', Green: '#10b981', Purple: '#a855f7' }
 const STAR_TEXT = { Yellow: '#422006' } // contrast on Yellow only; others use white
@@ -404,7 +405,9 @@ export default function SystemDetail() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-semibold">Planets &amp; Moons ({system.planets.length})</h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* 2-up on lg+, gives each expandable card enough horizontal room
+              for sphere + name + 3 stats + expanded detail rows. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3" style={{ alignItems: 'start' }}>
             {(system.planets || []).map((p, i) => <PlanetCard key={p.id || i} p={p} index={i + 1} />)}
           </div>
         </div>
@@ -557,37 +560,278 @@ function WondersNotes({ row }) {
   )
 }
 
+// Aggregate per-row boolean flags into a deduped list of badge labels.
+const FEATURE_FLAGS = [
+  ['vile_brood', 'Vile Brood'],
+  ['ancient_bones', 'Ancient Bones'],
+  ['storm_crystals', 'Storm Crystals'],
+  ['gravitino_balls', 'Gravitino Balls'],
+  ['salvageable_scrap', 'Salvageable Scrap'],
+  ['is_dissonant', 'Dissonant'],
+  ['dissonance', 'Dissonant'],
+  ['is_infested', 'Infested'],
+  ['infested', 'Infested'],
+  ['water_world', 'Water World'],
+  ['has_water', 'Water'],
+  ['is_bubble', 'Bubble Planet'],
+  ['is_floating_islands', 'Floating Islands'],
+  ['has_rings', 'Has Rings'],
+  ['is_gas_giant', 'Gas Giant'],
+  ['extreme_weather', 'Extreme Weather'],
+]
+
+function featureBadges(row) {
+  if (!row) return []
+  const seen = new Set()
+  const out = []
+  for (const [key, label] of FEATURE_FLAGS) {
+    if (row[key] && !seen.has(label)) { seen.add(label); out.push(label) }
+  }
+  return out
+}
+
 function PlanetCard({ p, index }) {
-  const tint = BIOME_TINT[p.biome] || 'rgba(255,255,255,0.2)'
+  const [expanded, setExpanded] = React.useState(false)
   const moonCount = (p.moons || []).length
+  const features = featureBadges(p)
+  const materials = (p.materials || '').split(',').map((s) => s.trim()).filter(Boolean)
+  const resources = [
+    p.common_resource && { tier: 'Common', name: p.common_resource },
+    p.uncommon_resource && { tier: 'Uncommon', name: p.uncommon_resource },
+    p.rare_resource && { tier: 'Rare', name: p.rare_resource },
+  ].filter(Boolean)
+
   return (
-    <div className="haven-card haven-card-hover p-3">
-      <div
-        className="aspect-square rounded mb-2 relative overflow-hidden"
-        style={{
-          background: `radial-gradient(circle at 30% 30%, ${tint}80 0%, ${tint}40 50%, transparent 80%), linear-gradient(135deg, #0f1538, var(--app-bg))`,
-        }}
+    <div
+      className="haven-card overflow-hidden"
+      style={{ transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+    >
+      {/* Compact header — always visible, click to expand */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full text-left p-3 hover:bg-white/5 transition-colors"
+        aria-expanded={expanded}
       >
-        <div className="absolute top-2 left-2 mono text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,0,0,0.6)', color: 'white' }}>
-          P{index}
+        <div className="flex gap-3 items-start">
+          {/* Parametric sphere or photo */}
+          <div className="shrink-0">
+            <PlanetSphere
+              size={88}
+              biome={p.biome}
+              photo={p.photo}
+              hasRings={!!p.has_rings}
+              waterWorld={!!p.water_world}
+              isDissonant={!!(p.is_dissonant || p.dissonance)}
+              extremeWeather={!!p.extreme_weather}
+              isGasGiant={!!p.is_gas_giant}
+              isBubble={!!p.is_bubble}
+              isFloatingIslands={!!p.is_floating_islands}
+              moonCount={moonCount}
+              exoticTrophy={p.exotic_trophy}
+              badge={`P${index}`}
+            />
+          </div>
+          {/* Right column: name + biome/weather + 3 stats */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="text-sm font-semibold truncate">{p.name || `Planet ${index}`}</div>
+              <svg
+                className="w-4 h-4 shrink-0 mt-0.5"
+                style={{ color: 'var(--muted)', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}
+                fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
+              {p.biome || '—'}{p.weather ? ` · ${p.weather}` : ''}
+            </div>
+            <div className="grid grid-cols-3 gap-1 text-[11px] mt-2">
+              <div><div style={{ color: 'var(--muted)' }}>Fauna</div><div className="font-bold truncate">{p.fauna || '—'}</div></div>
+              <div><div style={{ color: 'var(--muted)' }}>Flora</div><div className="font-bold truncate">{p.flora || '—'}</div></div>
+              <div><div style={{ color: 'var(--muted)' }}>Sent.</div><div className="font-bold truncate" title={p.sentinel || ''}>{p.sentinel || '—'}</div></div>
+            </div>
+          </div>
         </div>
-        {p.is_moon && (
-          <div className="absolute top-2 right-2 pill pill-muted text-[10px] px-1.5 py-0.5">Moon</div>
-        )}
-      </div>
-      <div className="text-sm font-medium truncate">{p.name || `Planet ${index}`}</div>
-      <div className="text-[10px] mb-2" style={{ color: 'var(--muted)' }}>{p.biome || '—'}{p.weather ? ` · ${p.weather}` : ''}</div>
-      <div className="grid grid-cols-3 gap-1 text-[10px]">
-        <div><div style={{ color: 'var(--muted)' }}>Fauna</div><div className="font-bold">{p.fauna || p.fauna_count || '—'}</div></div>
-        <div><div style={{ color: 'var(--muted)' }}>Flora</div><div className="font-bold">{p.flora || p.flora_count || '—'}</div></div>
-        <div><div style={{ color: 'var(--muted)' }}>Sent.</div><div className="font-bold truncate" title={p.sentinel || ''}>{p.sentinel || '—'}</div></div>
-      </div>
-      <WondersNotes row={p} />
-      {moonCount > 0 && (
-        <div className="text-[10px] mt-2 pt-2" style={{ color: 'var(--muted)', borderTop: '1px solid var(--border-soft)' }}>
-          {moonCount} moon{moonCount === 1 ? '' : 's'}: {(p.moons || []).map((m) => m.name || 'unnamed').join(', ')}
+      </button>
+
+      {/* Expanded detail block */}
+      {expanded && (
+        <div
+          className="px-3 pb-3 pt-1 space-y-2"
+          style={{ borderTop: '1px solid var(--border-soft)' }}
+        >
+          {features.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-2">
+              {features.map((f) => <span key={f} className="pill pill-amber text-[10px]">★ {f}</span>)}
+            </div>
+          )}
+
+          {materials.length > 0 && (
+            <DetailRow label="Materials">
+              <span className="flex flex-wrap gap-1">
+                {materials.map((m, i) => <span key={i} className="pill pill-muted text-[10px]">{m}</span>)}
+              </span>
+            </DetailRow>
+          )}
+
+          {resources.length > 0 && (
+            <DetailRow label="Resources">
+              <span className="flex flex-wrap gap-1">
+                {resources.map((r, i) => (
+                  <span key={i} className="pill pill-blue text-[10px]">
+                    <span className="opacity-60">{r.tier}:</span>&nbsp;{r.name}
+                  </span>
+                ))}
+              </span>
+            </DetailRow>
+          )}
+
+          {(p.hazard_radiation || p.hazard_temperature || p.hazard_toxicity || p.storm_frequency || p.building_density) && (
+            <DetailRow label="Conditions">
+              <span className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                {p.hazard_radiation && <span><span style={{ color: 'var(--muted)' }}>Rad:</span> {p.hazard_radiation}</span>}
+                {p.hazard_temperature && <span><span style={{ color: 'var(--muted)' }}>Temp:</span> {p.hazard_temperature}</span>}
+                {p.hazard_toxicity && <span><span style={{ color: 'var(--muted)' }}>Tox:</span> {p.hazard_toxicity}</span>}
+                {p.storm_frequency && <span><span style={{ color: 'var(--muted)' }}>Storms:</span> {p.storm_frequency}</span>}
+                {p.building_density && <span><span style={{ color: 'var(--muted)' }}>Bldgs:</span> {p.building_density}</span>}
+              </span>
+            </DetailRow>
+          )}
+
+          {p.exotic_trophy && (
+            <DetailRow label="Exotic Trophy">
+              <span style={{ color: 'var(--app-accent-amber)' }}>★ {p.exotic_trophy}</span>
+            </DetailRow>
+          )}
+
+          {p.base_location && (
+            <DetailRow label="Base"><span className="mono">{p.base_location}</span></DetailRow>
+          )}
+
+          {p.notes && (
+            <DetailRow label="Notes">
+              <span className="italic whitespace-pre-line" style={{ color: 'rgba(255,255,255,0.85)' }}>{p.notes}</span>
+            </DetailRow>
+          )}
+
+          <WondersNotes row={p} />
+
+          {/* Moons — nested expandable cards */}
+          {moonCount > 0 && (
+            <div className="pt-2 mt-2" style={{ borderTop: '1px solid var(--border-soft)' }}>
+              <div className="text-[10px] uppercase tracking-wider mb-2 font-semibold" style={{ color: 'var(--muted)' }}>
+                Moons ({moonCount})
+              </div>
+              <div className="space-y-2">
+                {(p.moons || []).map((m, mi) => <MoonCard key={m.id || mi} m={m} index={mi + 1} />)}
+              </div>
+            </div>
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+function MoonCard({ m, index }) {
+  const [expanded, setExpanded] = React.useState(false)
+  const features = featureBadges(m)
+  const materials = (m.materials || '').split(',').map((s) => s.trim()).filter(Boolean)
+  const resources = [
+    m.common_resource && { tier: 'Common', name: m.common_resource },
+    m.uncommon_resource && { tier: 'Uncommon', name: m.uncommon_resource },
+    m.rare_resource && { tier: 'Rare', name: m.rare_resource },
+  ].filter(Boolean)
+
+  return (
+    <div className="rounded overflow-hidden" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-soft)' }}>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full text-left p-2 hover:bg-white/5 transition-colors"
+        aria-expanded={expanded}
+      >
+        <div className="flex gap-2 items-center">
+          <div className="shrink-0">
+            <PlanetSphere
+              size={48}
+              biome={m.biome}
+              photo={m.photo}
+              waterWorld={!!m.water_world}
+              isDissonant={!!(m.is_dissonant || m.dissonance)}
+              extremeWeather={!!m.extreme_weather}
+              isBubble={!!m.is_bubble}
+              isFloatingIslands={!!m.is_floating_islands}
+              isMoon
+              badge={`M${index}`}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate">{m.name || `Moon ${index}`}</div>
+            <div className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              {m.biome || '—'}{m.weather || m.climate ? ` · ${m.weather || m.climate}` : ''}
+            </div>
+          </div>
+          <svg
+            className="w-3.5 h-3.5 shrink-0"
+            style={{ color: 'var(--muted)', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}
+            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-2 pb-2 pt-1 space-y-1.5 text-[11px]" style={{ borderTop: '1px solid var(--border-soft)' }}>
+          <div className="grid grid-cols-3 gap-1 pt-2">
+            <div><div style={{ color: 'var(--muted)' }}>Fauna</div><div className="font-bold truncate">{m.fauna || '—'}</div></div>
+            <div><div style={{ color: 'var(--muted)' }}>Flora</div><div className="font-bold truncate">{m.flora || '—'}</div></div>
+            <div><div style={{ color: 'var(--muted)' }}>Sent.</div><div className="font-bold truncate" title={m.sentinel || ''}>{m.sentinel || '—'}</div></div>
+          </div>
+          {features.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {features.map((f) => <span key={f} className="pill pill-amber text-[10px]">★ {f}</span>)}
+            </div>
+          )}
+          {materials.length > 0 && (
+            <DetailRow label="Materials">
+              <span className="flex flex-wrap gap-1">
+                {materials.map((mat, i) => <span key={i} className="pill pill-muted text-[10px]">{mat}</span>)}
+              </span>
+            </DetailRow>
+          )}
+          {resources.length > 0 && (
+            <DetailRow label="Resources">
+              <span className="flex flex-wrap gap-1">
+                {resources.map((r, i) => (
+                  <span key={i} className="pill pill-blue text-[10px]">
+                    <span className="opacity-60">{r.tier}:</span>&nbsp;{r.name}
+                  </span>
+                ))}
+              </span>
+            </DetailRow>
+          )}
+          {m.base_location && <DetailRow label="Base"><span className="mono">{m.base_location}</span></DetailRow>}
+          {m.notes && (
+            <DetailRow label="Notes">
+              <span className="italic whitespace-pre-line" style={{ color: 'rgba(255,255,255,0.85)' }}>{m.notes}</span>
+            </DetailRow>
+          )}
+          <WondersNotes row={m} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DetailRow({ label, children }) {
+  return (
+    <div className="flex items-start gap-2 text-[11px]">
+      <span className="shrink-0 mono uppercase tracking-wider" style={{ color: 'var(--muted)', minWidth: 70 }}>{label}</span>
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   )
 }

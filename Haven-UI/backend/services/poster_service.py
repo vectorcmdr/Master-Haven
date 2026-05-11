@@ -177,9 +177,14 @@ REGISTRY: dict[str, PosterTemplate] = {
     ),
     'system_thumb': PosterTemplate(
         type='system_thumb',
-        version=1,
-        width=600,
-        height=400,
+        # v3 (Parker 2026-05-11 round 2): switched to 2-col tile grid + much
+        # larger label/value fonts (19/24/16 from 11/17/11). v2's bump
+        # wasn't enough — tiles still squinty when downscaled to the L4
+        # card slot. v3 sacrifices some native-resolution density for
+        # legibility at card scale.
+        version=3,
+        width=720,
+        height=480,
         # Keyed by system_id. Pulls /api/systems/{id} and renders an orbital
         # diagram + stat tiles + glyph row.
         spa_route='/poster/system_thumb/{key}',

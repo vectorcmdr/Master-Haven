@@ -8,35 +8,44 @@ import React from 'react'
 // `tile` prop turns the cell into a solid-color "grade tile" — pass an
 // object {bg, fg} (see GRADE_BG below).
 
+// Stat tile sizes bumped HARD (Parker 2026-05-11, second pass) so the
+// 6 tiles read cleanly when the system_thumb poster is squashed into
+// the L4 card slot. Math: card displays poster at ~465px wide from a
+// 720px native canvas → 0.65× scale. To hit a ~20px on-screen value
+// font, the canvas font has to be ~31px. Labels at 22 land at ~14px
+// on screen, comfortable on desktop AND mobile.
 export default function StatTile({ label, value, sub, valueColor, tile, truncate }) {
   const isTile = !!tile
   return (
     <div style={{
-      padding: '7px 9px',
-      borderRadius: 4,
-      background: isTile ? tile.bg : 'rgba(0,0,0,0.30)',
+      padding: '10px 13px',
+      borderRadius: 5,
+      background: isTile ? tile.bg : 'rgba(0,0,0,0.32)',
       border: `1px solid ${isTile ? 'transparent' : 'rgba(255,255,255,0.10)'}`,
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'space-between',
-      minHeight: 50,
+      minHeight: 84,
       overflow: 'hidden',
     }}>
       <div style={{
         fontFamily: '"JetBrains Mono", "SF Mono", "Consolas", monospace',
-        fontSize: 8,
-        letterSpacing: 1.5,
-        color: isTile ? tile.fg : 'rgba(255,255,255,0.55)',
-        opacity: isTile ? 0.85 : 1,
+        fontSize: 19,
+        letterSpacing: 1.4,
+        color: isTile ? tile.fg : 'rgba(255,255,255,0.72)',
+        opacity: isTile ? 0.9 : 1,
         textTransform: 'uppercase',
+        fontWeight: 700,
+        lineHeight: 1.1,
       }}>
         {label}
       </div>
       <div style={{
         fontFamily: '"JetBrains Mono", "SF Mono", "Consolas", monospace',
-        fontSize: 13,
+        fontSize: 24,
         color: valueColor || (isTile ? tile.fg : '#ffffff'),
         fontWeight: 700,
+        lineHeight: 1.1,
         whiteSpace: truncate ? 'nowrap' : undefined,
         overflow: truncate ? 'hidden' : undefined,
         textOverflow: truncate ? 'ellipsis' : undefined,
@@ -46,9 +55,9 @@ export default function StatTile({ label, value, sub, valueColor, tile, truncate
       {sub && (
         <div style={{
           fontFamily: '"JetBrains Mono", "SF Mono", "Consolas", monospace',
-          fontSize: 9,
-          color: isTile ? tile.fg : 'rgba(255,255,255,0.55)',
-          opacity: isTile ? 0.75 : 1,
+          fontSize: 16,
+          color: isTile ? tile.fg : 'rgba(255,255,255,0.65)',
+          opacity: isTile ? 0.78 : 1,
         }}>
           {sub}
         </div>

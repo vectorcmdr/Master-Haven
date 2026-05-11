@@ -29,7 +29,7 @@ export const POSTER_REGISTRY = {
   og_community: { component: OGCommunityCard, width: 1200, height: 630 },
   landing_og: { component: LandingOG, width: 1200, height: 630 },
   region_thumb: { component: RegionThumb, width: 600, height: 300 },
-  system_thumb: { component: SystemThumb, width: 600, height: 400 },
+  system_thumb: { component: SystemThumb, width: 720, height: 480 },
 }
 
 export function getPosterEntry(type) {
