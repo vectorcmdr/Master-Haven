@@ -577,7 +577,7 @@ class DiscoveryConfirmView(discord.ui.View):
             system_xp = process_system_creation_xp( 
                 user_id=self.user_id,
                 system_name=self.system_name,
-                channel_id=interaction.channel.id,
+              channel_id=interaction.channel.id,
             )
             if system_xp:
                 msg += f"\n✨ +{system_xp} XP for system creation"
