@@ -584,9 +584,9 @@ class DiscoveryConfirmView(discord.ui.View):
             
             xp_gained = await         process_system_xp(
             user_id=self.user_id,
-             base_amount=CONFIG["xp_bonus"]["base_discovery_xp"]
+            base_amount=CONFIG["xp_bonus"]["base_discovery_xp"]
 ),
-                channel_id=interaction.channel.id,
+              channel_id=interaction.channel.id,
             )
             if xp_gained:
                 msg += f"\n✨ +{xp_gained} XP earned"
