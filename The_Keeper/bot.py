@@ -257,6 +257,7 @@ async def on_ready():
         print(e)
 
     print("COMMANDS:", [cmd.name for cmd in bot.commands])
+    print("SLASH:", [cmd.name for cmd in bot.tree.get_commands()])
     print("[...The Keeper is watching...]")
 
     featured_cog = bot.get_cog("FeaturedCog")
