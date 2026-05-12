@@ -107,7 +107,7 @@ def xp_needed(level):
 
 
 def add_global_xp(user_id, amount):
-    xp, level, dm = get_global(user_id)
+    xp, level, dm = await get_global(user_id)
 
     xp += amount
     leveled_up = False
