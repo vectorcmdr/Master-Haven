@@ -597,6 +597,7 @@ class DiscoveryConfirmView(discord.ui.View):
                 msg += f"\n✨ +{xp_gained} XP earned"
 
 # ---------------- BONUS HINT -------------------
+        try
             role = DISCOVERY_TYPE_MAP.get(self.discovery_type.lower())
             role_channels = CONFIG.get("roles", {}).get(role, {}).get("channels", [])
 
