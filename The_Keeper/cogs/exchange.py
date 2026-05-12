@@ -18,7 +18,6 @@ class TravelersExchangeAPI(commands.Cog):
 
         self.session: Optional[aiohttp.ClientSession] = None
 
-class ExchangeAPIError(Exception): def init(self, status: int, detail: str): self.status = status self.detail = detail super().init(f"[{status}] {detail}")
 
 # ---------------- Session ----------------
 
