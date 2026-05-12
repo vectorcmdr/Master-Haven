@@ -547,21 +547,21 @@ class DiscoveryConfirmView(discord.ui.View):
                         "system_name": self.system_name,
                         "community_tag": self.community_tag,
                         "galaxy_name": self.galaxy_name,
-                        "reality":     getattr(self, "reality", "Normal"),
-                        "user_id":     self.user_id
+                        "reality": getattr(self, "reality", "Normal"),
+                        "user_id": self.user_id
                     }
 
-                    system_result = await     self.api.submit_system(system_payload)
+                    system_result = await self.api.submit_system(system_payload)
 
                     system_id = (
-                        system_result.get("system_id")
-                        or     system_result.get("submission_id")
-                        or     system_result.get("id")
-                        or     (system_result.get("system") or {}).get("id")
-                    )
+                    system_result.get("system_id")
+                        or system_result.get("submission_id")
+                        or system_result.get("id")
+                        or (system_result.get("system")     or {}).get("id")
+                )
 
                     if not system_id:
-                        raise     Exception(f"System creation failed: {system_result}")
+                        raise Exception(f"System creation failed: {system_result}")
 
 # ---------------- DISCOVERY SUBMISSION -----
             payload = {
