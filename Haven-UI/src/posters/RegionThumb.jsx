@@ -30,7 +30,11 @@ const H = 300
 // so a full 128-unit region fills ~70% of the canvas.
 const ISO_COS = Math.cos(Math.PI / 6) // cos 30°
 const ISO_SIN = Math.sin(Math.PI / 6)
-const CUBE_PX = 200 // edge length on screen for one region
+// Edge length on screen for one region. Bumped from 200 → 280 (Parker
+// 2026-05-11): the left half of the 600px poster has ~340px of usable
+// width before the 260px text panel, so the cube was leaving a lot of
+// empty space. 280 fills the canvas without crowding the text column.
+const CUBE_PX = 280
 
 function project(localX, localY, localZ) {
   // localX/localY/localZ are in [-64, +64] (a 128-cube centered at 0).
@@ -156,8 +160,10 @@ export default function RegionThumb({ routeKey }) {
     return idx.map(([a, b]) => [projected[a], projected[b]])
   }, [])
 
-  // Center the projection in the canvas
-  const cx = 130
+  // Center the projection inside the left ~340px (text panel claims the
+  // right 260). Cube grew from 200 → 280, so cx nudged right to keep it
+  // optically centered in the available column.
+  const cx = 165
   const cy = H / 2
 
   // Frame color sourced from dominant community tag; falls back to teal.
@@ -199,10 +205,11 @@ export default function RegionThumb({ routeKey }) {
             project(-64,  64, 64).join(','),
           ].join(' ')} fill="rgba(60,90,180,0.05)" />
 
-          {/* Points */}
+          {/* Points — dot radius bumped 1.5 → 2 alongside the larger
+              cube so stars stay legible at the new scale. */}
           {points.map((p, i) => {
             const [sx, sy] = project(p.lx, p.ly, p.lz)
-            return <circle key={i} cx={sx} cy={sy} r={1.5} fill={p.tint} opacity={0.85} />
+            return <circle key={i} cx={sx} cy={sy} r={2} fill={p.tint} opacity={0.9} />
           })}
         </g>
       </svg>

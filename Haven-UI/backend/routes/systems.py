@@ -1078,6 +1078,14 @@ async def api_search(
     min_planets: int = None,
     max_planets: int = None,
     is_complete: str = None,
+    # Scope filters used by SearchOverlay's "scope chip" (Systems Tab v2).
+    # Pre-fix these were silently ignored — the chip claimed to scope but the
+    # backend returned global results, so users saw irrelevant hits.
+    reality: str = None,
+    galaxy: str = None,
+    rx: int = None,
+    ry: int = None,
+    rz: int = None,
     session: Optional[str] = Cookie(None)
 ):
     """Search systems by name, glyph code, galaxy, or description with optional advanced filters.
@@ -1090,6 +1098,7 @@ async def api_search(
         page: Page number (1-indexed, default 1)
         limit: Max results per page (default 20, max 50)
         star_type..is_complete: Advanced filter parameters
+        reality, galaxy, rx/ry/rz: scope chip filters from SearchOverlay
         session: Session cookie for permission checking
 
     Returns:
@@ -1142,6 +1151,19 @@ async def api_search(
             'max_planets': max_planets,
             'is_complete': is_complete,
         }, adv_where_clauses, adv_params)
+
+        # Scope-chip clauses (SearchOverlay) — apply on top of advanced filters.
+        # All are exact matches (galaxy/reality are NOCASE because galaxy strings
+        # vary in capitalization). rx/ry/rz must all be present or none.
+        if reality:
+            adv_where_clauses.append("s.reality = ? COLLATE NOCASE")
+            adv_params.append(reality)
+        if galaxy:
+            adv_where_clauses.append("s.galaxy = ? COLLATE NOCASE")
+            adv_params.append(galaxy)
+        if rx is not None and ry is not None and rz is not None:
+            adv_where_clauses.append("s.region_x = ? AND s.region_y = ? AND s.region_z = ?")
+            adv_params.extend([rx, ry, rz])
 
         adv_sql = ""
         if adv_where_clauses:

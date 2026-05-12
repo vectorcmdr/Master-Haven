@@ -53,7 +53,16 @@ async def list_expeditions(
     """
     session_data = get_session(session)
     is_super = session_data and session_data.get('user_type') == 'super_admin'
-    caller_tag = session_data.get('discord_tag') if session_data else None
+    # M-W5: scope by the full civ_tags list (from civilization_members), not
+    # just the session's single "acting as" discord_tag. A sub-admin of two
+    # civs should see both civs' expeditions, not just whichever tag the
+    # session was minted with.
+    caller_civ_tags = (session_data.get('civ_tags') or []) if session_data else []
+    legacy_caller_tag = session_data.get('discord_tag') if session_data else None
+    # Falls back to the legacy single tag for older sessions that haven't
+    # picked up the v1.80.0 civ_memberships block yet.
+    if not caller_civ_tags and legacy_caller_tag:
+        caller_civ_tags = [legacy_caller_tag]
 
     conn = None
     try:
@@ -72,10 +81,11 @@ async def list_expeditions(
             if discord_tag:
                 where.append('e.discord_tag = ?')
                 params.append(discord_tag)
-        elif caller_tag:
-            # Logged-in member: their community's expeditions
-            where.append('e.discord_tag = ?')
-            params.append(caller_tag)
+        elif caller_civ_tags:
+            # Logged-in member: any expedition belonging to any civ they're a member of.
+            placeholders = ','.join(['?'] * len(caller_civ_tags))
+            where.append(f'e.discord_tag IN ({placeholders})')
+            params.extend(caller_civ_tags)
         else:
             # Anonymous caller — show only the default community's active expeditions
             where.append("e.discord_tag = 'Voyager''s Haven'")

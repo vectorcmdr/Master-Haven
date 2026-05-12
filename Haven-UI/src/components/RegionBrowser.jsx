@@ -39,8 +39,12 @@ const SORTS = {
   },
 }
 
-function regionKey(r) {
-  return `${r.region_x},${r.region_y},${r.region_z}`
+// M-S3: include reality + galaxy in the key. Since v1.49.0 the `regions`
+// table UNIQUE is (reality, galaxy, rx, ry, rz), so the same coord triple
+// in Euclid and Hilbert is two real rows. Keying only on rx/ry/rz let
+// Compare collapse them into one column.
+function regionKey(r, reality, galaxy) {
+  return `${reality || 'Normal'}|${galaxy || 'Euclid'}|${r.region_x},${r.region_y},${r.region_z}`
 }
 
 export default function RegionBrowser() {
@@ -87,7 +91,7 @@ export default function RegionBrowser() {
 
   function handleClick(region) {
     if (pinning) {
-      const k = regionKey(region)
+      const k = regionKey(region, reality, galaxy)
       togglePin('region', {
         id: k,
         key: k,
@@ -154,7 +158,7 @@ export default function RegionBrowser() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {paged.map((r) => {
-              const k = regionKey(r)
+              const k = regionKey(r, reality, galaxy)
               return <RegionCard key={k} r={r} onClick={() => handleClick(r)} pinned={pinnedKeys.has(k)} pinning={pinning} reality={reality} galaxy={galaxy} />
             })}
           </div>
@@ -265,6 +269,10 @@ function RegionTable({ rows, onSelect }) {
           <tbody>
             {rows.map((r) => (
               <tr
+                // OK to key on coords alone here — RegionTable always
+                // renders one (reality, galaxy) context at a time, so the
+                // coord triple is unique within `rows`. Adding reality/
+                // galaxy here would require threading them through props.
                 key={`${r.region_x},${r.region_y},${r.region_z}`}
                 onClick={() => onSelect(r)}
                 className="cursor-pointer hover:bg-white/5 transition-colors"

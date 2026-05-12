@@ -147,12 +147,28 @@ export default function SystemDetail() {
       // with edit_system_id, NOT a direct PATCH on the live row. The existing
       // /api/submit_system endpoint reads the `id` field as edit_system_id
       // and queues the row for normal approval review.
-      await axios.post('/api/submit_system', {
-        ...system,
-        id: system.id,           // marks this as an edit of the existing row
+      //
+      // M-S2: send ONLY the fields the user actually edited (plus the
+      // identity fields the approval handler needs to locate the row).
+      // Spreading the full `system` object previously dragged joined
+      // fields (region_name, completeness_breakdown, etc.) and nested
+      // arrays (planets, moons) into the pending row, where they either
+      // got stomped on approval or bloated the JSON blob unnecessarily.
+      const editPayload = {
+        id: system.id,
         name: trimmedName,
         description: draft.description,
-      })
+        // Identity fields the approval flow uses to locate the original
+        // system and route the pending row to the right civ scope.
+        glyph_code: system.glyph_code,
+        reality: system.reality,
+        galaxy: system.galaxy,
+        discord_tag: system.discord_tag,
+        region_x: system.region_x,
+        region_y: system.region_y,
+        region_z: system.region_z,
+      }
+      await axios.post('/api/submit_system', editPayload)
       setEditMode(false)
       showToast('Edits submitted for approval')
     } catch (err) {

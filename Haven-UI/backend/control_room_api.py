@@ -91,7 +91,8 @@ from image_processor import process_image
 
 from constants import (
     DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT, ACTIVITY_LOG_MAX,
-    SESSION_TIMEOUT_MINUTES, GRADE_THRESHOLDS, score_to_grade,
+    SESSION_TIMEOUT_MINUTES, SESSION_COOKIE_SECONDS,
+    GRADE_THRESHOLDS, score_to_grade,
     NO_LIFE_BIOMES,
     TIER_SUPER_ADMIN, TIER_PARTNER, TIER_SUB_ADMIN, TIER_MEMBER, TIER_MEMBER_READONLY,
     TIER_TO_USER_TYPE,
@@ -153,6 +154,66 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-API-Key", "Cookie"],
 )
+
+
+# ============================================================================
+# Session cookie sliding-window refresh
+# ============================================================================
+# Re-issues the `session` cookie on every authenticated request so the
+# cookie's max_age window slides forward in lockstep with the server-side
+# `expires_at` extension that get_session() already does.
+#
+# This is the actual fix for "the backend kicks me off after exactly 10
+# minutes." Historically the cookie was set with `max_age=600` at login
+# and NEVER re-issued — so the browser dropped the cookie 10 minutes after
+# login regardless of activity, and the server-side sliding window was
+# moot because the cookie itself was gone.
+#
+# Logic: on any request that carried a valid session cookie, re-set the
+# cookie on the response with a fresh max_age. The session lookup itself
+# (get_session) is done by individual routes; we mirror its expiry check
+# here so the cookie ONLY refreshes when the session is genuinely active.
+#
+# Idle behavior: if the user doesn't make a request for SESSION_TIMEOUT
+# minutes, neither the server-side expires_at nor the cookie's max_age
+# advances → kick. Matches the spec ("active forever, idle kicked at 1h").
+@app.middleware("http")
+async def refresh_session_cookie(request, call_next):
+    incoming_token = request.cookies.get('session')
+    response = await call_next(request)
+
+    # Skip if no session cookie inbound, OR if the route already set a
+    # 'session' cookie on this response (login/logout/etc. — let those win).
+    if not incoming_token:
+        return response
+
+    set_cookie_headers = [
+        h for h in response.headers.getlist('set-cookie')
+        if h.lower().startswith('session=')
+    ] if hasattr(response.headers, 'getlist') else []
+    if set_cookie_headers:
+        return response
+
+    # Only refresh if the session is still valid. get_session() also
+    # slides expires_at forward as a side-effect, which is what we want.
+    from services.auth_service import get_session as _get_session
+    session_data = _get_session(incoming_token)
+    if not session_data:
+        return response
+
+    response.set_cookie(
+        key='session',
+        value=incoming_token,
+        httponly=True,
+        max_age=SESSION_COOKIE_SECONDS,
+        samesite='lax',
+    )
+    # Debug header so we can confirm the slide is working in DevTools →
+    # Network. Safe to ship — just an ISO timestamp, no secrets.
+    expires_at = session_data.get('expires_at')
+    if expires_at:
+        response.headers['X-Session-Expires'] = expires_at.isoformat()
+    return response
 
 # Determine Haven UI directory using centralized path config
 if haven_paths:
@@ -749,61 +810,20 @@ def parse_station_data(station_row):
     return station
 
 
-def _persist_system_coauthors(cursor, system_id, coauthors):
-    """Replace the system_coauthors rows for this system_id.
+# Moved to services/coauthors.py to break the circular import that used to
+# trip up approvals.py (the lazy try/except import would silently drop
+# co-authors if module init order ever shifted). Kept as a thin compat
+# shim because save_system below still calls it without submitter context.
+from services.coauthors import persist_system_coauthors as _persist_system_coauthors_impl
 
-    Wizard v1 (May 2026). coauthors is a list of strings (Discord usernames)
-    or {username, profile_id?} objects. We normalize via the same Discord
-    discriminator-stripping rules used by analytics, look up matching profiles
-    when possible, and dedup by normalized username.
 
-    Per Parker's Phase 1 decision: co-author counts are tracked SEPARATELY
-    from primary submission counts. Each system_coauthors row contributes
-    one coauthored-systems credit per profile, never to the primary count.
-    """
-    from services.auth_service import normalize_username_for_dedup
-    from datetime import datetime, timezone
-
-    # Always replace — frontend sends the canonical full list
-    cursor.execute('DELETE FROM system_coauthors WHERE system_id = ?', (system_id,))
-
-    if not coauthors:
-        return 0
-
-    seen = set()
-    inserted = 0
-    now = datetime.now(timezone.utc).isoformat()
-    for entry in coauthors:
-        if isinstance(entry, dict):
-            username = (entry.get('username') or '').strip()
-            profile_id = entry.get('profile_id')
-        else:
-            username = str(entry or '').strip()
-            profile_id = None
-        if not username:
-            continue
-        norm = normalize_username_for_dedup(username)
-        if not norm or norm in seen:
-            continue
-        seen.add(norm)
-
-        # Best-effort profile lookup
-        if not profile_id:
-            cursor.execute(
-                'SELECT id FROM user_profiles WHERE username_normalized = ? AND is_active = 1',
-                (norm,),
-            )
-            row = cursor.fetchone()
-            if row:
-                profile_id = row[0]
-
-        cursor.execute("""
-            INSERT OR REPLACE INTO system_coauthors
-            (system_id, profile_id, username, username_normalized, credited_at)
-            VALUES (?, ?, ?, ?, ?)
-        """, (system_id, profile_id, username, norm, now))
-        inserted += 1
-    return inserted
+def _persist_system_coauthors(cursor, system_id, coauthors, submitter_username=None,
+                              submitter_profile_id=None):
+    return _persist_system_coauthors_impl(
+        cursor, system_id, coauthors,
+        submitter_username=submitter_username,
+        submitter_profile_id=submitter_profile_id,
+    )
 
 
 def init_database():
@@ -1682,6 +1702,7 @@ from routes.posters import router as posters_router
 from routes.expeditions import router as expeditions_router
 from routes.wizard import router as wizard_router
 from routes.user import router as user_router
+from routes.civilizations import router as civilizations_router
 from routes.ssr import router as ssr_router
 
 app.include_router(auth_router)
@@ -1700,6 +1721,7 @@ app.include_router(posters_router)
 app.include_router(expeditions_router)
 app.include_router(wizard_router)
 app.include_router(user_router)
+app.include_router(civilizations_router)
 
 # SSR shim catches share-friendly URLs like /voyager/:user and /atlas/:galaxy
 # BEFORE the SPA index falls through. Discord/Twitter scrapers stop at the
@@ -2257,6 +2279,19 @@ async def get_system(system_id: str, session: Optional[str] = Cookie(None)):
     finally:
         if conn:
             conn.close()
+
+
+@app.get('/api/systems/{system_id}/activity')
+async def get_system_activity(system_id: str):
+    """Lightweight activity feed for a system.
+
+    M-S4: SystemDetail's ActivityFeed component polls this on mount; it
+    previously returned 404 on every load and the component fell back to
+    a derived feed. The route now exists and returns an empty list — the
+    feed renders cleanly without a 404 in the network tab. Future versions
+    can populate this from activity_logs / approval_audit_log joins.
+    """
+    return {'activity': [], 'system_id': system_id}
 
 
 @app.delete('/api/systems/{system_id}')
@@ -2878,8 +2913,13 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                 trade_goods_json
             ))
 
-        # Wizard v1: persist coauthors (separate count from primary submitter)
-        _persist_system_coauthors(cursor, sys_id, payload.get('coauthors') or [])
+        # Wizard v1: persist coauthors (separate count from primary submitter).
+        # Pass submitter identity so the helper blocks self-co-author entries.
+        _persist_system_coauthors(
+            cursor, sys_id, payload.get('coauthors') or [],
+            submitter_username=editor_username,
+            submitter_profile_id=session_data.get('profile_id'),
+        )
 
         # ----- Deferred region name (Wizard v1 Option B, admin direct path) -----
         # Admins bypass the approval queue, so write straight to the `regions`

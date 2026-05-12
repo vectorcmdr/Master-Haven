@@ -46,11 +46,25 @@ export function clearDraft(profileId) {
  *
  * Caller passes `snapshot` as a serializable object. The hook does NOT track
  * dirty state — that lives in useFormDirty().
+ *
+ * Note: a previous version added a `clearedRef` flag intended to block the
+ * interval from resurrecting a just-cleared draft. That flag never reset
+ * during a session, which broke autosave after Submit Another. It's been
+ * removed — the interval is cleaned up automatically when Wizard.jsx
+ * unmounts (success screen replaces the form), so the resurrection
+ * scenario can't actually occur in practice.
  */
 function useWizardDraft(snapshot, profileId, { enabled = true, intervalMs = 10000 } = {}) {
   const [lastSavedAt, setLastSavedAt] = useState(null)
   const debounced = useDebounce(snapshot, 1000)
   const lastSerialized = useRef(null)
+
+  // Live refs so the long-lived safety-net interval doesn't capture a
+  // stale snapshot/enabled value at effect-creation time.
+  const snapshotRef = useRef(snapshot)
+  snapshotRef.current = snapshot
+  const enabledRef = useRef(enabled)
+  enabledRef.current = enabled
 
   const writeNow = useCallback((data) => {
     try {
@@ -71,15 +85,19 @@ function useWizardDraft(snapshot, profileId, { enabled = true, intervalMs = 1000
     writeNow(debounced)
   }, [debounced, enabled, writeNow])
 
-  // Interval safety net (catches the case where the user is idle but had typed
-  // before the debounce fired and then closed the tab quickly).
+  // Interval safety net — reads latest snapshot/enabled from refs so a
+  // long-lived interval can never write stale data. Cleanup on unmount
+  // (which happens when the wizard renders SuccessScreen post-submit)
+  // is what protects against post-clear writes.
   useEffect(() => {
-    if (!enabled) return
-    const id = setInterval(() => writeNow(snapshot), intervalMs)
+    const id = setInterval(() => {
+      if (!enabledRef.current) return
+      writeNow(snapshotRef.current)
+    }, intervalMs)
     return () => clearInterval(id)
-  }, [enabled, intervalMs, snapshot, writeNow])
+  }, [intervalMs, writeNow])
 
-  const save = useCallback(() => writeNow(snapshot), [snapshot, writeNow])
+  const save = useCallback(() => writeNow(snapshotRef.current), [writeNow])
   const clear = useCallback(() => {
     clearDraft(profileId)
     setLastSavedAt(null)

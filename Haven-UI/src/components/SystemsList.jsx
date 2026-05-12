@@ -51,12 +51,22 @@ export default function SystemsList() {
   const [view, setView] = useState('cards')
   const [sort, setSort] = useState('recent-desc')
   const [page, setPage] = useState(1)
+  // Track the backend's pagination.total so the header shows the real region
+  // size even when we hit the fetch cap below.
+  const [serverTotal, setServerTotal] = useState(null)
   const navigate = useNavigate()
+
+  // M-S1: bumped from 500 → 2000 since some Euclid regions in production
+  // approach the old cap and silently truncated. 2000 covers the densest
+  // region we've seen with comfortable headroom. If we hit it, we surface
+  // a truncation banner using `serverTotal` so users know there's more.
+  const FETCH_CAP = 2000
 
   useEffect(() => {
     if (!region) return
     let cancelled = false
     setLoading(true)
+    setServerTotal(null)
     axios.get('/api/systems', {
       params: {
         reality, galaxy,
@@ -64,11 +74,19 @@ export default function SystemsList() {
         // URL query convention for this app.
         region_x: region.region_x, region_y: region.region_y, region_z: region.region_z,
         ...apiParams,
-        limit: 500,
+        limit: FETCH_CAP,
       },
     })
-      .then((r) => { if (!cancelled) setRows(r.data.systems || r.data || []) })
-      .catch(() => { if (!cancelled) setRows([]) })
+      .then((r) => {
+        if (cancelled) return
+        const data = r.data || {}
+        setRows(data.systems || data || [])
+        // pagination.total when present is the canonical count; bare array
+        // responses fall back to the list length.
+        const t = data?.pagination?.total
+        setServerTotal(typeof t === 'number' ? t : null)
+      })
+      .catch(() => { if (!cancelled) { setRows([]); setServerTotal(null) } })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [reality, galaxy, region?.region_x, region?.region_y, region?.region_z, JSON.stringify(apiParams)])
@@ -112,7 +130,14 @@ export default function SystemsList() {
         <div>
           <h2 className="text-lg font-semibold">Systems in {regionName}</h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-            {total.toLocaleString()} systems
+            {/* Prefer server-side total — when we truncated, `total` (the
+                local sorted length) is less than the real count.  */}
+            {(serverTotal ?? total).toLocaleString()} systems
+            {serverTotal != null && serverTotal > rows.length && (
+              <span style={{ color: 'var(--app-accent-amber)' }}>
+                {' '}(showing first {rows.length.toLocaleString()}; refine filters to see more)
+              </span>
+            )}
             {activeFilterCount > 0 && <span style={{ color: 'var(--app-primary)' }}> · filtered</span>}
             {view === 'cards' && totalPages > 1 && ` · Page ${page} of ${totalPages}`}
           </p>

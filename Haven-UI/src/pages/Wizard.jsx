@@ -238,7 +238,10 @@ export default function Wizard() {
     { enabled: !isEditMode && flow != null }
   )
   const completeness = useCompletenessScore(system)
-  useFormDirty(system, originalSystem)
+  // Form-dirty tracking for the beforeunload guard. We capture markClean
+  // so the unload prompt doesn't fire after a successful submit or
+  // Submit-Another reset.
+  const { markClean: markFormClean } = useFormDirty(system, originalSystem)
 
   // ===========================================================================
   // Initialization
@@ -596,6 +599,10 @@ export default function Wizard() {
   function buildPayload() {
     const payload = { ...system }
     delete payload._lastProceduralName
+    // Capture which wizard flow built this submission so the approval page
+    // can re-render the same preview card the user saw at submit time
+    // (easy → portrait WizardPreviewPanel; advanced → landscape WizardAdvancedPreview).
+    if (flow) payload.wizard_flow = flow
     if (submitterDiscordUsername.trim()) {
       payload.personal_discord_username = submitterDiscordUsername.trim()
     }
@@ -719,6 +726,9 @@ export default function Wizard() {
         })
       }
 
+      // Snapshot what the user just submitted so the success screen can
+      // re-render the exact preview card they saw at submit time.
+      const submittedSnapshot = { ...system }
       if (isAdmin) {
         const r = await axios.post('/api/save_system', payload)
         if (r.data.status === 'pending_approval') {
@@ -726,6 +736,8 @@ export default function Wizard() {
             status: 'pending',
             submission_id: r.data.request_id,
             system_name: system.name,
+            submitted_system: submittedSnapshot,
+            wizard_flow: flow,
           })
         } else {
           // Admin direct save — submit discoveries against the new system_id
@@ -736,9 +748,12 @@ export default function Wizard() {
             system_name: r.data.saved?.name || system.name,
             discoveries_ok: discResult.ok,
             discoveries_failed: discResult.failed,
+            submitted_system: submittedSnapshot,
+            wizard_flow: flow,
           })
         }
         clearWizardDraft()
+        markFormClean()
       } else {
         // Public path: profile-lookup gate
         const lookupName = submitterDiscordUsername.trim() || personalDiscordUsername.trim()
@@ -760,10 +775,16 @@ export default function Wizard() {
               setPendingSubmitPayload(payload)
               return
             }
-          } catch {
-            // Lookup failed; submit anyway
+          } catch (lookupErr) {
+            // M-W3: lookup failed (transient 500 / network). Submit anyway
+            // — losing identity-linking is worse than not submitting at
+            // all — but stash a warning so the success screen can prompt
+            // the user to retry from My Profile.
+            payload._profile_lookup_failed = true
           }
         }
+        const lookupFailed = payload._profile_lookup_failed === true
+        delete payload._profile_lookup_failed
         const r = await axios.post('/api/submit_system', payload)
         setSubmitResult({
           status: 'pending',
@@ -771,8 +792,14 @@ export default function Wizard() {
           system_name: r.data.system_name,
           // Discoveries deferred — surfaced on the success screen
           deferred_discoveries: discoveries.filter((d) => d.discovery_type && d.discovery_name?.trim()).length,
+          submitted_system: submittedSnapshot,
+          wizard_flow: flow,
+          warning: lookupFailed
+            ? 'Profile lookup failed during submission; this submission is not linked to your profile yet. You can claim it from My Profile once the system is approved.'
+            : null,
         })
         clearWizardDraft()
+        markFormClean()
       }
     } catch (err) {
       setSubmitError(err.response?.data?.detail || err.message || String(err))
@@ -805,6 +832,9 @@ export default function Wizard() {
     }))
     setActiveSection('portal')
     setEasyStep(0)
+    // Reset dirty baseline so the new identity-preserved state isn't
+    // immediately flagged as dirty against the prior submission.
+    markFormClean()
   }
 
   // Keyboard: Esc closes help, Cmd/Ctrl+Enter submits, Cmd/Ctrl+S manual save (clear draft as a way to "commit")
@@ -827,7 +857,13 @@ export default function Wizard() {
     try {
       const payload = { ...pendingSubmitPayload, profile_id: pid }
       const r = await axios.post('/api/submit_system', payload)
-      setSubmitResult({ status: 'pending', submission_id: r.data.submission_id, system_name: r.data.system_name })
+      setSubmitResult({
+        status: 'pending',
+        submission_id: r.data.submission_id,
+        system_name: r.data.system_name,
+        submitted_system: { ...system },
+        wizard_flow: flow,
+      })
       clearWizardDraft()
     } catch (err) {
       setSubmitError(err.response?.data?.detail || err.message)
@@ -852,7 +888,13 @@ export default function Wizard() {
     try {
       const payload = { ...pendingSubmitPayload, profile_id: resolvedProfileId }
       const r = await axios.post('/api/submit_system', payload)
-      setSubmitResult({ status: 'pending', submission_id: r.data.submission_id, system_name: r.data.system_name })
+      setSubmitResult({
+        status: 'pending',
+        submission_id: r.data.submission_id,
+        system_name: r.data.system_name,
+        submitted_system: { ...system },
+        wizard_flow: flow,
+      })
       clearWizardDraft()
     } catch (err) {
       setSubmitError(err.response?.data?.detail || err.message)
@@ -1037,6 +1079,13 @@ export default function Wizard() {
         </div>
       )}
 
+      {/* Advanced flow: landscape preview banner ABOVE the form area.
+          Mounted outside the flex-row below so it spans the content width
+          and the form/sidebar layout stays untouched. */}
+      {flow === 'advanced' && (
+        <WizardAdvancedPreview system={system} gradeInfo={completeness} />
+      )}
+
       {/* Form flex container */}
       <div className={`mt-2 lg:mt-4 flex flex-col lg:flex-row gap-4 ${flow === 'advanced' ? '' : 'lg:flex-col'}`}>
         {flow === 'advanced' && (
@@ -1159,12 +1208,12 @@ export default function Wizard() {
           )}
         </div>
 
-        {/* System Preview panel — mounts in BOTH flows per Parker (2026-05-11).
-            Easy flow keeps the portrait sticky right column for compactness.
-            Advanced flow uses the wider landscape preview with glyph row
-            and named co-authors. */}
+        {/* Easy flow keeps the portrait sticky right column. Advanced flow's
+            preview mounts as a top banner ABOVE this flex container (see
+            the WizardAdvancedPreview mount above). Mounting both inside
+            this flex row broke the form layout — advanced preview claimed
+            `w-full` which collapsed the form column. */}
         {flow === 'easy' && <WizardPreviewPanel system={system} gradeInfo={completeness} />}
-        {flow === 'advanced' && <WizardAdvancedPreview system={system} gradeInfo={completeness} />}
       </div>
 
       </div>{/* /max-w wrapper (Basic flow only) */}

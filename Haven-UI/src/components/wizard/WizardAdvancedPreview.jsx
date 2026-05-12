@@ -72,8 +72,15 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
 
   return (
     <aside
-      className="lg:sticky lg:top-4 w-full lg:self-start"
-      style={{ maxWidth: 820 }}
+      // Top-banner mount in the advanced wizard flow — full content width,
+      // sticky to viewport top on scroll so the live preview tracks the
+      // user's edits as they scroll the form below.
+      className="w-full mb-4"
+      style={{
+        position: 'sticky',
+        top: 16,
+        zIndex: 10,
+      }}
     >
       <div
         className="rounded-lg overflow-hidden relative"

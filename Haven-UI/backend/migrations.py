@@ -16,10 +16,10 @@ Version Scheme: MAJOR.MINOR.PATCH
     - PATCH: Small fixes, default changes
 """
 
+import json
 import sqlite3
 import logging
 import shutil
-import json
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, List, Tuple, Optional
@@ -6042,3 +6042,292 @@ def migration_1_79_0(conn):
     moons_updated = _backfill_table('moons')
     conn.commit()
     logger.info(f"Migration 1.79.0 complete: {planets_updated} planets, {moons_updated} moons backfilled")
+
+
+@register_migration("1.80.0", "Civilizations as first-class entities — N:M membership replacing 1:1 partner ownership")
+def migration_1_80_0(conn):
+    """
+    Civilizations refactor (Option B).
+
+    Reframes a "civ" from "the discord_tag string on a single tier-2 user_profiles
+    row" into a real entity with N:M membership. After this migration:
+      - A civilization can have multiple leaders / co-leaders.
+      - A member can belong to multiple civilizations with a role per membership.
+      - Civ-level brand fields (display_name, region_color, theme_settings,
+        enabled_features_default) live on the civilization row, not on a profile.
+      - War room enrollment moves from partner_id → civ_id, retiring the legacy
+        partner_accounts JOIN entirely.
+      - Audit logs gain `acting_civ_tag` so we record which civ a member was
+        acting on behalf of (matters once "acting as" UX lands).
+
+    The migration is idempotent: every CREATE/ALTER is guarded, and the backfill
+    is keyed by (tag) / (civ_id, profile_id) so re-running is a no-op.
+
+    Legacy `user_profiles.partner_discord_tag`, `parent_profile_id`,
+    `additional_discord_tags` columns are kept in place as deprecated reads —
+    nothing in this migration drops them. The session builder + scoping queries
+    will be rewired to consume `civilization_members` directly in the same
+    release; the old columns survive only so an emergency rollback to the prior
+    server code path is possible without restoring a backup.
+    """
+    # Migration connections don't set row_factory by default; we need column-
+    # name access on a few of the backfill SELECTs below, so set it locally.
+    # Save and restore so we don't leak state into later migrations.
+    prev_factory = conn.row_factory
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    def _add_col(table: str, name: str, type_def: str):
+        try:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {name} {type_def}")
+            logger.info(f"Added {table}.{name}")
+        except sqlite3.OperationalError as e:
+            if 'duplicate column' not in str(e).lower():
+                raise
+
+    # ----- 1. civilizations table -----
+    # `tag` is the immutable civ key (the same string that's been on systems
+    # forever, e.g. 'Haven', 'GHUB'). Display_name / region_color /
+    # theme_settings used to live on user_profiles and have moved here so
+    # they're authoritative across all members.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS civilizations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tag TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL,
+            region_color TEXT,
+            theme_settings TEXT,
+            enabled_features_default TEXT,
+            default_reality TEXT,
+            default_galaxy TEXT,
+            founder_profile_id INTEGER,
+            founded_at TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_civilizations_tag ON civilizations(tag)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_civilizations_active ON civilizations(is_active)")
+
+    # ----- 2. civilization_members table -----
+    # Composite PK: a profile can only be on a civ once. `role` controls
+    # capability ('leader' and 'co_leader' are functionally identical per
+    # Parker's spec; 'sub_admin' is delegated). `enabled_features` here is
+    # an OPTIONAL per-member override of the civ's default set — when NULL
+    # the member inherits civilizations.enabled_features_default.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS civilization_members (
+            civ_id INTEGER NOT NULL,
+            profile_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            enabled_features TEXT,
+            can_approve_personal_uploads INTEGER NOT NULL DEFAULT 0,
+            joined_at TEXT NOT NULL,
+            joined_via TEXT,
+            PRIMARY KEY (civ_id, profile_id),
+            FOREIGN KEY (civ_id) REFERENCES civilizations(id),
+            FOREIGN KEY (profile_id) REFERENCES user_profiles(id)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_civ_members_profile ON civilization_members(profile_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_civ_members_civ_role ON civilization_members(civ_id, role)")
+
+    # ----- 3. home_civ_id on user_profiles -----
+    # "Acting as" UX defaults to this civ at login when the user has >1
+    # membership. NULL is fine — UX falls back to "first membership" or
+    # prompts the user to pick.
+    _add_col('user_profiles', 'home_civ_id', 'INTEGER')
+
+    # ----- 4. civ_id on war_room_enrollment -----
+    # Phase-2-of-Option-B kills the partner_accounts JOIN: enrollment is
+    # now keyed by civilization, and any member of that civ can act on its
+    # behalf in the war room. partner_id stays in place for one release as
+    # a fallback / debug aid; nothing should read it after this migration.
+    _add_col('war_room_enrollment', 'civ_id', 'INTEGER')
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_war_room_enrollment_civ ON war_room_enrollment(civ_id, is_active)")
+
+    # ----- 5. acting_civ_tag audit context -----
+    # When a member of multiple civs takes an action, record which civ
+    # context they were acting in. NULL on rows that pre-date this column
+    # — analytics can fall back to discord_tag-on-system for those.
+    _add_col('approval_audit_log', 'acting_civ_tag', 'TEXT')
+    _add_col('pending_systems', 'acting_civ_tag', 'TEXT')
+
+    conn.commit()
+
+    # ============================================================================
+    # Backfill
+    # ============================================================================
+
+    # Pull the unicode-aware username normalizer used by other identity
+    # backfills; falls back to a no-op lambda if the import fails so the
+    # rest of the migration still runs and we don't hard-fail on a fresh DB.
+    try:
+        from services.auth_service import normalize_username_for_dedup as _norm
+    except Exception as e:
+        logger.warning(f"Migration 1.80.0: could not import normalize_username_for_dedup ({e}); using passthrough")
+        _norm = lambda u: (u or '').strip().lower()
+
+    now_iso = "datetime('now')"  # SQLite-side timestamp for backfilled rows
+
+    # ----- 5a. civilizations from existing tier-2 partner profiles -----
+    # One civilization per partner_discord_tag found on a tier-2 row. Brand
+    # fields (display_name, region_color, theme_settings, default_reality,
+    # default_galaxy) snapshotted from the partner profile that owns it
+    # today. ON CONFLICT DO NOTHING keeps the migration idempotent on
+    # re-run and protects existing rows from a destructive re-snapshot.
+    cursor.execute(f"""
+        INSERT INTO civilizations
+            (tag, display_name, region_color, theme_settings,
+             enabled_features_default, default_reality, default_galaxy,
+             founder_profile_id, founded_at, is_active, created_at)
+        SELECT
+            partner_discord_tag,
+            COALESCE(display_name, partner_discord_tag),
+            region_color,
+            theme_settings,
+            enabled_features,
+            default_reality,
+            default_galaxy,
+            id,
+            created_at,
+            is_active,
+            {now_iso}
+        FROM user_profiles
+        WHERE tier = 2 AND partner_discord_tag IS NOT NULL AND partner_discord_tag != ''
+        ON CONFLICT(tag) DO NOTHING
+    """)
+    civs_created = cursor.rowcount
+    logger.info(f"Migration 1.80.0: created {civs_created} civilization rows")
+
+    # Build a tag → civ_id lookup for the membership inserts below
+    cursor.execute("SELECT id, tag FROM civilizations")
+    civ_id_by_tag = {row['tag']: row['id'] for row in cursor.fetchall()}
+
+    # ----- 5b. leader memberships for tier-2 profiles -----
+    cursor.execute("""
+        SELECT id AS profile_id, partner_discord_tag, enabled_features, can_approve_personal_uploads
+        FROM user_profiles
+        WHERE tier = 2 AND partner_discord_tag IS NOT NULL AND partner_discord_tag != ''
+    """)
+    leader_rows = cursor.fetchall()
+    leaders_inserted = 0
+    for row in leader_rows:
+        civ_id = civ_id_by_tag.get(row['partner_discord_tag'])
+        if not civ_id:
+            continue
+        cursor.execute(f"""
+            INSERT INTO civilization_members
+                (civ_id, profile_id, role, enabled_features, can_approve_personal_uploads,
+                 joined_at, joined_via)
+            VALUES (?, ?, 'leader', NULL, ?, {now_iso}, 'founder')
+            ON CONFLICT(civ_id, profile_id) DO NOTHING
+        """, (civ_id, row['profile_id'], row['can_approve_personal_uploads'] or 0))
+        leaders_inserted += cursor.rowcount
+    logger.info(f"Migration 1.80.0: inserted {leaders_inserted} leader memberships")
+
+    # ----- 5c. sub-admin memberships -----
+    # Two source patterns to migrate:
+    #   (i)  tier-3 with parent_profile_id set → sub_admin under that parent's civ
+    #   (ii) tier-3 with parent_profile_id IS NULL but additional_discord_tags
+    #        populated (the "Haven sub-admin" legacy pattern) → one sub_admin
+    #        membership row per tag in the list
+    cursor.execute("""
+        SELECT id AS profile_id, parent_profile_id, additional_discord_tags,
+               enabled_features, can_approve_personal_uploads
+        FROM user_profiles
+        WHERE tier = 3
+    """)
+    sub_admins_inserted = 0
+    for row in cursor.fetchall():
+        per_member_features = row['enabled_features']  # carried as override
+        cap = row['can_approve_personal_uploads'] or 0
+
+        if row['parent_profile_id']:
+            # Pattern (i): single civ — the parent leader's civ
+            cursor.execute("""
+                SELECT partner_discord_tag FROM user_profiles WHERE id = ?
+            """, (row['parent_profile_id'],))
+            parent = cursor.fetchone()
+            parent_tag = parent['partner_discord_tag'] if parent else None
+            target_tags = [parent_tag] if parent_tag else []
+        else:
+            # Pattern (ii): Haven sub-admin — fan out across all civs they cover
+            try:
+                target_tags = json.loads(row['additional_discord_tags'] or '[]')
+            except Exception:
+                target_tags = []
+            if not target_tags:
+                # legacy Haven sub-admin with no extras → default to Haven civ
+                target_tags = ['Haven']
+
+        for tag in target_tags:
+            civ_id = civ_id_by_tag.get(tag)
+            if not civ_id:
+                logger.warning(f"Migration 1.80.0: sub_admin profile={row['profile_id']} references civ '{tag}' which doesn't exist; skipping")
+                continue
+            cursor.execute(f"""
+                INSERT INTO civilization_members
+                    (civ_id, profile_id, role, enabled_features, can_approve_personal_uploads,
+                     joined_at, joined_via)
+                VALUES (?, ?, 'sub_admin', ?, ?, {now_iso}, 'legacy_migration')
+                ON CONFLICT(civ_id, profile_id) DO NOTHING
+            """, (civ_id, row['profile_id'], per_member_features, cap))
+            sub_admins_inserted += cursor.rowcount
+    logger.info(f"Migration 1.80.0: inserted {sub_admins_inserted} sub_admin memberships")
+
+    # ----- 5d. war_room_enrollment.civ_id backfill -----
+    # Each enrollment row has a partner_id pointing at the legacy
+    # partner_accounts table. Join through that → discord_tag → civilizations
+    # to get the new civ_id. Rows whose partner_id doesn't resolve get
+    # logged + left at NULL; the war_room routes will treat NULL civ_id as
+    # an unenrolled / orphaned row.
+    cursor.execute("""
+        UPDATE war_room_enrollment
+        SET civ_id = (
+            SELECT civilizations.id
+            FROM partner_accounts
+            JOIN civilizations ON civilizations.tag = partner_accounts.discord_tag
+            WHERE partner_accounts.id = war_room_enrollment.partner_id
+        )
+        WHERE civ_id IS NULL
+    """)
+    war_rows_filled = cursor.rowcount
+    cursor.execute("SELECT COUNT(*) FROM war_room_enrollment WHERE civ_id IS NULL")
+    war_rows_orphan = cursor.fetchone()[0]
+    if war_rows_orphan:
+        logger.warning(f"Migration 1.80.0: {war_rows_orphan} war_room_enrollment rows have no resolvable civ_id (partner_id points to a missing or untagged partner_accounts row)")
+    logger.info(f"Migration 1.80.0: backfilled civ_id on {war_rows_filled} war_room_enrollment rows")
+
+    # ----- 5e. user_profiles.home_civ_id default -----
+    # For existing partners, default home_civ_id to their own civ — so
+    # logging in pre-selects their familiar civ in the new "acting as"
+    # selector. Sub-admins default to NULL (first membership wins at runtime).
+    cursor.execute("""
+        UPDATE user_profiles
+        SET home_civ_id = (
+            SELECT id FROM civilizations WHERE tag = user_profiles.partner_discord_tag
+        )
+        WHERE tier = 2 AND home_civ_id IS NULL
+          AND partner_discord_tag IS NOT NULL AND partner_discord_tag != ''
+    """)
+    home_civ_set = cursor.rowcount
+    logger.info(f"Migration 1.80.0: set home_civ_id on {home_civ_set} partner profiles")
+
+    conn.commit()
+
+    # ----- 6. Sanity check -----
+    cursor.execute("SELECT COUNT(*) FROM civilizations")
+    total_civs = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM civilization_members")
+    total_members = cursor.fetchone()[0]
+    cursor.execute("SELECT role, COUNT(*) FROM civilization_members GROUP BY role")
+    role_counts = {r[0]: r[1] for r in cursor.fetchall()}
+    logger.info(
+        f"Migration 1.80.0 complete: {total_civs} civilizations, {total_members} memberships ({role_counts})"
+    )
+
+    # Restore the connection's prior row_factory so later migrations and the
+    # rest of startup see the same shape they had before this migration ran.
+    conn.row_factory = prev_factory

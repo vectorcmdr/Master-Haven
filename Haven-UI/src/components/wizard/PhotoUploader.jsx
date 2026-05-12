@@ -19,7 +19,13 @@ import React, { useEffect, useRef, useState } from 'react'
 //   maxPhotos: number — soft cap (default 10)
 //   pasteTarget: bool — listen for paste events (true on the only-visible instance)
 
+// Matches server-side _PHOTO_MAX_BYTES in routes/csv_import.py. Keep in sync.
+const MAX_BYTES = 15 * 1024 * 1024
+
 const DEFAULT_UPLOAD = async (file) => {
+  if (file.size > MAX_BYTES) {
+    throw new Error(`Image too large (${Math.round(file.size / 1024 / 1024)} MB); max is ${MAX_BYTES / 1024 / 1024} MB`)
+  }
   const fd = new FormData()
   fd.append('file', file)
   const res = await fetch('/api/photos', { method: 'POST', body: fd, credentials: 'same-origin' })
@@ -42,7 +48,11 @@ export default function PhotoUploader({
   const [dragIdx, setDragIdx] = useState(null)
 
   async function handleFiles(files) {
-    const arr = Array.from(files || []).filter((f) => f.type.startsWith('image/'))
+    // Filter to images by MIME and reject oversized files client-side so
+    // we don't waste a round-trip just to get a 413 back.
+    const arr = Array.from(files || []).filter((f) =>
+      f.type.startsWith('image/') && f.size <= MAX_BYTES
+    )
     if (!arr.length) return
     const room = Math.max(0, maxPhotos - value.length)
     const slice = arr.slice(0, room)

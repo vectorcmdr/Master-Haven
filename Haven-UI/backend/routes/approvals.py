@@ -30,9 +30,11 @@ from glyph_decoder import (
     get_system_classification,
     galactic_coords_to_glyph,
 )
+from services.coauthors import persist_system_coauthors
 from services.auth_service import (
     get_session,
     verify_session,
+    check_self_coauthor,
     require_feature,
     check_self_submission,
     get_submitter_identity,
@@ -44,6 +46,7 @@ from services.completeness import (
     calculate_completeness_score,
     update_completeness_score,
 )
+from services.civilizations import civ_scope_filter
 from services.dispatch import fire_and_forget
 
 logger = logging.getLogger('control.room')
@@ -469,8 +472,14 @@ async def get_pending_systems(session: Optional[str] = Cookie(None)):
         raise HTTPException(status_code=401, detail="Admin authentication required")
 
     is_super = session_data.get('user_type') == 'super_admin'
-    is_haven_sub_admin = session_data.get('is_haven_sub_admin', False)
-    partner_tag = session_data.get('discord_tag')
+    # Whether the user can approve personal uploads. Was historically only
+    # set on Haven sub-admins; with civilizations, any membership row can
+    # carry this flag (set per-civ on the civilization_members row).
+    can_approve_personal = bool(
+        session_data.get('can_approve_personal_uploads', False)
+        or any(m.get('can_approve_personal_uploads')
+               for m in (session_data.get('civ_memberships') or []))
+    )
 
     conn = None
     try:
@@ -478,78 +487,29 @@ async def get_pending_systems(session: Optional[str] = Cookie(None)):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        if is_super:
-            # Super admin sees ALL submissions
-            cursor.execute('''
-                SELECT id, submitted_by, submission_date, status, system_name, system_region, galaxy,
-                       reviewed_by, review_date, rejection_reason, source, api_key_name, discord_tag,
-                       personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type
-                FROM pending_systems
-                ORDER BY
-                    CASE status
-                        WHEN 'pending' THEN 1
-                        WHEN 'approved' THEN 2
-                        WHEN 'rejected' THEN 3
-                    END,
-                    submission_date DESC
-            ''')
-        elif is_haven_sub_admin:
-            # Haven sub-admins see submissions tagged with "Haven" + any additional discord tags
-            additional_tags = session_data.get('additional_discord_tags', [])
-            can_approve_personal = session_data.get('can_approve_personal_uploads', False)
-            all_tags = ['Haven'] + additional_tags
+        # Single scoping path (civ_scope_filter collapses the old 3-branch
+        # super_admin / is_haven_sub_admin / partner mess into one query).
+        # Personal-upload visibility ORs in when the user has it enabled.
+        scope_clause, scope_params = civ_scope_filter(session_data, column='discord_tag')
+        where_parts = [scope_clause]
+        if can_approve_personal and not is_super:
+            where_parts = [f"(({scope_clause}) OR discord_tag = 'personal')"]
+        where_sql = ' AND '.join(where_parts) if where_parts else '1=1'
 
-            # Build dynamic query with placeholders
-            placeholders = ','.join(['?' for _ in all_tags])
-
-            # If can_approve_personal_uploads, also include submissions with discord_tag = 'personal' (personal uploads)
-            if can_approve_personal:
-                cursor.execute(f'''
-                    SELECT id, submitted_by, submission_date, status, system_name, system_region, galaxy,
-                           reviewed_by, review_date, rejection_reason, source, api_key_name, discord_tag,
-                           personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type
-                    FROM pending_systems
-                    WHERE discord_tag IN ({placeholders})
-                       OR discord_tag = 'personal'
-                    ORDER BY
-                        CASE status
-                            WHEN 'pending' THEN 1
-                            WHEN 'approved' THEN 2
-                            WHEN 'rejected' THEN 3
-                        END,
-                        submission_date DESC
-                ''', all_tags)
-            else:
-                cursor.execute(f'''
-                    SELECT id, submitted_by, submission_date, status, system_name, system_region, galaxy,
-                           reviewed_by, review_date, rejection_reason, source, api_key_name, discord_tag,
-                           personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type
-                    FROM pending_systems
-                    WHERE discord_tag IN ({placeholders})
-                    ORDER BY
-                        CASE status
-                            WHEN 'pending' THEN 1
-                            WHEN 'approved' THEN 2
-                            WHEN 'rejected' THEN 3
-                        END,
-                        submission_date DESC
-                ''', all_tags)
-        else:
-            # Partners and partner sub-admins only see submissions tagged with their discord_tag
-            cursor.execute('''
-                SELECT id, submitted_by, submission_date, status, system_name, system_region, galaxy,
-                       reviewed_by, review_date, rejection_reason, source, api_key_name, discord_tag,
-                       personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type
-                FROM pending_systems
-                WHERE discord_tag = ?
-                ORDER BY
-                    CASE status
-                        WHEN 'pending' THEN 1
-                        WHEN 'approved' THEN 2
-                        WHEN 'rejected' THEN 3
-                    END,
-                    submission_date DESC
-            ''', (partner_tag,))
+        cursor.execute(f'''
+            SELECT id, submitted_by, submission_date, status, system_name, system_region, galaxy,
+                   reviewed_by, review_date, rejection_reason, source, api_key_name, discord_tag,
+                   personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type
+            FROM pending_systems
+            WHERE {where_sql}
+            ORDER BY
+                CASE status
+                    WHEN 'pending' THEN 1
+                    WHEN 'approved' THEN 2
+                    WHEN 'rejected' THEN 3
+                END,
+                submission_date DESC
+        ''', scope_params)
 
         rows = cursor.fetchall()
         submissions = [dict(row) for row in rows]
@@ -579,9 +539,23 @@ async def get_pending_systems(session: Optional[str] = Cookie(None)):
             for sub in submissions:
                 sub['is_self_submission'] = is_self_submission(sub)
 
-        # Hide personal_discord_username for Haven sub-admins (only super admin sees contact info)
-        # But keep discord_tag so frontend can distinguish personal uploads from Haven submissions
-        if is_haven_sub_admin:
+        # Hide personal_discord_username for sub-admin-tier viewers (only
+        # super admin and leader-tier members see contact info). Keeps the
+        # legacy is_haven_sub_admin flag as the trigger, but generalizes
+        # to "any sub_admin role on any of the user's civs" so the same
+        # rule applies under the new civilizations model.
+        is_haven_sub_admin = session_data.get('is_haven_sub_admin', False)
+        viewer_is_sub_admin_only = (
+            session_data.get('user_type') == 'sub_admin'
+            or is_haven_sub_admin
+            or (
+                session_data.get('user_type') not in ('super_admin', 'partner')
+                and all(m.get('role') == 'sub_admin'
+                        for m in (session_data.get('civ_memberships') or []))
+                and bool(session_data.get('civ_memberships'))
+            )
+        )
+        if viewer_is_sub_admin_only:
             for submission in submissions:
                 submission['personal_discord_username'] = None
 
@@ -655,30 +629,27 @@ async def get_pending_count(session: Optional[str] = Cookie(None)):
             self_params = [logged_in_account_id, logged_in_account_type,
                            logged_in_username, logged_in_username]
 
-            if is_haven_sub_admin:
-                additional_tags = session_data.get('additional_discord_tags', []) or []
-                can_approve_personal = session_data.get('can_approve_personal_uploads', False)
-                all_tags = ['Haven'] + additional_tags
-                placeholders = ','.join(['?' for _ in all_tags])
-
-                if can_approve_personal:
-                    tag_clause = f"(discord_tag IN ({placeholders}) OR discord_tag = 'personal')"
-                else:
-                    tag_clause = f"discord_tag IN ({placeholders})"
-
-                cursor.execute(
-                    f"SELECT COUNT(*) FROM pending_systems WHERE status = 'pending' AND {tag_clause} AND {self_sub_clause}",
-                    all_tags + self_params,
-                )
-                system_count = cursor.fetchone()[0]
-            elif partner_tag:
-                cursor.execute(
-                    f"SELECT COUNT(*) FROM pending_systems WHERE status = 'pending' AND discord_tag = ? AND {self_sub_clause}",
-                    [partner_tag] + self_params,
-                )
-                system_count = cursor.fetchone()[0]
-            else:
+            scope_clause, scope_params = civ_scope_filter(session_data, column='discord_tag')
+            # `1=0` means the user has no civ memberships at all → nothing
+            # to count. Short-circuit so we don't run the query for free.
+            if scope_clause == '1=0':
                 system_count = 0
+            else:
+                can_approve_personal = bool(
+                    session_data.get('can_approve_personal_uploads', False)
+                    or any(m.get('can_approve_personal_uploads')
+                           for m in (session_data.get('civ_memberships') or []))
+                )
+                tag_clause = (
+                    f"(({scope_clause}) OR discord_tag = 'personal')"
+                    if can_approve_personal else scope_clause
+                )
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM pending_systems "
+                    f"WHERE status = 'pending' AND {tag_clause} AND {self_sub_clause}",
+                    scope_params + self_params,
+                )
+                system_count = cursor.fetchone()[0]
 
         # Count pending region names (these don't have discord_tag filtering yet)
         cursor.execute("SELECT COUNT(*) FROM pending_region_names WHERE status = 'pending'")
@@ -893,6 +864,14 @@ async def approve_system(
 
         # Parse system data
         system_data = json.loads(submission['system_data'])
+
+        # H-C2: prevent co-authors from approving systems that credit them.
+        # Independent of tier (a partner can still benefit from coauthor credit).
+        if check_self_coauthor(system_data.get('coauthors') or [], session_data):
+            raise HTTPException(
+                status_code=403,
+                detail="You are listed as a co-author on this submission. Another admin must review it."
+            )
 
         # Normalize empty glyph_code to None (NULL) to avoid unique constraint issues
         # The unique index only applies WHERE glyph_code IS NOT NULL, so empty strings cause conflicts
@@ -1261,11 +1240,15 @@ async def approve_system(
                         has_rings = ?, is_dissonant = ?, is_infested = ?, extreme_weather = ?, water_world = ?, vile_brood = ?,
                         ancient_bones = ?, salvageable_scrap = ?, storm_crystals = ?, gravitino_balls = ?, is_gas_giant = ?, exotic_trophy = ?,
                         is_bubble = ?, is_floating_islands = ?,
-                        estimated_age = COALESCE(?, estimated_age),
-                        core_element = COALESCE(?, core_element),
-                        lore_notes = COALESCE(?, lore_notes),
-                        root_structure = COALESCE(?, root_structure),
-                        nutrient_source = COALESCE(?, nutrient_source)
+                        -- M-W1: Wonders Notes are now overwriteable. The
+                        -- wizard always re-sends the existing value in edit
+                        -- mode (originalSystem snapshot), so a blank means
+                        -- the user deliberately cleared the field.
+                        estimated_age = ?,
+                        core_element = ?,
+                        lore_notes = ?,
+                        root_structure = ?,
+                        nutrient_source = ?
                     WHERE id = ?
                 ''', (
                     planet.get('x', 0),
@@ -1545,11 +1528,18 @@ async def approve_system(
 
         # Wizard v1: persist coauthors. coauthors[] lives in system_data JSON;
         # SEPARATE from primary submitter — leaderboard treats them distinctly.
-        try:
-            from control_room_api import _persist_system_coauthors
-            _persist_system_coauthors(cursor, system_id, system_data.get('coauthors') or [])
-        except Exception as e:
-            logger.warning(f"Failed to persist coauthors for system {system_id}: {e}")
+        # Imported eagerly at module top (services.coauthors) so a stray
+        # init-order issue can't drop coauthors silently. Pass submitter
+        # identity so the helper can H-C1-block self-co-author entries.
+        submitter_username_for_coauthors = (
+            submission.get('personal_discord_username')
+            or submission.get('submitted_by')
+        )
+        persist_system_coauthors(
+            cursor, system_id, system_data.get('coauthors') or [],
+            submitter_username=submitter_username_for_coauthors,
+            submitter_profile_id=submission.get('submitter_profile_id'),
+        )
 
         # Calculate and store completeness score
         update_completeness_score(cursor, system_id)
@@ -2084,6 +2074,14 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
 
                 # Parse and process system data
                 system_data = json.loads(submission['system_data'])
+
+                # H-C2 batch: also skip submissions that credit this approver
+                # as a co-author. Same "skipped, not failed" semantics so the
+                # frontend doesn't surface them as errors.
+                if check_self_coauthor(system_data.get('coauthors') or [], session_snapshot):
+                    processed += 1
+                    continue
+
                 if not system_data.get('glyph_code'):
                     system_data['glyph_code'] = None
 
@@ -2465,6 +2463,22 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                         station.get('z') or 0,
                         trade_goods_json
                     ))
+
+                # Wizard v1: persist co-authors. Mirrors the single-approve
+                # handler at approvals.py:~1538 — the batch handler used to
+                # silently drop coauthors on approval (only the single path
+                # called persist_system_coauthors), so submissions approved
+                # in bulk credited the primary submitter but no one else.
+                # Same self-co-author guard via submitter context.
+                submitter_username_for_coauthors = (
+                    submission.get('personal_discord_username')
+                    or submission.get('submitted_by')
+                )
+                persist_system_coauthors(
+                    cursor, system_id, system_data.get('coauthors') or [],
+                    submitter_username=submitter_username_for_coauthors,
+                    submitter_profile_id=submission.get('submitter_profile_id'),
+                )
 
                 # Calculate and store completeness score
                 update_completeness_score(cursor, system_id)

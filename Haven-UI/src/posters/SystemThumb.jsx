@@ -4,6 +4,12 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import PosterFrame, { POSTER_COLORS, POSTER_FONTS } from './_shared/PosterFrame'
 import { markPosterReady } from './_shared/ready'
 import { fetchTagColorsForPoster, getTagColorFromAPI, getDisplayTagName } from './_shared/colors'
+// Use the shared StatTile so SystemThumb and WizardAdvancedPreview stay in
+// visual sync. Parker (2026-05-11) was right that earlier "make tiles bigger"
+// edits to the shared component never propagated here — SystemThumb had its
+// own local Stat() function with the original 8/13/9 px fonts. Removing that
+// in favor of the shared <StatTile> with 19/24/16 fonts.
+import StatTile from '../components/shared/StatTile'
 
 // ============================================================================
 // System Thumbnail — 600×400 landscape card.
@@ -189,17 +195,17 @@ export default function SystemThumb({ routeKey }) {
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7,
           }}>
-            <Stat label="ECONOMY" value={data.economy_type || '—'} sub={data.economy_level || null} />
-            <Stat label="CONFLICT" value={data.conflict_level || '—'} valueColor={conflictColor(data.conflict_level)} />
-            <Stat label="PLANETS / MOONS" value={`${planets.length} / ${moonsByPlanet}`} />
-            <Stat
+            <StatTile label="ECONOMY" value={data.economy_type || '—'} sub={data.economy_level || null} />
+            <StatTile label="CONFLICT" value={data.conflict_level || '—'} valueColor={conflictColor(data.conflict_level)} />
+            <StatTile label="PLANETS / MOONS" value={`${planets.length} / ${moonsByPlanet}`} />
+            <StatTile
               label="GRADE"
               value={grade}
               sub={score != null ? `${score}%` : null}
               tile={grade && GRADE_BG[grade]}
             />
-            <Stat label="AUTHOR" value={author} truncate />
-            <Stat
+            <StatTile label="AUTHOR" value={author} truncate />
+            <StatTile
               label="TAG"
               value={getDisplayTagName(tag)}
               valueColor={tagColor}
@@ -316,47 +322,10 @@ function OrbitalDiagram({ star, planets, moons, hasStation }) {
   )
 }
 
-function Stat({ label, value, sub, valueColor, tile, truncate }) {
-  const isTile = !!tile
-  return (
-    <div style={{
-      padding: '7px 9px',
-      borderRadius: 4,
-      background: isTile ? tile.bg : 'rgba(0,0,0,0.30)',
-      border: `1px solid ${isTile ? 'transparent' : 'rgba(255,255,255,0.10)'}`,
-      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-      minHeight: 50,
-      overflow: 'hidden',
-    }}>
-      <div style={{
-        fontFamily: POSTER_FONTS.mono, fontSize: 8, letterSpacing: 1.5,
-        color: isTile ? tile.fg : POSTER_COLORS.dim,
-        opacity: isTile ? 0.85 : 1,
-      }}>
-        {label}
-      </div>
-      <div style={{
-        fontFamily: POSTER_FONTS.mono, fontSize: 13,
-        color: valueColor || (isTile ? tile.fg : POSTER_COLORS.text),
-        fontWeight: 700,
-        whiteSpace: truncate ? 'nowrap' : undefined,
-        overflow: truncate ? 'hidden' : undefined,
-        textOverflow: truncate ? 'ellipsis' : undefined,
-      }}>
-        {value}
-      </div>
-      {sub && (
-        <div style={{
-          fontFamily: POSTER_FONTS.mono, fontSize: 9,
-          color: isTile ? tile.fg : POSTER_COLORS.dim,
-          opacity: isTile ? 0.75 : 1,
-        }}>
-          {sub}
-        </div>
-      )}
-    </div>
-  )
-}
+// (Local Stat() function removed 2026-05-11 — replaced by the shared
+//  <StatTile> import at the top. Parker caught that this orphan was
+//  serving the original 8/13/9 px fonts while the shared component had
+//  been bumped to 19/24/16.)
 
 function GlyphIcon({ hex }) {
   const file = GLYPH_FILE[hex]

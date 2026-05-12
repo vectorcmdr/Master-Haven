@@ -23,7 +23,7 @@
  *   max_planets        : number
  */
 
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useSystems } from '../contexts/SystemsContext'
 
 export const FILTER_LABELS = {
@@ -83,8 +83,10 @@ export default function useFilters() {
       }))
   }, [filters])
 
-  // Helper for FilterModal: toggle one item in a multi-select array.
-  function toggleMulti(key, item) {
+  // LOW-2: memoized so children that take these as props don't see a
+  // fresh function identity on every render. setFilters from context is
+  // already stable, so these only depend on it.
+  const toggleMulti = useCallback((key, item) => {
     setFilters((prev) => {
       const cur = Array.isArray(prev[key]) ? prev[key] : []
       const next = cur.includes(item) ? cur.filter((x) => x !== item) : [...cur, item]
@@ -93,16 +95,16 @@ export default function useFilters() {
       else out[key] = next
       return out
     })
-  }
+  }, [setFilters])
 
-  function setSingle(key, value) {
+  const setSingle = useCallback((key, value) => {
     setFilters((prev) => {
       const out = { ...prev }
       if (isEmptyFilterValue(value)) delete out[key]
       else out[key] = value
       return out
     })
-  }
+  }, [setFilters])
 
   return {
     filters, setFilters, apiParams, pills,

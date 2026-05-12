@@ -162,9 +162,11 @@ REGISTRY: dict[str, PosterTemplate] = {
     ),
     'region_thumb': PosterTemplate(
         type='region_thumb',
+        # v3 (Parker 2026-05-11): cube bumped 200→280 px (was leaving a
+        # third of the canvas empty), dot radius 1.5→2, recenter cx 130→165.
         # v2: star-color dots (was: community-tag dots); community color
         # moved to outer frame.
-        version=2,
+        version=3,
         width=600,
         height=300,
         # Region thumbs are keyed by `rx_ry_rz` and pass `galaxy`+`reality`
@@ -177,12 +179,12 @@ REGISTRY: dict[str, PosterTemplate] = {
     ),
     'system_thumb': PosterTemplate(
         type='system_thumb',
-        # v3 (Parker 2026-05-11 round 2): switched to 2-col tile grid + much
-        # larger label/value fonts (19/24/16 from 11/17/11). v2's bump
-        # wasn't enough — tiles still squinty when downscaled to the L4
-        # card slot. v3 sacrifices some native-resolution density for
-        # legibility at card scale.
-        version=3,
+        # v4 (Parker 2026-05-11 round 3): the v3 font bump never actually
+        # reached this poster — SystemThumb had its own local Stat() func
+        # that v2/v3 edits to the shared StatTile never touched. Replaced
+        # the local with the shared component so the 19/24/16 fonts
+        # finally land on the L4 cards.
+        version=4,
         width=720,
         height=480,
         # Keyed by system_id. Pulls /api/systems/{id} and renders an orbital
