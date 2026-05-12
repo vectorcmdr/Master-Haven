@@ -1,6 +1,7 @@
 import aiohttp 
-import asyncio from typing 
-import Any, Optional
+import asyncio
+from typing import Any, Optional
+
 
 class TravelersExchangeAPI(commands.Cog):
     def __init__(
