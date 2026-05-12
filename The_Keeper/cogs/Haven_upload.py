@@ -541,7 +541,7 @@ class DiscoveryConfirmView(discord.ui.View):
                 ephemeral=True
             )
 # ---------------- SYSTEM CREATION -----------
-                if not self.system_exists:
+            if not self.system_exists:
     system_payload = {
         "glyph_code": self.glyph,
         "system_name": self.system_name,
