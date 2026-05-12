@@ -553,10 +553,10 @@ class DiscoveryConfirmView(discord.ui.View):
 
             system_result = await self.api.submit_system(system_payload)
 
-            system_id = system_result.get("system_id") \
-    or system_result.get("submission_id") \
-    or system_result.get("id") \
-    or (system_result.get("system") or {}).get("id")
+            system_id =         system_result.get("system_id") \
+            or system_result.get("submission_id") \
+            or system_result.get("id") \
+            or (system_result.get("system") or {}).get("id")
 
         if not system_id:
             raise Exception(f"System creation failed: {system_result}")
