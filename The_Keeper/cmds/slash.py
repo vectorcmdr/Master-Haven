@@ -47,7 +47,7 @@ class CommandsCog(commands.Cog):
     @app_commands.command(name="say", description="Send a message")
     @app_commands.describe(
         channel="Channel to send to",
-        message="Message to send
+        message="Message to send"
       )
     async def say(
         self,
