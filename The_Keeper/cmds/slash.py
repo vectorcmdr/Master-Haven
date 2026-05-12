@@ -44,19 +44,19 @@ class CommandsCog(commands.Cog):
             ephemeral=True
         )
 #---------------say------------
-@app_commands.command(name="say", description="Send a message")
-@app_commands.describe(
-    channel="Channel to send to",
-    message="Message to send
-  )
-async def say(
-    self,
-    interaction: discord.Interaction,
-    channel: discord.TextChannel,
-    message: str
-):
-    await channel.send(message)
-    await interaction.response.send_message("Sent.", ephemeral=True)
+    @app_commands.command(name="say", description="Send a message")
+    @app_commands.describe(
+        channel="Channel to send to",
+        message="Message to send
+      )
+    async def say(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel,
+        message: str
+    ):
+        await channel.send(message)
+        await     interaction.response.send_message("Sent.", ephemeral=True)
 
     # ---------------- COMMUNITY ----------------
     @app_commands.command(name="community", description="Look up a civ/community")
