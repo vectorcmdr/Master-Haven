@@ -27,16 +27,15 @@ class DepartmentButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        user_id = interaction.user.id  # ✅ FIX: define user_id
+        user_id = interaction.user.id  # FIX
 
-        # 🔒 prevent duplicate selection
         if user_id in _role_locks:
             return await interaction.response.send_message(
                 "You already selected a department.",
                 ephemeral=True
             )
 
-        _role_locks.add(user_id)  # ✅ FIX: actually lock user
+        _role_locks.add(user_id)
 
         try:
             member = await interaction.guild.fetch_member(user_id)
@@ -106,7 +105,7 @@ def xp_needed(level):
     return 100 + (level * 50)
 
 
-def add_global_xp(user_id, amount):
+async def add_global_xp(user_id, amount):
     xp, level, dm = await get_global(user_id)
 
     xp += amount
@@ -145,7 +144,7 @@ async def process_message_xp(message):
 
     add_xp(user_id, role, xp)
 
-    level, leveled_up, dm = add_global_xp(user_id, xp)
+    level, leveled_up, dm = await add_global_xp(user_id, xp)
 
     return xp
 
