@@ -557,7 +557,7 @@ class DiscoveryConfirmView(discord.ui.View):
                     system_result.get("system_id")
                         or system_result.get("submission_id")
                         or system_result.get("id")
-                        or (system_result.get("system")     or {}).get("id")
+                        or (system_result.get("system") or {}).get("id")
                 )
 
                     if not system_id:
