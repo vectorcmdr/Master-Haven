@@ -1,8 +1,21 @@
 import aiohttp import asyncio from typing import Any, Optional
 
-class ExchangeAPIError(Exception): def init(self, status: int, detail: str): self.status = status self.detail = detail super().init(f"[{status}] {detail}")
+class TravelersExchangeAPI(commands.Cog):
+    def __init__(
+        self,
+        bot,
+        api_key: str,
+        base_url: str = "https://travelers-exchange.online",
+        timeout: int = 30,
+    ):
+        self.bot = bot
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.timeout = aiohttp.ClientTimeout(total=timeout)
 
-class TravelersExchangeAPI: def init( self, api_key: str, base_url: str = "https://travelers-exchange.online", timeout: int = 30, ): self.base_url = base_url.rstrip("/") self.api_key = api_key self.timeout = aiohttp.ClientTimeout(total=timeout) self.session: Optional[aiohttp.ClientSession] = None
+        self.session: Optional[aiohttp.ClientSession] = None
+
+class ExchangeAPIError(Exception): def init(self, status: int, detail: str): self.status = status self.detail = detail super().init(f"[{status}] {detail}")
 
 # ---------------- Session ----------------
 
