@@ -542,7 +542,7 @@ class DiscoveryConfirmView(discord.ui.View):
             )
 # ---------------- SYSTEM CREATION -----------
             if not self.system_exists:
-            system_payload = {
+                system_payload = {
                 "glyph_code": self.glyph,
                 "system_name": self.system_name,
                 "community_tag": self.community_tag,
