@@ -7,7 +7,7 @@ from announcements import GoogleDocParser
 from cogs.community import SearchView, AddCivView
 
 DOC_URL = "https://docs.google.com/document/d/1FRfxnmXdhU_O-OGTxG52lM0298zzKnGp7W2Qs5njBPo/export?format=txt"
-
+log = logging.getLogger("commands")
 
 class CommandsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
