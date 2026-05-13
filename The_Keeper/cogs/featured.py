@@ -112,20 +112,27 @@ class FeaturedCog(commands.Cog):
                 self.log("ERROR", "Featured channel not found")
                 return
 
-            image = next((a for a in message.attachments if is_valid_image(a.filename)), None)
-            if not image:
+            images = [a for a in message.attachments if is_valid_image(a.filename)]
+
+            if not images:
                 return
-
-            embed = discord.Embed(
-                title="📸 Featured Photo",
-                description=f"Featured by {message.author.mention}",
-                color=0x008080
-            )
-            embed.set_image(url=image.url)
-            embed.add_field(name="Original Message", value=f"[Jump to photo]({message.jump_url})", inline=False)
-
-            await featured_channel.send(embed=embed)
-
+            
+            for index, image in enumerate(images, start=1):
+                embed = discord.Embed(
+                    title=f"📸 Featured Photo #{index}",
+                    description=f"Featured by {message.author.mention}",
+                    color=0x008080
+                )
+            
+                embed.set_image(url=image.url)
+            
+                embed.add_field(
+                    name="Original Message",
+                    value=f"[Jump to photo]({message.jump_url})",
+                    inline=False
+                )
+            
+                await featured_channel.send(embed=embed)
             self.FEATURED_MESSAGES.add(message.id)
             self.save_featured_messages()
 
@@ -177,7 +184,7 @@ class FeaturedCog(commands.Cog):
             total_reactions = self.count_total_reactions(msg)
             if total_reactions > 0:
                 photo_data.append({
-                    "author": str(msg.author),
+                    "author": msg.author.mention,
                     "reactions": total_reactions,
                     "url": msg.jump_url,
                     "image_url": msg.attachments[0].url
@@ -212,7 +219,11 @@ class FeaturedCog(commands.Cog):
             for rank, photo in enumerate(top_photos, start=1):
                 embed.add_field(
                     name=f"{rank}.",
-                    value=f"[Jump to photo]({photo['url']}) — {photo['reactions']} reactions",
+                    value=(
+                        f"{photo['author']}\n"
+                        f"[Jump to photo]({photo['url']}) — "
+                        f"{photo['reactions']} reactions"
+                    ),
                     inline=False
                 )
                 if rank == 1 and photo["image_url"]:
@@ -256,6 +267,11 @@ class FeaturedCog(commands.Cog):
 
         await leaderboard_channel.send(embed=embed)
         self.log("LEADERBOARD", f"Leaderboard posted with {len(top_photos)} photos")
+    
+        @commands.command(name="pictest")
+        @commands.has_permissions(administrator=True)
+        async def pictest(self, ctx, limit: int = None):
+            await         self.post_leaderboard(channel=ctx.channel, limit=limit)
 
 
 # -------------------- SETUP --------------------
@@ -280,5 +296,6 @@ async def setup(bot: commands.Bot):
         log,
         count_total_reactions
     )
+
 
     await bot.add_cog(cog)
