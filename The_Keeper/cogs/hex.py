@@ -70,11 +70,7 @@ class SimpleHexKeypad(discord.ui.View):
 
     async def temp_error(self, interaction, text):
         msg = await interaction.followup.send(text, ephemeral=True)
-        await asyncio.sleep(10)
-        try:
-            await msg.delete()
-        except:
-            pass
+        
 
     def make_callback(self, key):
         async def callback(interaction: discord.Interaction):
@@ -99,7 +95,8 @@ class SimpleHexKeypad(discord.ui.View):
                 elif val > 6:
                     self.input_string = ""
                     self.emoji_sequence = []
-                    await self.temp_error(interaction, "❌ Invalid Glyph input: planet index")
+                    await interaction.followup.send(interaction, "❌ Invalid Glyph input: planet index", ephemera=True)
+)
 
             # -------- GLYPHS 2–4 --------
             if len(self.input_string) == 4:
@@ -109,7 +106,8 @@ class SimpleHexKeypad(discord.ui.View):
                 if ssi_val == 0:
                     self.input_string = self.input_string[:1]
                     self.emoji_sequence = self.emoji_sequence[:1]
-                    await self.temp_error(interaction, "❌ Error in SSI")
+                    await interaction.followup.send(interaction, "❌ Error in SSI", ephemera=True)
+)
 
                 elif 1 <= ssi_val <= 0x123:
                     self.class_type = "🟡 Yellow"
@@ -123,7 +121,8 @@ class SimpleHexKeypad(discord.ui.View):
                 elif ssi_val > 0x429:
                     self.input_string = self.input_string[:1]
                     self.emoji_sequence = self.emoji_sequence[:1]
-                    await self.temp_error(interaction, "❌ Invalid SSI: too high")
+                    await interaction.followup.send(interaction, "❌ Invalid SSI: too high", ephemera=True)
+)
 
             # -------- GLYPHS 5–6 --------
             if len(self.input_string) == 6:
@@ -132,7 +131,8 @@ class SimpleHexKeypad(discord.ui.View):
                 if yy_hex.upper() == "81":
                     self.input_string = self.input_string[:4]
                     self.emoji_sequence = self.emoji_sequence[:4]
-                    await self.temp_error(interaction, "❌ Invalid YY")
+                    await interaction.followup.send(interaction, "❌ Invalid YY", ephemera=True)
+)
 
             # -------- GLYPHS 7–9 --------
             if len(self.input_string) == 9:
@@ -141,7 +141,8 @@ class SimpleHexKeypad(discord.ui.View):
                 if zzz_hex.upper() == "801":
                     self.input_string = self.input_string[:6]
                     self.emoji_sequence = self.emoji_sequence[:6]
-                    await self.temp_error(interaction, "❌ Invalid ZZZ")
+                    await interaction.followup.send(interaction, "❌ Invalid ZZZ", ephemera=True)
+)
 
             # -------- GLYPHS 10–12 --------
             if len(self.input_string) == 12:
@@ -150,7 +151,7 @@ class SimpleHexKeypad(discord.ui.View):
                 if xxx_hex.upper() == "801":
                     self.input_string = self.input_string[:9]
                     self.emoji_sequence = self.emoji_sequence[:9]
-                    await self.temp_error(interaction, "❌ Invalid XXX")
+                    await interaction.followup.send(interaction, "❌ Invalid XXX", ephemera=True)
 
                 for item in self.children:
                     if isinstance(item, discord.ui.Button):
