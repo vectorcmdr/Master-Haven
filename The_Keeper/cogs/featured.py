@@ -267,6 +267,11 @@ class FeaturedCog(commands.Cog):
 
         await leaderboard_channel.send(embed=embed)
         self.log("LEADERBOARD", f"Leaderboard posted with {len(top_photos)} photos")
+    
+        @commands.command(name="pictest")
+    @commands.has_permissions(administrator=True)
+    async def pictest(self, ctx, limit: int = None):
+        await     self.post_leaderboard(channel=ctx.channel, limit=limit)
 
 
 # -------------------- SETUP --------------------
@@ -291,5 +296,6 @@ async def setup(bot: commands.Bot):
         log,
         count_total_reactions
     )
+
 
     await bot.add_cog(cog)
