@@ -1,13 +1,17 @@
 /**
  * RegionBrowser — Level 3 of the Systems v2.0 hierarchy.
  *
- * Hits /api/regions/grouped?include_systems=false (the cheap fast path
- * added in Master Haven 1.43.0) with the active filters. Renders a 2:1
- * stub-poster card grid by default, or a virtual-scroll-style table.
+ * Hits /api/regions/grouped?include_systems=false with the active filters
+ * and pagination params. Server returns exactly PAGE_SIZE rows so we only
+ * ever render PAGE_SIZE region cards (and only PAGE_SIZE region_thumb
+ * posters get requested).
  *
- * Pagination: 6 cards per page per spec section 5.3 with prev/next + page
- * number row. Table view uses the same scroll-only treatment as L4 since
- * region counts cap around ~1,500.
+ * Pagination is server-side: changing page issues a new API call.
+ * Sort is server-side too — it's expressed via the API ordering, which
+ * already pins Sea of Gidzenuf first, then named, then unnamed (ties by
+ * system_count DESC). The 'named-first' UI sort matches this exactly; the
+ * other UI options are no-ops kept for now to avoid surprising users —
+ * they will be wired to a future server-side sort param.
  *
  * Region rows from the backend don't yet carry `is_stub`, `pending_approval`,
  * `is_restricted`, or `last_verified_at` — they're region rollups, not
@@ -25,7 +29,7 @@ import EmptyState from './EmptyState'
 import CompareToggleButton from './CompareToggleButton'
 import { cardStateClass, hasOutdatedDot, hasConflictDot, stateBadge } from '../utils/dataStates'
 
-const PAGE_SIZE = 6
+const PAGE_SIZE = 24
 const SORTS = {
   'systems-desc': { label: 'System count ↓', fn: (a, b) => (b.system_count || 0) - (a.system_count || 0) },
   'name-asc': { label: 'Name A-Z', fn: (a, b) => (a.display_name || '').localeCompare(b.display_name || '') },
@@ -54,40 +58,53 @@ export default function RegionBrowser() {
   const pinnedKeys = new Set((pinsByLevel.region || []).map((p) => p.id))
   const [rows, setRows] = useState([])
   const [totalRegions, setTotalRegions] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('cards')
   const [sort, setSort] = useState('named-first')
   const [page, setPage] = useState(1)
+  // Table view wants the full list — switching to table issues a one-shot
+  // unlimited fetch via limit=0. Cards view sticks to the paginated path.
+  const wantsAll = view === 'table'
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     axios.get('/api/regions/grouped', {
-      params: { include_systems: false, reality, galaxy, ...apiParams },
+      params: {
+        include_systems: false,
+        reality, galaxy,
+        page,
+        limit: wantsAll ? 0 : PAGE_SIZE,
+        ...apiParams,
+      },
     })
       .then((r) => {
         if (cancelled) return
-        setRows(r.data.regions || [])
-        setTotalRegions(r.data.total_regions || (r.data.regions || []).length)
+        const d = r.data || {}
+        setRows(d.regions || [])
+        setTotalRegions(d.total_regions || d.total || (d.regions || []).length)
+        setTotalPages(d.total_pages || 1)
       })
-      .catch(() => { if (!cancelled) { setRows([]); setTotalRegions(0) } })
+      .catch(() => { if (!cancelled) { setRows([]); setTotalRegions(0); setTotalPages(1) } })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [reality, galaxy, JSON.stringify(apiParams)])
+  }, [reality, galaxy, page, wantsAll, JSON.stringify(apiParams)])
 
-  // Reset to page 1 on filter / sort / data change
-  useEffect(() => { setPage(1) }, [reality, galaxy, sort, JSON.stringify(apiParams)])
+  // Reset to page 1 on filter / sort / data change.  Sort is currently
+  // client-side and only affects the visible page, so resetting page on
+  // sort change keeps the UX predictable.
+  useEffect(() => { setPage(1) }, [reality, galaxy, sort, wantsAll, JSON.stringify(apiParams)])
 
+  // Sort only re-orders the already-server-paginated batch.  Default server
+  // order already matches 'named-first', so this is a no-op for that sort.
   const sorted = useMemo(() => {
     const fn = SORTS[sort]?.fn || SORTS['named-first'].fn
     return [...rows].sort(fn)
   }, [rows, sort])
 
-  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
-  const paged = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE
-    return sorted.slice(start, start + PAGE_SIZE)
-  }, [sorted, page])
+  // Server already paginated.  Cards view shows the rows we got back as-is.
+  const paged = sorted
 
   function handleClick(region) {
     if (pinning) {
@@ -114,8 +131,8 @@ export default function RegionBrowser() {
         <div>
           <h2 className="text-lg font-semibold">Regions in {galaxy}</h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-            {totalRegions.toLocaleString()} regions · <span style={{ color: 'var(--app-primary)' }}>{sorted.length} shown</span>
-            {totalPages > 1 && ` · Page ${page} of ${totalPages}`}
+            {totalRegions.toLocaleString()} regions · <span style={{ color: 'var(--app-primary)' }}>{paged.length} shown</span>
+            {view === 'cards' && totalPages > 1 && ` · Page ${page} of ${totalPages}`}
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs flex-wrap">

@@ -37,8 +37,12 @@ POSTER_READY_TIMEOUT_MS = 12000
 # Hard ceiling on a single render (page load + screenshot)
 RENDER_TIMEOUT_S = 18
 
-# Concurrent render budget — protects Pi from being overwhelmed
-RENDER_CONCURRENCY = 2
+# Concurrent render budget — protects Pi from being overwhelmed.
+# Parker 2026-05-13: bumped 2→4 to let the startup pre-warm finish faster
+# on the Pi 5. Empirically the bottleneck is single-page render latency
+# (~1-2 s); four concurrent contexts stays well under the Chromium memory
+# budget on the 8 GB Pi and roughly halves the warm-up wall time.
+RENDER_CONCURRENCY = 4
 
 # How long to wait before dropping cache rows that haven't been read
 CACHE_PRUNE_AFTER_DAYS = 90
@@ -530,9 +534,15 @@ async def _render(template: PosterTemplate, cache_key: str, output_path: Path) -
     output_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f'Rendering {template.type}/{cache_key} from {url}')
 
-    start = time.monotonic()
-
     async with _render_semaphore:
+        # `start` lives INSIDE the semaphore so render_ms reflects only the
+        # actual Chromium work, not the time spent waiting in the queue.
+        # Parker (2026-05-13): before this fix, pre-warm dispatching 300
+        # tasks via asyncio.gather inflated render_ms to 60-90s — the
+        # actual render was sub-2s; the rest was queue wait. Logging the
+        # wait time too gives us a real diagnostic if the queue is hot.
+        wait_start = time.monotonic()  # set after we own the slot
+        start = wait_start
         context = await _browser.new_context(
             viewport={'width': template.width, 'height': template.height},
             device_scale_factor=2,  # Render at 2x for crisp images
@@ -661,6 +671,212 @@ def cache_stats() -> dict:
         'per_type': per_type,
         'registry': list_templates(),
     }
+
+
+# ============================================================================
+# Startup pre-warm — render the posters a first-time visitor sees by default
+# (Normal reality, no filters, first page at each browse level) so they hit
+# the cache instead of a cold render the moment they land on the page.
+#
+# Budget — 100 of each type (300 total):
+#   * 100 atlas_thumb  — top galaxies in Normal by system_count
+#   * 100 region_thumb — top regions in Euclid+Normal (matches /api/regions
+#                         /grouped default ordering: Sea of Gidzenuf pin,
+#                         then named, then unnamed; ties by system_count DESC)
+#   * 100 system_thumb — first 100 systems of the TOP region in Euclid+Normal,
+#                         ordered by created_at DESC (matches /api/systems
+#                         default ordering and L4 'recent-desc' default sort)
+#
+# Sequence matters less than total wall time — get_or_render() skips fresh
+# cache entries, so a restart that finds everything still fresh costs only
+# the SQL queries below (~few ms).
+# ============================================================================
+
+PREWARM_GALAXIES_LIMIT = 100
+PREWARM_REGIONS_LIMIT = 100
+PREWARM_SYSTEMS_LIMIT = 100
+
+
+def _prewarm_targets() -> list[tuple[str, str]]:
+    """Return the ordered list of (poster_type, cache_key) to pre-render.
+
+    Built entirely from indexed SQL — no extractor / approval coupling, just
+    a snapshot of "what the default-view user sees on page 1 of each level".
+    """
+    targets: list[tuple[str, str]] = []
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
+            # L2 — top galaxies in Normal reality by system count. Mirrors
+            # /api/galaxies/summary's ORDER BY system_count DESC.
+            cursor.execute('''
+                SELECT COALESCE(s.galaxy, 'Euclid') as galaxy,
+                       COUNT(*) as system_count
+                FROM systems s
+                WHERE COALESCE(s.reality, 'Normal') = 'Normal'
+                GROUP BY COALESCE(s.galaxy, 'Euclid')
+                ORDER BY system_count DESC
+                LIMIT ?
+            ''', (PREWARM_GALAXIES_LIMIT,))
+            for row in cursor.fetchall():
+                galaxy = row['galaxy']
+                if galaxy:
+                    targets.append(('atlas_thumb', galaxy))
+
+            # L3 — top regions in Euclid+Normal. Mirrors /api/regions/grouped
+            # ORDER BY: Sea of Gidzenuf pin first, then named, then unnamed,
+            # ties broken by system_count DESC.
+            cursor.execute('''
+                SELECT s.region_x, s.region_y, s.region_z,
+                       r.custom_name,
+                       COUNT(DISTINCT s.id) as system_count,
+                       MIN(s.created_at) as first_system_date,
+                       MIN(s.id) as first_system_id
+                FROM systems s
+                LEFT JOIN regions r ON s.region_x = r.region_x
+                    AND s.region_y = r.region_y AND s.region_z = r.region_z
+                WHERE s.region_x IS NOT NULL
+                  AND s.region_y IS NOT NULL
+                  AND s.region_z IS NOT NULL
+                  AND COALESCE(s.reality, 'Normal') = 'Normal'
+                  AND COALESCE(s.galaxy, 'Euclid') = 'Euclid'
+                GROUP BY s.region_x, s.region_y, s.region_z
+                ORDER BY
+                    CASE
+                        WHEN r.custom_name = 'Sea of Gidzenuf' THEN 0
+                        WHEN r.custom_name IS NOT NULL THEN 1
+                        ELSE 2
+                    END ASC,
+                    system_count DESC,
+                    first_system_date ASC,
+                    first_system_id ASC
+                LIMIT ?
+            ''', (PREWARM_REGIONS_LIMIT,))
+            region_rows = cursor.fetchall()
+            for row in region_rows:
+                key = f"{row['region_x']}_{row['region_y']}_{row['region_z']}"
+                targets.append(('region_thumb', key))
+
+            # L4 — first page of systems in the TOP region of Euclid+Normal,
+            # ordered to match /api/systems' `ORDER BY created_at DESC NULLS
+            # LAST, id DESC` and the frontend's 'recent-desc' default sort.
+            if region_rows:
+                top = region_rows[0]
+                cursor.execute('''
+                    SELECT s.id
+                    FROM systems s
+                    WHERE s.region_x = ?
+                      AND s.region_y = ?
+                      AND s.region_z = ?
+                      AND COALESCE(s.reality, 'Normal') = 'Normal'
+                      AND COALESCE(s.galaxy, 'Euclid') = 'Euclid'
+                    ORDER BY s.created_at DESC, s.id DESC
+                    LIMIT ?
+                ''', (top['region_x'], top['region_y'], top['region_z'], PREWARM_SYSTEMS_LIMIT))
+                for row in cursor.fetchall():
+                    targets.append(('system_thumb', str(row['id'])))
+    except Exception as e:
+        logger.warning(f'Pre-warm target query failed: {e}')
+        return []
+
+    return targets
+
+
+async def _prewarm_one(poster_type: str, cache_key: str) -> tuple[str, bool, Optional[str]]:
+    """Render or confirm-cached one (type, key). Returns (label, was_cached, error)."""
+    label = f'{poster_type}/{cache_key}'
+    try:
+        row = _cache_lookup(poster_type, cache_key)
+        if row and is_cache_fresh(poster_type, cache_key, row):
+            return label, True, None
+        await get_or_render(poster_type, cache_key)
+        return label, False, None
+    except Exception as e:
+        return label, False, str(e)
+
+
+async def prewarm_default_posters() -> None:
+    """Background pre-warm of the default-browse posters.
+
+    Scheduled from the FastAPI startup lifespan after init_browser() returns.
+
+    Worker-pool pattern — the previous `asyncio.gather([_prewarm_one(...) for
+    ...])` dispatched all 300 targets at once. Each task entered _render()
+    and waited on the 4-slot semaphore; the 300th task waited 60-90s in the
+    queue before its own work started, and that wait inflated render_ms in
+    the cache (Parker reported "60-90s renders" 2026-05-13 — the actual
+    Chromium work was 1-2s, the rest was queue time).
+
+    Instead, we run PREWARM_WORKERS (= max(1, RENDER_CONCURRENCY-1)) workers
+    that pull from an asyncio.Queue. That bounds in-flight prewarm work
+    *and* leaves at least one semaphore slot free for live user requests —
+    when someone navigates while pre-warm is still running, their poster
+    request can always grab a slot instead of waiting behind the prewarm.
+    """
+    if not is_browser_ready():
+        logger.warning('Poster pre-warm: browser not ready, skipping')
+        return
+
+    targets = _prewarm_targets()
+    if not targets:
+        logger.info('Poster pre-warm: no targets (empty DB?)')
+        return
+
+    by_type: dict[str, int] = {}
+    for t, _ in targets:
+        by_type[t] = by_type.get(t, 0) + 1
+    summary = ', '.join(f'{n} {t}' for t, n in by_type.items())
+    workers = max(1, RENDER_CONCURRENCY - 1)
+    logger.info(
+        f'Poster pre-warm: starting on {len(targets)} targets ({summary}) '
+        f'with {workers} concurrent workers'
+    )
+
+    queue: asyncio.Queue = asyncio.Queue()
+    for t, k in targets:
+        queue.put_nowait((t, k))
+
+    results: list[tuple[str, bool, Optional[str]]] = []
+    rendered_counter = {'n': 0}
+    progress_total = len(targets)
+
+    async def _worker():
+        while True:
+            try:
+                poster_type, cache_key = queue.get_nowait()
+            except asyncio.QueueEmpty:
+                return
+            try:
+                res = await _prewarm_one(poster_type, cache_key)
+            except Exception as e:
+                res = (f'{poster_type}/{cache_key}', False, str(e))
+            results.append(res)
+            rendered_counter['n'] += 1
+            # Per-100 progress beat so the operator sees prewarm ticking
+            # without per-poster log spam.
+            if rendered_counter['n'] % 100 == 0:
+                logger.info(
+                    f'Poster pre-warm: {rendered_counter["n"]}/{progress_total} done'
+                )
+            queue.task_done()
+
+    start = time.monotonic()
+    await asyncio.gather(*[_worker() for _ in range(workers)])
+    elapsed_s = int(time.monotonic() - start)
+
+    rendered = sum(1 for _, was_cached, err in results if not was_cached and err is None)
+    cached = sum(1 for _, was_cached, err in results if was_cached)
+    failed = [(label, err) for label, _, err in results if err is not None]
+
+    logger.info(
+        f'Poster pre-warm: done in {elapsed_s}s — rendered={rendered}, '
+        f'already-cached={cached}, failed={len(failed)}'
+    )
+    if failed:
+        # Cap at 5 to keep the startup log readable
+        for label, err in failed[:5]:
+            logger.warning(f'Poster pre-warm: {label} failed: {err}')
 
 
 def prune_old_cache_rows(days: int = CACHE_PRUNE_AFTER_DAYS) -> int:

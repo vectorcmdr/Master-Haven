@@ -68,7 +68,7 @@ from db import _build_advanced_filter_clauses
 
 
 @router.get('/api/regions/grouped')
-async def api_regions_grouped(include_systems: bool = False, page: int = 0, limit: int = 0,
+async def api_regions_grouped(include_systems: bool = False, page: int = 1, limit: int = 24,
                                discord_tag: str = None,
                                reality: str = None,
                                galaxy: str = None,
@@ -270,12 +270,21 @@ async def api_regions_grouped(include_systems: bool = False, page: int = 0, limi
 
             true_total_regions = sum(1 for r in all_region_rows if visible_counts.get((r['region_x'], r['region_y'], r['region_z']), 0) > 0)
 
+            visible_region_rows = [r for r in all_region_rows if visible_counts.get((r['region_x'], r['region_y'], r['region_z']), 0) > 0]
+            # 1-based pagination. limit=0 is a back-compat sentinel meaning
+            # "return everything" — used by callers that want the full list
+            # in one shot (CLAUDE.md note: Dashboard still passes its own
+            # tiny limit; new callers default to 24).
             if limit > 0:
-                offset = page * limit
-                visible_region_rows = [r for r in all_region_rows if visible_counts.get((r['region_x'], r['region_y'], r['region_z']), 0) > 0]
+                page_idx = max(1, page) - 1
+                offset = page_idx * limit
                 region_rows_paginated = visible_region_rows[offset:offset + limit]
+                total_pages_out = max(1, (true_total_regions + limit - 1) // limit) if true_total_regions else 0
+                page_out = max(1, page)
             else:
-                region_rows_paginated = [r for r in all_region_rows if visible_counts.get((r['region_x'], r['region_y'], r['region_z']), 0) > 0]
+                region_rows_paginated = visible_region_rows
+                total_pages_out = 1 if true_total_regions else 0
+                page_out = 1
 
             for region_row in region_rows_paginated:
                 region = dict(region_row)
@@ -296,6 +305,10 @@ async def api_regions_grouped(include_systems: bool = False, page: int = 0, limi
             return {
                 'regions': regions,
                 'total_regions': true_total_regions,
+                'total': true_total_regions,
+                'page': page_out,
+                'total_pages': total_pages_out,
+                'limit': limit,
                 'applied_filter': discord_tag or 'all',
                 'reality': reality,
                 'galaxy': galaxy
@@ -303,15 +316,31 @@ async def api_regions_grouped(include_systems: bool = False, page: int = 0, limi
 
         # STEP 2: Load all systems for all regions in ONE query (include_systems=True path)
         total_regions = len(all_region_rows)
+        # 1-based pagination, matching the fast path.
         if limit > 0:
-            offset = page * limit
+            page_idx = max(1, page) - 1
+            offset = page_idx * limit
             paginated_region_rows = all_region_rows[offset:offset + limit]
+            total_pages_out = max(1, (total_regions + limit - 1) // limit) if total_regions else 0
+            page_out = max(1, page)
         else:
             paginated_region_rows = all_region_rows
+            total_pages_out = 1 if total_regions else 0
+            page_out = 1
 
         region_coords = [(r['region_x'], r['region_y'], r['region_z']) for r in paginated_region_rows]
         if not region_coords:
-            return {'regions': [], 'total_regions': 0}
+            return {
+                'regions': [],
+                'total_regions': total_regions,
+                'total': total_regions,
+                'page': page_out,
+                'total_pages': total_pages_out,
+                'limit': limit,
+                'applied_filter': discord_tag or 'all',
+                'reality': reality,
+                'galaxy': galaxy,
+            }
 
         cursor.execute("CREATE TEMP TABLE IF NOT EXISTS _tmp_region_coords (rx INTEGER, ry INTEGER, rz INTEGER)")
         cursor.execute("DELETE FROM _tmp_region_coords")
@@ -467,6 +496,10 @@ async def api_regions_grouped(include_systems: bool = False, page: int = 0, limi
         return {
             'regions': regions,
             'total_regions': total_regions,
+            'total': total_regions,
+            'page': page_out,
+            'total_pages': total_pages_out,
+            'limit': limit,
             'applied_filter': discord_tag or 'all',
             'reality': reality,
             'galaxy': galaxy
