@@ -22,6 +22,8 @@ A comprehensive No Man's Sky discovery mapping and archival system for communiti
 ### Current Versions
 | Component | Version | Last Updated | Notes |
 |-----------|---------|--------------|-------|
+| **Master Haven** | 1.61.0 | 2026-05-13 | Civ-dropdown source consolidation. The new `CivilizationManagement` page (added with the v1.80.0 `civilizations` table migration) writes to `civilizations.tag`, but the three endpoints that power every civ/community dropdown in the app — `/api/discord_tags` (used by Wizard, PendingApprovals, Analytics, Events, ApprovalAudit, ApiKeys, PartnerAnalytics, RegionDetail, DiscoverySubmitModal), `/api/communities` (used by the Haven Extractor mod + Profile.jsx), and `/api/available_discord_tags` (used by SubAdminManagement) — were still UNION-ing legacy `partner_accounts.discord_tag` and `user_profiles.partner_discord_tag` and didn't query `civilizations` at all. Net effect: any civ created via the new page was invisible everywhere (Wizard dropdown, in-game extractor, sub-admin assignment) until you also manually created legacy table rows. Fix consolidates all three endpoints to read from a single source: `SELECT tag, display_name FROM civilizations WHERE is_active = 1`. Backfill from v1.80.0 already seeded `civilizations` with every legacy civ (verified live against the Pi: 41 active rows including Haven, GHUB, IEA, Everion, plus the new HRCC). Legacy hardcoded "Haven" prefix entry in `/api/discord_tags` dropped since it's a real `civilizations` row now; "Personal (Not affiliated)" remains hardcoded since it's a non-civ option. Response shapes preserved for all three endpoints — zero frontend changes, zero extractor changes (auto-picks up next mod load via the existing dynamic-communities flow from v1.6.0). |
+| Backend API | 1.60.0 | 2026-05-13 | `/api/discord_tags` ([control_room_api.py:1950](Haven-UI/backend/control_room_api.py#L1950)), `/api/communities` ([routes/extractor.py:377](Haven-UI/backend/routes/extractor.py#L377)), and `/api/available_discord_tags` ([routes/partners.py:664](Haven-UI/backend/routes/partners.py#L664)) all rewritten to query `SELECT tag, display_name FROM civilizations WHERE is_active = 1`. Removed UNION arms against `partner_accounts` and `user_profiles.partner_discord_tag` — migration v1.80.0's backfill (verified live on Pi: 41 active civilizations rows) already covers every legacy civ. Removed hardcoded "Haven" prefix entry from `/api/discord_tags` (real row in `civilizations` now); kept hardcoded "Personal (Not affiliated)" entry there since it's a non-civ option. Response keys unchanged per endpoint (`tag`/`name` for the first two, `discord_tag`/`display_name` for the third) so no caller breaks. |
 | **Master Haven** | 1.60.0 | 2026-05-12 | Three-layer fix for the `RealityMode.Normal` phantom-reality bug discovered on production by Parker on 2026-05-12 (50 systems showing as a third reality card alongside Normal + Permadeath in the Systems Browser). **Layer 1 — Extractor source** (1.9.7 → 1.9.8): pymhf's DearPyGUI sometimes round-trips ENUM gui_variables back as the Python `repr` string ("RealityMode.Normal") instead of as the enum instance. The old `reality_mode` / `community_tag` setter fallback `str(value) if not isinstance(...)` persisted that bad string verbatim into `config.json` and every submission payload. New `_normalize_reality()` / `_normalize_community_tag()` module-level helpers strip the enum-class prefix and validate against known values; setters now route through them. Module-init also scrubs `USER_REALITY` / `USER_DISCORD_TAG` at config load so any pre-existing bad config self-heals on next mod load. **Layer 2 — Backend intake guard** (1.58.0 → 1.59.0): new `normalize_reality()` in `constants.py` applied at all 6 reality-read sites in `routes/approvals.py` (`/api/submit_system`, `/api/check_glyph_codes`, `/api/extraction`, region-name approval) and `routes/regions.py` (`PUT /api/regions/{rx}/{ry}/{rz}`, `POST /api/regions/{rx}/{ry}/{rz}/submit`) so even unfixed extractor installs can't poison the DB going forward. **Layer 3 — Cleanup migration v1.81.0**: re-runs the same idempotent `UPDATE ... SET reality = 'Normal' WHERE reality = 'RealityMode.Normal'` across `systems` / `pending_systems` / `regions` that v1.79.0 already ran once. v1.79.0 cleaned the rows existing at that point, but 50 new bad rows arrived between then and the intake guard shipping — v1.81.0 catches those on next Pi deploy. |
 | Backend API | 1.59.0 | 2026-05-12 | RealityMode.Normal intake guard + cleanup migration. Added `normalize_reality()` to [constants.py](Haven-UI/backend/constants.py) (strips any enum-class prefix like "RealityMode." → "Normal", validates against the {Normal, Permadeath} set, defaults to "Normal" on anything else). Applied at all 6 reality-read sites that accept submission payloads: 4 in [routes/approvals.py](Haven-UI/backend/routes/approvals.py) (`/api/submit_system` line 198, `/api/check_glyph_codes` line 352, region-name approval line 2894, `/api/extraction` line 3045) and 2 in [routes/regions.py](Haven-UI/backend/routes/regions.py) (`PUT /api/regions/{rx}/{ry}/{rz}` line 1032, `POST /api/regions/{rx}/{ry}/{rz}/submit` line 1128). New migration v1.81.0 re-runs the same idempotent cleanup that v1.79.0 ran ("RealityMode.Normal" → "Normal" across `systems`, `pending_systems`, `regions`) since v1.79.0 only ran once and 50 bad rows arrived after it from stale extractor installs. |
 | Haven Extractor | 1.9.8 | 2026-05-12 | Module-level `_normalize_reality()` and `_normalize_community_tag()` helpers (haven_extractor.py:825-855); applied in `reality_mode` and `community_tag` setters in place of the broken `value.value if isinstance(...) else str(value)` fallback. The fallback persisted pymhf's DearPyGUI enum repr ("RealityMode.Normal") verbatim into config.json and the submission payload's `reality` field. Module init scrubs `USER_REALITY` and `USER_DISCORD_TAG` at config load time (inline since the helpers are defined later in the file) so any pre-1.9.8 config self-heals. Mod-only zip needs rebuilding per the workflow in CLAUDE.md before GitHub Release upload. |
@@ -117,6 +119,53 @@ The auto-updater (`haven_updater.ps1`) looks for assets matching `HavenExtractor
 - **Full distributable** (~112 MB): The entire `NMS-Haven-Extractor/dist/HavenExtractor/` folder. For new users who need the embedded Python runtime, batch scripts, etc. Created manually by zipping the full `dist/HavenExtractor/` directory.
 
 ### Changelog
+
+#### Master Haven 1.61.0 (2026-05-13) - Civ Dropdown Source Consolidation
+Parker created a new civilization ("Haven Royal Cartography Corps", tag `HRCC`) via the new `CivilizationManagement` page and noticed it didn't appear in the Wizard's community dropdown on `/create`. Traced to a stale-legacy-paths problem in three backend endpoints that were written before the `civilizations` table existed (migration v1.80.0) and never updated when it was added.
+
+**The disconnect**
+
+`CivilizationManagement` ([Haven-UI/src/pages/CivilizationManagement.jsx:177-204](Haven-UI/src/pages/CivilizationManagement.jsx#L177-L204)) POSTs to `/api/civilizations` which inserts into the `civilizations` table — `tag`, `display_name`, `is_active`. But every civ/community dropdown in the app pulls from one of three endpoints, none of which knew `civilizations` existed:
+
+- `/api/discord_tags` at [control_room_api.py:1950](Haven-UI/backend/control_room_api.py#L1950) — used by Wizard, PendingApprovals, Analytics, Events, ApprovalAudit, ApiKeys, PartnerAnalytics, RegionDetail, DiscoverySubmitModal (9 frontend consumers). Was UNION-ing `partner_accounts.discord_tag` and `user_profiles.partner_discord_tag` (tier 2/3).
+- `/api/communities` at [routes/extractor.py:377](Haven-UI/backend/routes/extractor.py#L377) — used by the Haven Extractor mod's dynamic-communities feature (haven_extractor.py:302, v1.6.0+) and `Profile.jsx`. Same UNION shape.
+- `/api/available_discord_tags` at [routes/partners.py:664](Haven-UI/backend/routes/partners.py#L664) — used by SubAdminManagement. Read only from `partner_accounts.discord_tag`, didn't even cover `user_profiles`.
+
+Net effect: any civ created via the new page was invisible everywhere — Wizard dropdown, in-game extractor mod, sub-admin assignment screen — unless you also manually created a legacy `partner_accounts` or tier-2 `user_profiles` row with a matching tag. HRCC was created at `2026-05-13T03:07:39+00:00`, sat in `civilizations` correctly, and didn't appear anywhere.
+
+**The wrong fix I initially proposed**
+
+I first proposed UNION-ing `civilizations` into each endpoint alongside the legacy arms. Parker pushed back — "why are we making union and not using one streamline variable name." He was right. The UNION is the kind of backwards-compat shim CLAUDE.md says to avoid. The real problem is that the dropdowns were never updated when migration v1.80.0 moved civ identity to its own canonical table.
+
+**The real fix**
+
+Three endpoints, one SQL query each:
+
+```sql
+SELECT tag, display_name FROM civilizations WHERE is_active = 1 ORDER BY display_name
+```
+
+Verified safe by querying production directly from a browser DevTools console hitting `/api/civilizations`: 41 active rows, every legacy civ present (Haven, GHUB, IEA, Everion Empire, Atlas-CSD/ETARC, Galactic Hub Project, Shadow Worlds, Tugarv Compendium, etc.) plus the newly-created HRCC. Backfill from v1.80.0 ([migrations.py:6174-6202](Haven-UI/backend/migrations.py#L6174-L6202)) had already seeded it from every tier-2 `user_profiles` row, which in turn had been backfilled from `partner_accounts` in v1.57.0. The legacy UNION arms were just stale code paths reading from the same data, one indirection level removed.
+
+**Response shapes preserved**
+
+Each endpoint keeps its existing response keys so zero frontend callers break:
+- `/api/discord_tags` returns `{tags: [{tag, name}]}` — same as before, just with a smaller hardcoded prefix list ("Personal" only; "Haven" is now a real `civilizations` row and falls out of the SQL naturally).
+- `/api/communities` returns `{communities: [{tag, name}]}` — unchanged.
+- `/api/available_discord_tags` returns `{discord_tags: [{discord_tag, display_name}]}` — column aliased on the way out (`tag AS discord_tag`) so SubAdminManagement keeps working without touching the React side.
+
+**What this fixes downstream automatically**
+
+- Wizard dropdown shows new civs immediately on next page load.
+- Haven Extractor mod picks up new civs on next mod load — the v1.6.0 dynamic-communities cache fetches `/api/communities`, caches at `~/Documents/Haven-Extractor/communities_cache.json`, and falls back to a hardcoded default list only if the fetch fails. No mod-zip rebuild required.
+- SubAdminManagement civ assignment dropdown sees new civs.
+- All 9 frontend pages that hit `/api/discord_tags` get the new civ without code changes.
+
+**Related issue surfaced but NOT fixed in this release**
+
+`/api/discord_tag_colors` (used by ThemeProvider and the poster system) still reads from `super_admin_settings.discord_tag_colors` JSON blob, not from `civilizations.region_color`. So a new civ's color won't show in poster tinting / region color overlays until either (a) the JSON blob is also updated, or (b) that endpoint is migrated to read from `civilizations.region_color`. Same one-source-of-truth pattern; deferred to keep this release focused on the dropdown bug. Flagged in [user/feedback memory](C:\Users\parke\.claude\projects\c--Master-Haven\memory\MEMORY.md) as a known follow-up.
+
+---
 
 #### Master Haven 1.60.0 (2026-05-12) - RealityMode.Normal Phantom-Reality Bug (Three-Layer Fix)
 Parker spotted a third reality card "RealityMode.Normal" with 50 systems showing on production's Systems Browser, alongside the real Normal (12,698) and Permadeath (21) cards. Diagnosis traced it to pymhf's DearPyGUI sometimes round-tripping `ENUM` gui_variables back as their Python `repr` string ("RealityMode.Normal") instead of as the enum instance — the extractor's setter fallback `str(value)` persisted that bad string verbatim into `config.json`, every submission's `reality` field, and ultimately the `systems.reality` column. v1.79.0 had already cleaned the rows that existed at that time, but the source bug in the extractor was never patched, so new submissions from any still-bad install kept poisoning the column. Three-layer fix this release so it can't come back.

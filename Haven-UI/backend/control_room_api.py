@@ -1949,42 +1949,28 @@ async def spa_catchall(path: str):
 
 @app.get('/api/discord_tags')
 async def list_discord_tags():
-    """List available discord tags for system tagging (public endpoint)"""
+    """List available discord tags for system tagging (public endpoint).
+
+    Reads from the `civilizations` table, the single source of truth for civ
+    identity since migration v1.80.0. 'Personal' is prepended as a non-civ
+    option meaning "not affiliated". Legacy tables (partner_accounts,
+    user_profiles.partner_discord_tag) are NOT queried — v1.80.0's backfill
+    seeded civilizations from every tier-2 user_profile row, so they're
+    redundant.
+    """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Union legacy partner_accounts with user_profiles (tier 2/3 partners and
-        # sub-admins created via /admin/users in v1.48.0+) so profile-only partners
-        # appear in every dropdown that consumes this endpoint.
         cursor.execute('''
-            SELECT discord_tag, display_name, username FROM (
-                SELECT discord_tag, display_name, username
-                FROM partner_accounts
-                WHERE discord_tag IS NOT NULL AND is_active = 1
-                UNION
-                SELECT partner_discord_tag as discord_tag,
-                       display_name,
-                       username
-                FROM user_profiles
-                WHERE tier IN (2, 3)
-                  AND partner_discord_tag IS NOT NULL
-                  AND partner_discord_tag != ''
-                  AND is_active = 1
-            )
+            SELECT tag, display_name
+            FROM civilizations
+            WHERE is_active = 1
             ORDER BY display_name
         ''')
-        # Start with Haven and Personal options (always available)
-        tags = [
-            {'tag': 'Haven', 'name': 'Haven'},
-            {'tag': 'Personal', 'name': 'Personal (Not affiliated)'},
-        ]
-        # Add partner tags (skip Haven if a partner already has it to avoid duplicates)
-        seen_tags = {t['tag'] for t in tags}
+        tags = [{'tag': 'Personal', 'name': 'Personal (Not affiliated)'}]
         for row in cursor.fetchall():
-            if row['discord_tag'] not in seen_tags:
-                tags.append({'tag': row['discord_tag'], 'name': row['display_name'] or row['username']})
-                seen_tags.add(row['discord_tag'])
+            tags.append({'tag': row['tag'], 'name': row['display_name']})
         return {'tags': tags}
     finally:
         if conn:

@@ -378,39 +378,24 @@ async def register_extractor(request: Request):
 async def list_communities():
     """
     Public endpoint: list available communities for Haven Extractor dropdown.
-    Returns partner communities + 'personal' option.
+
+    Reads from the `civilizations` table — the single source of truth for civ
+    identity since migration v1.80.0. The Haven Extractor mod fetches this on
+    startup, caches locally, and uses it to populate its community dropdown,
+    so every civ created via CivilizationManagement is automatically visible
+    in-game on the user's next mod load.
     """
-    # Import the discord_tags endpoint from control_room_api at runtime to avoid circular imports
-    # This endpoint just wraps the existing list_discord_tags logic
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        # Pull from both legacy partner_accounts and the unified user_profiles table
-        # (tier 2 = partner, tier 3 = sub-admin). user_profiles is the source of truth
-        # for anyone created via /admin/users in v1.48.0+; partner_accounts is the
-        # legacy fallback for older rows that haven't been migrated.
         cursor.execute('''
-            SELECT tag, name FROM (
-                SELECT discord_tag as tag,
-                       COALESCE(display_name, discord_tag) as name
-                FROM partner_accounts
-                WHERE discord_tag IS NOT NULL AND discord_tag != ''
-                UNION
-                SELECT partner_discord_tag as tag,
-                       COALESCE(display_name, username, partner_discord_tag) as name
-                FROM user_profiles
-                WHERE tier IN (2, 3)
-                  AND partner_discord_tag IS NOT NULL
-                  AND partner_discord_tag != ''
-                  AND is_active = 1
-            )
-            ORDER BY name
+            SELECT tag, display_name AS name
+            FROM civilizations
+            WHERE is_active = 1
+            ORDER BY display_name
         ''')
-        rows = cursor.fetchall()
-        tags = [{'tag': row['tag'], 'name': row['name']} for row in rows]
-
+        tags = [{'tag': row['tag'], 'name': row['name']} for row in cursor.fetchall()]
         return {'communities': tags}
     except Exception as e:
         logger.error(f"Failed to list communities: {e}")

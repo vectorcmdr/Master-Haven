@@ -664,8 +664,12 @@ async def delete_sub_admin(sub_admin_id: int, session: Optional[str] = Cookie(No
 @router.get('/api/available_discord_tags')
 async def get_available_discord_tags(session: Optional[str] = Cookie(None)):
     """
-    Get list of all available discord tags (from partners).
-    Super admin only - used for configuring Haven sub-admin visibility.
+    Get list of all available discord tags for configuring Haven sub-admin visibility.
+    Super admin only.
+
+    Reads from `civilizations` — the single source of truth since v1.80.0.
+    Response shape preserved (`discord_tag` / `display_name` keys) so existing
+    SubAdminManagement callers don't need changes.
     """
     if not is_super_admin(session):
         raise HTTPException(status_code=403, detail='Super admin access required')
@@ -675,20 +679,15 @@ async def get_available_discord_tags(session: Optional[str] = Cookie(None)):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Get all discord tags from partners (including Haven)
         cursor.execute('''
-            SELECT DISTINCT discord_tag, display_name
-            FROM partner_accounts
-            WHERE discord_tag IS NOT NULL AND is_active = 1
-            ORDER BY discord_tag
+            SELECT tag AS discord_tag, display_name
+            FROM civilizations
+            WHERE is_active = 1
+            ORDER BY display_name
         ''')
 
-        tags = []
-        for row in cursor.fetchall():
-            tags.append({
-                'discord_tag': row['discord_tag'],
-                'display_name': row['display_name']
-            })
+        tags = [{'discord_tag': row['discord_tag'], 'display_name': row['display_name']}
+                for row in cursor.fetchall()]
 
         return {'discord_tags': tags}
     except Exception as e:
