@@ -363,4 +363,4 @@ async def setup(bot: commands.Bot):
         count_total_reactions
     )
 
-    await bot.add_cog(featured(bot))
+    await bot.add_cog(FeaturedCog(bot))
