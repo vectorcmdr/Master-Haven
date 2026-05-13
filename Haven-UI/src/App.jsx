@@ -42,6 +42,13 @@ const Changelog = lazy(() => import('./pages/Changelog'))
 const Docs = lazy(() => import('./pages/Docs'))
 const DocPage = lazy(() => import('./pages/DocPage'))
 
+// Consolidated admin hubs (v1.49.0). Each composes the existing single-purpose
+// pages inside a tab shell. The original routes (/analytics, /admin/users, etc.)
+// stay mounted alongside as deep-link / back-compat aliases.
+const AnalyticsHub = lazy(() => import('./pages/AnalyticsHub'))
+const AccessControl = lazy(() => import('./pages/AccessControl'))
+const AdminTools = lazy(() => import('./pages/AdminTools'))
+
 // Heavy components with Three.js - load separately for better code splitting
 const WarRoom = lazy(() => import('./pages/WarRoom'))
 const WarRoomAdmin = lazy(() => import('./pages/WarRoomAdmin'))
@@ -159,10 +166,23 @@ function AppShell() {
               {/* Extractor user management (admin or partner) */}
               <Route path="/admin/extractors" element={<RequireAdmin><ExtractorUsers /></RequireAdmin>} />
 
-              {/* Analytics (admin or partner) */}
+              {/* Analytics Hub (v1.49.0) — tabbed shell replacing /analytics,
+                  /partner-analytics, /events as the primary entry point.
+                  The individual routes remain mounted below for deep links. */}
+              <Route path="/analytics-hub" element={<RequireAdmin><AnalyticsHub /></RequireAdmin>} />
+
+              {/* Analytics (admin or partner) — individual routes preserved */}
               <Route path="/analytics" element={<RequireAdmin><Analytics /></RequireAdmin>} />
               <Route path="/partner-analytics" element={<RequireAdmin><PartnerAnalytics /></RequireAdmin>} />
               <Route path="/events" element={<RequireAdmin><Events /></RequireAdmin>} />
+
+              {/* Access Control Hub (v1.49.0) — tabbed shell replacing
+                  /admin/users, /admin/sub-admins, /admin/extractors, /api-keys. */}
+              <Route path="/admin/access" element={<RequireAdmin><AccessControl /></RequireAdmin>} />
+
+              {/* Admin Tools (v1.49.0) — backup + migrations carved out of
+                  /settings so destructive ops don't sit next to personal prefs. */}
+              <Route path="/admin/tools" element={<RequireSuperAdmin><AdminTools /></RequireSuperAdmin>} />
 
               {/* Partners can manage their own sub-admins */}
               <Route path="/admin/sub-admins" element={<RequireAdmin><SubAdminManagement /></RequireAdmin>} />

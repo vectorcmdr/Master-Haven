@@ -54,7 +54,12 @@ const rankColors = {
   3: { bg: 'rgba(205, 127, 50, 0.15)', border: 'rgba(205, 127, 50, 0.3)', text: '#CD7F32' },
 }
 
-export default function PartnerAnalytics() {
+/**
+ * @param {Object} props
+ * @param {boolean} [props.embedded=false] When true, skips outer min-h-screen
+ *   wrapper and page-title block — used when mounted inside AnalyticsHub.
+ */
+export default function PartnerAnalytics({ embedded = false }) {
   const navigate = useNavigate()
   const auth = useContext(AuthContext)
   const { isSuperAdmin, isAdmin, user } = auth
@@ -215,18 +220,23 @@ export default function PartnerAnalytics() {
     ? ((subs.approved / subs.total) * 100).toFixed(1)
     : 0
 
+  const outerClass = embedded ? 'space-y-6' : 'min-h-screen p-6'
+  const outerStyle = embedded ? undefined : { background: 'var(--app-bg)' }
+
   return (
-    <div className="min-h-screen p-6" style={{ background: 'var(--app-bg)' }}>
-      {/* Header */}
+    <div className={outerClass} style={outerStyle}>
+      {/* Header — hidden when embedded (hub provides the page title) */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>
-            Partner Analytics
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
-            {communityName} — Submissions & Discovery Statistics
-          </p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>
+              Partner Analytics
+            </h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
+              {communityName} — Submissions & Discovery Statistics
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           {/* Period quick filters */}
           <div className="flex items-center rounded-lg overflow-hidden" style={{ background: 'var(--app-card)', border: '1px solid rgba(255,255,255,0.1)' }}>

@@ -24,7 +24,12 @@ import { AuthContext } from '../utils/AuthContext'
  *   GET /api/analytics/extractor-summary      (extractor tab only)
  *   GET /api/discord_tags                     (community dropdown)
  */
-export default function Analytics() {
+/**
+ * @param {Object} props
+ * @param {boolean} [props.embedded=false] When true, skips outer min-h-screen
+ *   wrapper and page-title block — used when mounted inside AnalyticsHub.
+ */
+export default function Analytics({ embedded = false }) {
   const navigate = useNavigate()
   const auth = useContext(AuthContext)
   const { isSuperAdmin, isAdmin, user } = auth
@@ -215,16 +220,22 @@ export default function Analytics() {
     border: '1px solid rgba(255,255,255,0.04)'
   }
 
+  const OuterTag = embedded ? 'div' : 'div'
+  const outerClass = embedded ? 'space-y-6' : 'min-h-screen p-6'
+  const outerStyle = embedded ? undefined : { background: 'var(--app-bg)' }
+
   return (
-    <div className="min-h-screen p-6" style={{ background: 'var(--app-bg)' }}>
-      {/* Header */}
+    <OuterTag className={outerClass} style={outerStyle}>
+      {/* Header — hidden when embedded (hub provides the page title) */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>Analytics Dashboard</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
-            Submission statistics and leaderboards
-          </p>
-        </div>
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>Analytics Dashboard</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
+              Submission statistics and leaderboards
+            </p>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           {/* Period quick filters */}
           <div className="flex items-center rounded-lg overflow-hidden" style={{ background: 'var(--app-card)', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -541,6 +552,6 @@ export default function Analytics() {
           </div>
         </>
       )}
-    </div>
+    </OuterTag>
   )
 }

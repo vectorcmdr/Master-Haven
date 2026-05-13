@@ -168,6 +168,7 @@ function GalaxyCard({ g, onClick, pinned, pinning }) {
           src={`/api/posters/atlas_thumb/${encodeURIComponent(g.galaxy)}.png`}
           alt=""
           className="absolute inset-0 w-full h-full object-cover opacity-70 mix-blend-screen"
+          loading="lazy"
           onError={(e) => { e.currentTarget.style.display = 'none' }}
         />
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, var(--app-card) 5%, transparent 50%)' }} />

@@ -22,7 +22,8 @@ import { formatDate } from '../hooks/useDateFormat'
  *   DELETE /api/keys/:id       — revoke (soft-delete) a key
  *   GET    /api/discord_tags   — community list for tag dropdown
  */
-export default function ApiKeys() {
+/** @param {Object} props @param {boolean} [props.embedded=false] When true, hides the page title — "+ Create New Key" button stays. */
+export default function ApiKeys({ embedded = false }) {
   const navigate = useNavigate()
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -196,14 +197,16 @@ export default function ApiKeys() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header — title hidden when embedded (hub provides), button stays */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-cyan-400">API Keys</h1>
-          <p className="text-gray-400 mt-1">
-            Manage API keys for the NMS Save Watcher companion app and other integrations
-          </p>
-        </div>
+        {!embedded ? (
+          <div>
+            <h1 className="text-2xl font-bold text-cyan-400">API Keys</h1>
+            <p className="text-gray-400 mt-1">
+              Manage API keys for the NMS Save Watcher companion app and other integrations
+            </p>
+          </div>
+        ) : <div />}
         <Button onClick={() => setCreateModalOpen(true)} disabled={actionInProgress}>
           + Create New Key
         </Button>

@@ -26,7 +26,8 @@ const SUB_ADMIN_FEATURES = [
   { key: 'settings', label: 'Theme Settings' },
 ]
 
-export default function UserManagement() {
+/** @param {Object} props @param {boolean} [props.embedded=false] When true, hides the page title row — used when mounted inside AccessControl. */
+export default function UserManagement({ embedded = false }) {
   const auth = useContext(AuthContext)
   const { isSuperAdmin, isPartner, user } = auth
   const [profiles, setProfiles] = useState([])
@@ -182,10 +183,17 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">User Management</h1>
-        <span className="text-gray-400 text-sm">{total} profiles</span>
-      </div>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">User Management</h1>
+          <span className="text-gray-400 text-sm">{total} profiles</span>
+        </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end">
+          <span className="text-gray-400 text-sm">{total} profiles</span>
+        </div>
+      )}
 
       {/* Filters */}
       <Card>

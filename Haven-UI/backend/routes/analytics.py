@@ -1149,60 +1149,114 @@ async def get_partner_overview(
 async def public_community_overview():
     """
     Public endpoint: per-community stats (systems, discoveries, contributors, upload method split).
+
+    Sourced from the `civilizations` table as canonical roster (same source the
+    CivilizationManagement page reads) so the two pages always agree on the civ
+    count. Civs with zero submissions are included with 0 stats. A synthetic
+    `Personal` row aggregates submissions whose discord_tag is NULL/empty or
+    matches the case-insensitive literal 'personal'.
     """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Systems per community
-        cursor.execute('''
-            SELECT COALESCE(NULLIF(discord_tag, ''), 'Personal') as tag,
-                   COUNT(*) as total_systems,
-                   COUNT(DISTINCT COALESCE(NULLIF(discovered_by, ''), personal_discord_username)) as unique_contributors
+        # Normalizer matches anything Personal-shaped to a single 'Personal' bucket.
+        # Anything else falls through with its real tag (case-preserved).
+        norm = "CASE WHEN discord_tag IS NULL OR discord_tag = '' OR LOWER(discord_tag) = 'personal' THEN 'Personal' ELSE discord_tag END"
+
+        # Systems aggregate per normalized tag
+        cursor.execute(f'''
+            SELECT {norm} AS tag,
+                   COUNT(*) AS total_systems,
+                   COUNT(DISTINCT COALESCE(NULLIF(discovered_by, ''), personal_discord_username)) AS unique_contributors
             FROM systems
             GROUP BY tag
-            ORDER BY total_systems DESC
         ''')
         sys_rows = {r['tag']: dict(r) for r in cursor.fetchall()}
 
-        # Discoveries per community
-        cursor.execute('''
-            SELECT COALESCE(NULLIF(discord_tag, ''), 'Personal') as tag,
-                   COUNT(*) as total_discoveries
+        # Discoveries aggregate per normalized tag
+        cursor.execute(f'''
+            SELECT {norm} AS tag,
+                   COUNT(*) AS total_discoveries
             FROM discoveries
             GROUP BY tag
         ''')
         disc_rows = {r['tag']: dict(r) for r in cursor.fetchall()}
 
-        # Upload method split per community (from pending_systems approved only)
-        cursor.execute('''
-            SELECT COALESCE(NULLIF(discord_tag, ''), 'Personal') as tag,
-                   SUM(CASE WHEN COALESCE(source, 'manual') = 'manual' THEN 1 ELSE 0 END) as manual_systems,
-                   SUM(CASE WHEN source = 'haven_extractor' THEN 1 ELSE 0 END) as extractor_systems
+        # Upload method split per normalized tag (from approved pending_systems only)
+        cursor.execute(f'''
+            SELECT {norm} AS tag,
+                   SUM(CASE WHEN COALESCE(source, 'manual') = 'manual' THEN 1 ELSE 0 END) AS manual_systems,
+                   SUM(CASE WHEN source = 'haven_extractor' THEN 1 ELSE 0 END) AS extractor_systems
             FROM pending_systems
             WHERE status = 'approved'
             GROUP BY tag
         ''')
         source_rows = {r['tag']: dict(r) for r in cursor.fetchall()}
 
-        # Community display names from partner_accounts
-        cursor.execute("SELECT discord_tag, display_name FROM partner_accounts WHERE discord_tag IS NOT NULL")
-        display_names = {r['discord_tag']: r['display_name'] for r in cursor.fetchall()}
+        # Canonical civ roster — single source of truth, matches CivilizationManagement.
+        cursor.execute('''
+            SELECT tag, display_name
+            FROM civilizations
+            WHERE is_active = 1
+            ORDER BY display_name
+        ''')
+        civ_rows = cursor.fetchall()
 
-        # Merge all data
-        all_tags = set(sys_rows.keys()) | set(disc_rows.keys())
         communities = []
-        for tag in sorted(all_tags, key=lambda t: sys_rows.get(t, {}).get('total_systems', 0), reverse=True):
+        for civ in civ_rows:
+            tag = civ['tag']
             communities.append({
                 'discord_tag': tag,
-                'display_name': display_names.get(tag, tag),
+                'display_name': civ['display_name'] or tag,
                 'total_systems': sys_rows.get(tag, {}).get('total_systems', 0),
                 'total_discoveries': disc_rows.get(tag, {}).get('total_discoveries', 0),
                 'unique_contributors': sys_rows.get(tag, {}).get('unique_contributors', 0),
                 'manual_systems': source_rows.get(tag, {}).get('manual_systems', 0),
                 'extractor_systems': source_rows.get(tag, {}).get('extractor_systems', 0),
             })
+
+        # Synthetic "Personal" row — represents submissions with no civilization affiliation.
+        personal_stats = sys_rows.get('Personal', {})
+        personal_disc = disc_rows.get('Personal', {})
+        personal_src = source_rows.get('Personal', {})
+        if (personal_stats.get('total_systems', 0) > 0
+                or personal_disc.get('total_discoveries', 0) > 0):
+            communities.append({
+                'discord_tag': 'Personal',
+                'display_name': 'Personal (Not affiliated)',
+                'total_systems': personal_stats.get('total_systems', 0),
+                'total_discoveries': personal_disc.get('total_discoveries', 0),
+                'unique_contributors': personal_stats.get('unique_contributors', 0),
+                'manual_systems': personal_src.get('manual_systems', 0),
+                'extractor_systems': personal_src.get('extractor_systems', 0),
+            })
+
+        # Orphan tags — submissions whose discord_tag has no matching civilizations row.
+        # Surface them so they're not silently dropped (and so an admin notices they
+        # need to either create the civ or migrate the data). Sorted to the bottom.
+        known_tags = {civ['tag'] for civ in civ_rows} | {'Personal'}
+        orphans = []
+        for tag, stats in sys_rows.items():
+            if tag not in known_tags and stats.get('total_systems', 0) > 0:
+                orphans.append({
+                    'discord_tag': tag,
+                    'display_name': f'{tag} (unregistered)',
+                    'total_systems': stats.get('total_systems', 0),
+                    'total_discoveries': disc_rows.get(tag, {}).get('total_discoveries', 0),
+                    'unique_contributors': stats.get('unique_contributors', 0),
+                    'manual_systems': source_rows.get(tag, {}).get('manual_systems', 0),
+                    'extractor_systems': source_rows.get(tag, {}).get('extractor_systems', 0),
+                })
+        communities.extend(sorted(orphans, key=lambda c: c['total_systems'], reverse=True))
+
+        # Sort: civilizations first by total_systems desc, then Personal/orphans stay at the end.
+        # Civs with 0 submissions sort to the bottom of the civ block.
+        civ_block = [c for c in communities if c['discord_tag'] not in (['Personal'] + [o['discord_tag'] for o in orphans])]
+        civ_block.sort(key=lambda c: c['total_systems'], reverse=True)
+        tail = [c for c in communities if c['discord_tag'] == 'Personal'] + orphans
+        communities = civ_block + tail
 
         # Grand totals
         total_systems = sum(c['total_systems'] for c in communities)

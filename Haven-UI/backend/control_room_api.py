@@ -1618,12 +1618,25 @@ async def on_startup():
     # cost across many renders. Boot is non-fatal: if Playwright isn't
     # installed (e.g. on a stripped-down deploy) the poster endpoints will
     # 503, but the rest of the API keeps running.
+    browser_booted = False
     try:
         from services.poster_service import init_browser
         await init_browser()
+        browser_booted = True
     except Exception as e:
         logger.warning('Poster service: Playwright failed to boot at startup (%s) — '
                        '/api/posters/* endpoints will 503 until restart', e)
+
+    # Pre-warm the default-browse posters in the background so the first
+    # visitor sees cached images instead of cold renders. Only kick off
+    # if the browser actually booted — otherwise the renders would 503
+    # one-by-one and spam the log. See poster_service.prewarm_default_posters.
+    if browser_booted:
+        try:
+            from services.poster_service import prewarm_default_posters
+            asyncio.create_task(prewarm_default_posters())
+        except Exception as e:
+            logger.warning(f'Poster pre-warm task failed to schedule: {e}')
 
     # Periodic WAL checkpoint. The WAL file accumulates during sustained writes
     # and only auto-checkpoints when SQLite hits its threshold (default ~1000

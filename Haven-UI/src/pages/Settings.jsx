@@ -41,7 +41,6 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
-  const [migrating, setMigrating] = useState(false)
 
   // Change username state (partners)
   const [newUsername, setNewUsername] = useState('')
@@ -165,35 +164,6 @@ export default function Settings() {
       alert('Failed to save personal color: ' + e)
     }
     setSavingPersonalColor(false)
-  }
-
-  const doBackup = async () => {
-    try {
-      const res = await fetch('/api/backup', { method: 'POST', credentials: 'include' })
-      if (!res.ok) throw new Error(await res.text())
-      const j = await res.json()
-      alert('Backup created: ' + j.backup_path)
-    } catch (e) {
-      alert('Backup failed: ' + e)
-    }
-  }
-
-
-  const migrateHubTags = async () => {
-    if (!confirm('This will rename systems that have "HUB Tag:" in their description to use the hub tag as the system name. The original name will be preserved in the notes. Continue?')) {
-      return
-    }
-    setMigrating(true)
-    try {
-      const res = await fetch('/api/migrate_hub_tags', { method: 'POST', credentials: 'include' })
-      if (!res.ok) throw new Error(await res.text())
-      const j = await res.json()
-      alert(`Migration complete!\n\nUpdated: ${j.updated} systems\nTotal found with HUB Tag: ${j.total_found}`)
-    } catch (e) {
-      alert('Migration failed: ' + e)
-    } finally {
-      setMigrating(false)
-    }
   }
 
   const changePassword = async () => {
@@ -645,45 +615,13 @@ export default function Settings() {
         </Card>
       )}
 
-      {/* Super Admin: Database Management */}
+      {/* Pointer to Admin Tools — backup and migrations moved there v1.49.0 */}
       {isSuperAdmin && (
-        <Card className="bg-gray-800/50">
-          <div className="p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Database Management</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Create backups or restore the database from a backup file.
-            </p>
-
-            <div className="flex flex-wrap gap-4">
-              <div>
-                <Button onClick={doBackup}>Create Backup</Button>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* Super Admin: Data Migration */}
-      {isSuperAdmin && (
-        <Card className="bg-gray-800/50">
-          <div className="p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Data Migration</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              One-time migration tools for updating system data.
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-medium text-gray-300 mb-2">Hub Tag Migration</h4>
-                <p className="text-xs text-gray-500 mb-2">
-                  Renames systems that have "HUB Tag:" in their description to use the hub tag as the display name.
-                  The original system name will be preserved in the notes as "New Name:".
-                </p>
-                <Button onClick={migrateHubTags} disabled={migrating}>
-                  {migrating ? 'Migrating...' : 'Migrate Hub Tags to Names'}
-                </Button>
-              </div>
-            </div>
+        <Card className="bg-gray-800/30">
+          <div className="p-4 text-sm text-gray-400">
+            <strong className="text-white">Looking for backup / migrations?</strong> Those moved to{' '}
+            <a href="/haven-ui/admin/tools" className="text-cyan-400 hover:underline">Admin Tools</a>{' '}
+            so destructive operations don't sit next to personal settings.
           </div>
         </Card>
       )}

@@ -33,7 +33,13 @@ const EVENT_TYPE_LABELS = {
   both: { label: 'Systems + Discoveries', icon: '🏆', color: 'bg-amber-500' }
 }
 
-export default function Events() {
+/**
+ * @param {Object} props
+ * @param {boolean} [props.embedded=false] When true, skips outer min-h-screen
+ *   wrapper and page-title text — used when mounted inside AnalyticsHub.
+ *   The "+ New Event" button stays visible.
+ */
+export default function Events({ embedded = false }) {
   const navigate = useNavigate()
   const auth = useContext(AuthContext)
   const { isSuperAdmin, isAdmin, isPartner, user } = auth
@@ -221,16 +227,21 @@ export default function Events() {
     return null
   }
 
+  const outerClass = embedded ? 'space-y-6' : 'min-h-screen p-6'
+  const outerStyle = embedded ? undefined : { background: 'var(--app-bg)' }
+
   return (
-    <div className="min-h-screen p-6" style={{ background: 'var(--app-bg)' }}>
-      {/* Header */}
+    <div className={outerClass} style={outerStyle}>
+      {/* Header — title hidden when embedded (hub provides), button stays */}
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>Community Events</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
-            Track submissions and discoveries during event periods
-          </p>
-        </div>
+        {!embedded ? (
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>Community Events</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
+              Track submissions and discoveries during event periods
+            </p>
+          </div>
+        ) : <div />}
         <button
           onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"

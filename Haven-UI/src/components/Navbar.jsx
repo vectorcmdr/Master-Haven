@@ -120,13 +120,16 @@ export default function Navbar() {
     { label: 'Docs', to: '/docs', visible: true },
   ], [isAdmin, isCorrespondent, canAccess])
 
-  // Dropdown groups
+  // Dropdown groups — v1.53.1: legacy individual entries removed in favor of
+  // the consolidated hubs. The old routes (/analytics, /partner-analytics,
+  // /events, /admin/users, /admin/sub-admins, /admin/extractors, /api-keys)
+  // still resolve via App.jsx for deep links and bookmarks, they just no
+  // longer clutter the navbar.
   const NAV_GROUPS = useMemo(() => [
     {
       name: 'analytics', label: 'Analytics', visible: showAnalyticsDropdown,
       items: [
-        { label: 'Analytics', to: '/analytics', visible: isSuperAdmin },
-        { label: 'Partner Analytics', to: '/partner-analytics', visible: isAdmin && !isCorrespondent },
+        { label: 'Analytics Hub', to: '/analytics-hub', visible: isAdmin && !isCorrespondent },
         { label: 'DB Stats', to: '/db_stats', visible: true },
       ]
     },
@@ -134,20 +137,23 @@ export default function Navbar() {
       name: 'admin', label: 'Admin', visible: showAdminDropdown, showBadge: true,
       items: [
         { label: 'Approvals', to: '/pending-approvals', visible: canAccess(FEATURES.APPROVALS), badge: 'pending' },
-        { label: 'Settings', to: '/settings', visible: canAccess(FEATURES.SETTINGS) },
-        { label: 'Extractors', to: '/admin/extractors', visible: isAdmin && !isCorrespondent },
-        { label: 'Sub-Admins', to: '/admin/sub-admins', visible: isSuperAdmin || isPartner },
+        { label: 'Access Control', to: '/admin/access', visible: isAdmin && !isCorrespondent },
         { label: 'CSV Import', to: '/csv-import', visible: canAccess(FEATURES.CSV_IMPORT) },
+        { label: 'Settings', to: '/settings', visible: canAccess(FEATURES.SETTINGS) },
+      ]
+    },
+    {
+      name: 'governance', label: 'Governance', visible: showAdminDropdown,
+      items: [
         { label: 'Data Restrictions', to: '/data-restrictions', visible: isAdmin && !isCorrespondent },
+        { label: 'Audit Log', to: '/admin/audit', visible: isSuperAdmin },
       ]
     },
     {
       name: 'superadmin', label: 'Super Admin', visible: showSuperAdminDropdown,
       items: [
-        { label: 'User Management', to: '/admin/users', visible: true },
-        { label: 'API Keys', to: '/api-keys', visible: true },
         { label: 'Civilizations', to: '/admin/civilizations', visible: true },
-        { label: 'Audit Log', to: '/admin/audit', visible: true },
+        { label: 'Admin Tools', to: '/admin/tools', visible: true },
       ]
     },
   ], [showAnalyticsDropdown, showAdminDropdown, showSuperAdminDropdown,

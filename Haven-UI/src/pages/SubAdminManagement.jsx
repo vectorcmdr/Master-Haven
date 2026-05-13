@@ -35,7 +35,8 @@ const AVAILABLE_FEATURES = [
   { id: 'settings', label: 'Theme Settings', description: 'Can customize theme colors' }
 ]
 
-export default function SubAdminManagement() {
+/** @param {Object} props @param {boolean} [props.embedded=false] When true, hides the page title row — used when mounted inside AccessControl. */
+export default function SubAdminManagement({ embedded = false }) {
   const navigate = useNavigate()
   const { partnerId } = useParams() // Optional: for super admin managing specific partner's sub-admins
   const auth = useContext(AuthContext)
@@ -284,15 +285,17 @@ export default function SubAdminManagement() {
   }
 
   return (
-    <div className="p-4">
-      <Card className="max-w-4xl">
+    <div className={embedded ? '' : 'p-4'}>
+      <Card className={embedded ? '' : 'max-w-4xl'}>
         <div className="flex justify-between items-center mb-4">
-          <div>
-            <h2 className="text-2xl font-bold">Sub-Admin Management</h2>
-            <p className="text-sm text-gray-400 mt-1">
-              Sub-admins can approve submissions (except their own) and manage content for their community.
-            </p>
-          </div>
+          {!embedded ? (
+            <div>
+              <h2 className="text-2xl font-bold">Sub-Admin Management</h2>
+              <p className="text-sm text-gray-400 mt-1">
+                Sub-admins can approve submissions (except their own) and manage content for their community.
+              </p>
+            </div>
+          ) : <div />}
           <div className="flex space-x-2">
             <Button
               className="bg-green-600 text-white hover:bg-green-700"

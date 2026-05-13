@@ -21,7 +21,8 @@ import { formatDate } from '../hooks/useDateFormat'
  *   GET /api/extractor/users       — list all extractor users with community breakdown
  *   PUT /api/extractor/users/:id   — edit rate limit or toggle active (super admin only)
  */
-export default function ExtractorUsers() {
+/** @param {Object} props @param {boolean} [props.embedded=false] When true, hides the page title row — used when mounted inside AccessControl. */
+export default function ExtractorUsers({ embedded = false }) {
   const navigate = useNavigate()
   const auth = useContext(AuthContext)
   const [users, setUsers] = useState([])
@@ -178,16 +179,18 @@ export default function ExtractorUsers() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-cyan-400">Extractor Users</h1>
-        <p className="text-gray-400 mt-1">
-          {auth.isSuperAdmin
-            ? 'Manage Haven Extractor users and their API access'
-            : `Haven Extractor users submitting to ${auth.user?.displayName || auth.user?.discordTag || 'your community'}`
-          }
-        </p>
-      </div>
+      {/* Header — hidden when embedded (hub provides the page title) */}
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl font-bold text-cyan-400">Extractor Users</h1>
+          <p className="text-gray-400 mt-1">
+            {auth.isSuperAdmin
+              ? 'Manage Haven Extractor users and their API access'
+              : `Haven Extractor users submitting to ${auth.user?.displayName || auth.user?.discordTag || 'your community'}`
+            }
+          </p>
+        </div>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
