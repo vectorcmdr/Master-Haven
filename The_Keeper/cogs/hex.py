@@ -85,8 +85,7 @@ class SimpleHexKeypad(discord.ui.View):
             self.emoji_sequence.append(
                 f"<:{glyph_emojis[key].name}:{glyph_emojis[key].id}>"
             )
-            await interaction.edit_original_response(...)
-        return
+          
 
             # -------- GLYPH 1 --------
             if len(self.input_string) == 1:
