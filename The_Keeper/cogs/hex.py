@@ -78,9 +78,11 @@ class SimpleHexKeypad(discord.ui.View):
 
     def make_callback(self, key):
         async def callback(interaction: discord.Interaction):
-            await interaction.response.defer()
+            
             if len(self.input_string) >= 12:           
+            await interaction.response.defer()
                 return
+
             self.input_string += key
             self.emoji_sequence.append(
                 f"<:{glyph_emojis[key].name}:{glyph_emojis[key].id}>"
