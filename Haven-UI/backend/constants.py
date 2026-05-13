@@ -247,6 +247,24 @@ def validate_reality(reality: str) -> bool:
     return reality in ('Normal', 'Permadeath')
 
 
+def normalize_reality(reality) -> str:
+    """Defensive scrub for the `reality` field on submission intake.
+
+    Older Haven Extractor versions (≤1.9.7) can persist and send the Python
+    enum repr (e.g. "RealityMode.Normal") instead of the bare value ("Normal")
+    when pymhf's DearPyGUI round-trips the field as a string. This stripped
+    out the "RealityMode." class prefix at every backend intake site so the
+    bad value cannot reach `systems.reality` / `pending_systems.reality` /
+    `regions.reality` even from a stale client. See 2026-05-12 incident.
+    """
+    if reality is None:
+        return 'Normal'
+    s = str(reality).strip()
+    if '.' in s:
+        s = s.split('.', 1)[1]
+    return s if s in ('Normal', 'Permadeath') else 'Normal'
+
+
 def get_discovery_type_slug(discovery_type: str) -> str:
     """Convert discovery type emoji or text to URL-friendly slug."""
     if not discovery_type:

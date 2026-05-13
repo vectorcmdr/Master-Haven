@@ -264,8 +264,20 @@ API_BASE_URL = _config["api_url"]
 API_KEY = _config["api_key"]
 USER_DISCORD_USERNAME = _config.get("discord_username", "")
 USER_PERSONAL_ID = _config.get("personal_id", "")
-USER_DISCORD_TAG = _config.get("discord_tag", "personal")
-USER_REALITY = _config.get("reality", "Normal")
+# Strip any leftover "RealityMode." / "CommunityTag." class prefix that an
+# earlier (≤1.9.7) build may have persisted into config.json. Helpers
+# `_normalize_reality` / `_normalize_community_tag` are defined later in the
+# file (after the enum classes), so this is an inline equivalent that only
+# runs at module init. The full validators kick in on every setter call.
+_loaded_discord_tag = _config.get("discord_tag", "personal")
+if isinstance(_loaded_discord_tag, str) and "." in _loaded_discord_tag:
+    _loaded_discord_tag = _loaded_discord_tag.split(".", 1)[1]
+USER_DISCORD_TAG = _loaded_discord_tag or "personal"
+
+_loaded_reality = _config.get("reality", "Normal")
+if isinstance(_loaded_reality, str) and "." in _loaded_reality:
+    _loaded_reality = _loaded_reality.split(".", 1)[1]
+USER_REALITY = _loaded_reality if _loaded_reality in ("Normal", "Permadeath") else "Normal"
 
 # =============================================================================
 # DYNAMIC COMMUNITY LIST
@@ -820,6 +832,37 @@ class RealityMode(Enum):
     Normal = "Normal"
     Permadeath = "Permadeath"
 
+
+# 2026-05-12: pymhf's DearPyGUI sometimes round-trips the ENUM gui_variable
+# as the Python enum repr ("RealityMode.Normal") instead of as a RealityMode
+# instance. Previously the setter's `str(value)` fallback persisted that bad
+# string verbatim into config.json and every submission payload, surfacing
+# as a phantom "RealityMode.Normal" reality card in the Haven UI Systems
+# Browser. Strip any enum-class prefix and validate against the known values.
+def _normalize_reality(value) -> str:
+    if value is None:
+        return "Normal"
+    if isinstance(value, RealityMode):
+        return value.value
+    s = str(value).strip()
+    if "." in s:
+        s = s.split(".", 1)[1]
+    return s if s in ("Normal", "Permadeath") else "Normal"
+
+
+# Same defense for CommunityTag — its setter has the identical str()-fallback
+# shape. Strips "CommunityTag." prefix if pymhf round-trips an enum repr.
+def _normalize_community_tag(value, default: str = "personal") -> str:
+    if value is None:
+        return default
+    if isinstance(value, CommunityTag):
+        return value.value
+    s = str(value).strip()
+    if "." in s:
+        s = s.split(".", 1)[1]
+    valid_values = {m.value for m in CommunityTag}
+    return s if s in valid_values else default
+
 # v1.6.8: Game mode / difficulty preset enum (cGcDifficultyPresetType)
 # Read from memory at runtime to track which mode produced the adjective data
 GAME_MODE_PRESETS = {
@@ -845,8 +888,8 @@ GAME_MODE_TO_DIFFICULTY_INDEX = {
 
 class HavenExtractorMod(Mod):
     __author__ = "Voyagers Haven"
-    __version__ = "1.9.7"
-    __description__ = "Batch upload fix: middle-of-batch systems previously got the NEXT system's lifeform / star_color / economy / planet sizes because _save_current_system_to_batch re-read sys_data at save time (which runs from the next on_system_generate, by which point NMS has overwritten the memory pool with the new system). Now snapshots system properties WHILE the current system is active, and builds the planet list from hook-captured data only - never reads cached_solar_system.maPlanets at save time."
+    __version__ = "1.9.8"
+    __description__ = "Fixes a long-standing config bug where pymhf's DearPyGUI sometimes round-tripped the RealityMode / CommunityTag enum gui_variables back as their Python repr string (\"RealityMode.Normal\") instead of as enum instances. The old setter fallback `str(value)` persisted that bad string verbatim into config.json and into every submission's `reality` field, which produced a phantom \"RealityMode.Normal\" reality on the Haven dashboard (50 prod rows as of 2026-05-12). Adds `_normalize_reality()` / `_normalize_community_tag()` helpers, applies them in both setters, and scrubs the values at module-init when loading config.json so any pre-existing bad config self-heals."
 
     # ==========================================================================
     # VALID ADJECTIVE LISTS FROM adjectives.js
@@ -895,7 +938,7 @@ class HavenExtractorMod(Mod):
     @community_tag.setter
     def community_tag(self, value: CommunityTag):
         global USER_DISCORD_TAG
-        tag = value.value if isinstance(value, CommunityTag) else str(value)
+        tag = _normalize_community_tag(value)
         self._discord_tag = tag
         USER_DISCORD_TAG = tag
         self._save_config_to_file()
@@ -913,7 +956,7 @@ class HavenExtractorMod(Mod):
     @reality_mode.setter
     def reality_mode(self, value: RealityMode):
         global USER_REALITY
-        reality = value.value if isinstance(value, RealityMode) else str(value)
+        reality = _normalize_reality(value)
         self._reality = reality
         USER_REALITY = reality
         self._save_config_to_file()

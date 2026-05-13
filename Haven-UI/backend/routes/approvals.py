@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Cookie, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from constants import normalize_discord_username, validate_galaxy, validate_reality, GALAXY_BY_INDEX, resolve_source
+from constants import normalize_discord_username, validate_galaxy, validate_reality, normalize_reality, GALAXY_BY_INDEX, resolve_source
 from db import (
     get_db_path,
     get_db_connection,
@@ -195,7 +195,7 @@ async def submit_system(
         # Canonical dedup: last 11 glyph chars + galaxy + reality
         # Glyphs are required for manual submissions (validated above)
         glyph_code = payload.get('glyph_code')
-        system_reality = payload.get('reality', 'Normal')
+        system_reality = normalize_reality(payload.get('reality'))
         existing_glyph_system = None
         mismatch_flags = []
 
@@ -349,7 +349,7 @@ async def submit_system(
             rx = payload.get('region_x')
             ry = payload.get('region_y')
             rz = payload.get('region_z')
-            r_reality = payload.get('reality', 'Normal') or 'Normal'
+            r_reality = normalize_reality(payload.get('reality'))
             r_galaxy = payload.get('galaxy', 'Euclid') or 'Euclid'
 
             try:
@@ -2891,7 +2891,7 @@ async def check_glyph_codes(
 
     # Optional galaxy/reality for scoped dedup (defaults match most common case)
     galaxy = payload.get('galaxy', 'Euclid') or 'Euclid'
-    reality = payload.get('reality', 'Normal') or 'Normal'
+    reality = normalize_reality(payload.get('reality'))
 
     # Limit to prevent abuse
     if len(glyph_codes) > 100:
@@ -3042,7 +3042,7 @@ async def receive_extraction(
     discord_username = payload.get('discord_username', '')
     personal_id = payload.get('personal_id', '')
     discord_tag = payload.get('discord_tag', 'personal')  # Default to personal if not specified
-    reality = payload.get('reality', 'Normal')
+    reality = normalize_reality(payload.get('reality'))
     game_mode = payload.get('game_mode', 'Normal')  # v1.6.8: difficulty preset tracking
     # Profile ID: from payload (new extractor) or resolve from username/api_key
     submitter_profile_id = payload.get('profile_id')

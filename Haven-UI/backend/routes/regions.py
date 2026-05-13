@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Cookie, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from constants import normalize_discord_username, resolve_source
+from constants import normalize_discord_username, normalize_reality, resolve_source
 from db import get_db_connection, get_db_path, add_activity_log
 from planet_atlas_wrapper import generate_planet_html
 from services.auth_service import (
@@ -1029,7 +1029,7 @@ async def api_update_region(rx: int, ry: int, rz: int, payload: dict, session: O
     if not custom_name:
         raise HTTPException(status_code=400, detail='Custom name is required')
 
-    reality = payload.get('reality', 'Normal')
+    reality = normalize_reality(payload.get('reality'))
     galaxy = payload.get('galaxy', 'Euclid')
 
     conn = None
@@ -1125,7 +1125,7 @@ async def api_submit_region_name(
     discord_tag = payload.get('discord_tag')
     personal_discord_username = (payload.get('personal_discord_username') or '').strip() or None
     submitted_by = (payload.get('submitted_by') or '').strip() or personal_discord_username or 'anonymous'
-    reality = payload.get('reality', 'Normal')
+    reality = normalize_reality(payload.get('reality'))
     galaxy = payload.get('galaxy', 'Euclid')
     submitter_profile_id = payload.get('submitter_profile_id')
 

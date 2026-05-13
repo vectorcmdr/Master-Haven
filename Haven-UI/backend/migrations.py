@@ -6331,3 +6331,28 @@ def migration_1_80_0(conn):
     # Restore the connection's prior row_factory so later migrations and the
     # rest of startup see the same shape they had before this migration ran.
     conn.row_factory = prev_factory
+
+
+@register_migration("1.81.0", "Re-scrub 'RealityMode.Normal' → 'Normal' rows that arrived after migration 1.79.0")
+def migration_1_81_0(conn):
+    """Stale Haven Extractor builds (≤1.9.7) still persist and submit the
+    Python enum repr `RealityMode.Normal` as the literal `reality` string.
+    Migration 1.79.0 cleaned the existing rows, but ran only once — new
+    submissions from unfixed extractor installs keep poisoning the column
+    (50 rows visible on prod as of 2026-05-12, surfacing as a phantom
+    "RealityMode.Normal" reality card in the Systems Browser).
+
+    Layer 2 defense (`constants.normalize_reality`) is now applied at every
+    backend intake site so no new rows can land. This migration scrubs the
+    rows that landed between 1.79.0 running and the intake guard shipping.
+    Same UPDATEs as 1.79.0 — idempotent, no-op once clean.
+    """
+    cursor = conn.cursor()
+    cursor.execute("UPDATE systems SET reality = 'Normal' WHERE reality = 'RealityMode.Normal'")
+    fixed = cursor.rowcount
+    cursor.execute("UPDATE pending_systems SET reality = 'Normal' WHERE reality = 'RealityMode.Normal'")
+    fixed += cursor.rowcount
+    cursor.execute("UPDATE regions SET reality = 'Normal' WHERE reality = 'RealityMode.Normal'")
+    fixed += cursor.rowcount
+    if fixed:
+        logger.info(f"Migration 1.81.0: re-scrubbed {fixed} 'RealityMode.Normal' rows")
