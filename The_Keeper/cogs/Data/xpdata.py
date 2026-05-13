@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import time
+import aiosqlite
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "Data", "xp.db")
