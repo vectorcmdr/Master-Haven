@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import asyncio
 
 glyph_emojis = {
@@ -205,11 +206,17 @@ class HexKey(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name="hexkey",
-    help="A glyph keyboard for stellar information")
-    async def hexkey(self, ctx):
-        view = SimpleHexKeypad(owner_id=ctx.author.id)
-        await ctx.send(embed=view.build_embed(), view=view)
+    @app_commands.command(
+        name="hexkey",
+        description="A glyph keyboard for stellar information"
+    )
+    async def hexkey(self, interaction: discord.Interaction):
+        view = SimpleHexKeypad(owner_id=interaction.user.id)
+    
+        await interaction.response.send_message(
+            embed=view.build_embed(),
+            view=view
+        )
 
 
 async def setup(bot):
