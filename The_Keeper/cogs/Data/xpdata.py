@@ -266,51 +266,42 @@ async def add_xp(user_id, role, amount):
     await ensure_user(user_id)
 
     async with aiosqlite.connect(DB_PATH) as db:
+
         await db.execute("""
-            UPDATE user_roles
-            SET xp = xp + ?
-            WHERE user_id=? AND role=?
-        """, (amount, user_id, role))
+        INSERT OR IGNORE INTO user_roles (user_id, role, xp, level)
+        VALUES (?, ?, 0, 1)
+        """, (user_id, role))
+
+        cur = await db.execute("""
+        SELECT xp, level
+        FROM user_roles
+        WHERE user_id=? AND role=?
+        """, (user_id, role))
+
+        row = await cur.fetchone()
+
+        xp, old_level = row
+        level = int(old_level)
+
+        xp += amount
+
+        while level < CONFIG["leveling"]["max_level"]:
+            needed = await get_xp_requirement(level)
+
+            if xp < needed:
+                break
+
+            xp -= needed
+            level += 1
+
+        await db.execute("""
+        UPDATE user_roles
+        SET xp=?, level=?
+        WHERE user_id=? AND role=?
+        """, (xp, level, user_id, role))
 
         await db.commit()
 
-    
-    cur.execute("""
-    INSERT OR IGNORE INTO user_roles (user_id, role, xp, level)
-    VALUES (?, ?, 0, 1)
-    """, (user_id, role))
-
-    
-    cur.execute("""
-    SELECT xp, level
-    FROM user_roles
-    WHERE user_id=? AND role=?
-    """, (user_id, role))
-
-    xp, old_level = cur.fetchone()
-    level = int(old_level)
-
-    xp += amount
-
-    while level < CONFIG["leveling"]["max_level"]:
-        needed = get_xp_requirement(level)
-
-        if xp < needed:
-            break
-
-        xp -= needed
-        level += 1
-
-    
-    cur.execute("""
-    UPDATE user_roles
-    SET xp=?, level=?
-    WHERE user_id=? AND role=?
-    """, (xp, level, user_id, role))
-
-    conn.commit()
-    conn.close()
-    
     leveled_up = level > old_level
 
     return xp, level, leveled_up
