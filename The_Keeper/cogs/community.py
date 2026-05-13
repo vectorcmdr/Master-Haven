@@ -389,13 +389,6 @@ class CommunityCog(commands.Cog):
                 if not link.startswith("http"):
                     link = "https://" + link
 
-                e.add_field(
-                    name="🔗 Link",
-                    value=f"[Open]({link})",
-                    inline=False
-                )
-
-            return e
 
         view = SearchPaginator(self, matches, build_embed)
 
