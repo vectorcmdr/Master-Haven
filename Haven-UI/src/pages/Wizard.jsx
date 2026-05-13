@@ -1081,9 +1081,48 @@ export default function Wizard() {
 
       {/* Advanced flow: landscape preview banner ABOVE the form area.
           Mounted outside the flex-row below so it spans the content width
-          and the form/sidebar layout stays untouched. */}
+          and the form/sidebar layout stays untouched.
+
+          Desktop (lg+): always rendered exactly as before.
+          Mobile (<lg): wrapped in a collapsed-by-default <details> so it
+          doesn't eat half the viewport on top of the sticky toolbar+pill
+          nav. Summary chip surfaces grade so the user gets the key signal
+          without expanding. */}
       {flow === 'advanced' && (
-        <WizardAdvancedPreview system={system} gradeInfo={completeness} />
+        <>
+          <div className="hidden lg:block">
+            <WizardAdvancedPreview system={system} gradeInfo={completeness} />
+          </div>
+          <details
+            className="lg:hidden mt-2 rounded-lg overflow-hidden"
+            style={{ border: '1px solid var(--app-accent-3)', backgroundColor: 'var(--app-card)' }}
+          >
+            <summary
+              className="cursor-pointer select-none px-3 py-2 flex items-center justify-between text-xs font-semibold"
+              style={{ listStyle: 'none' }}
+            >
+              <span className="flex items-center gap-2">
+                <span className="opacity-70">📊 Live preview</span>
+                {completeness?.grade && completeness.grade !== '—' && (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                    style={{
+                      backgroundColor: 'var(--app-primary)',
+                      color: '#fff',
+                    }}
+                  >
+                    {completeness.grade}
+                    {completeness.percent != null ? ` · ${Math.round(completeness.percent)}%` : ''}
+                  </span>
+                )}
+              </span>
+              <span className="opacity-50 text-[10px]">tap to expand</span>
+            </summary>
+            <div className="border-t" style={{ borderColor: 'var(--app-accent-3)' }}>
+              <WizardAdvancedPreview system={system} gradeInfo={completeness} />
+            </div>
+          </details>
+        </>
       )}
 
       {/* Form flex container */}

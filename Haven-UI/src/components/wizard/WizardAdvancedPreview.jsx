@@ -73,14 +73,11 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
   return (
     <aside
       // Top-banner mount in the advanced wizard flow — full content width,
-      // sticky to viewport top on scroll so the live preview tracks the
-      // user's edits as they scroll the form below.
-      className="w-full mb-4"
-      style={{
-        position: 'sticky',
-        top: 16,
-        zIndex: 10,
-      }}
+      // sticky to viewport top on scroll (desktop only) so the live preview
+      // tracks the user's edits as they scroll the form below. On mobile
+      // (<lg) it scrolls away with the form: combined with the sticky
+      // toolbar+pill nav above, sticky-on-mobile ate >50% of the viewport.
+      className="w-full mb-4 lg:sticky lg:top-4 lg:z-10"
     >
       <div
         className="rounded-lg overflow-hidden relative"
@@ -91,7 +88,7 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
       >
         {/* Eyebrow */}
         <div
-          className="px-5 py-2 flex items-center justify-between text-[10px] mono uppercase tracking-widest"
+          className="px-3 sm:px-5 py-2 flex items-center justify-between text-[10px] mono uppercase tracking-widest"
           style={{ color: 'rgba(255,255,255,0.55)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
         >
           <span>System Preview · Live</span>
@@ -108,17 +105,29 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
           </span>
         </div>
 
-        {/* Hero row */}
-        <div className="px-5 py-4 grid gap-4" style={{ gridTemplateColumns: '220px 1fr' }}>
-          {/* Orbital diagram */}
-          <div className="flex items-center justify-center" style={{ minHeight: 220 }}>
-            <OrbitalDiagram
-              size={220}
-              starType={system?.star_type}
-              planets={system?.planets || []}
-              hasStation={hasStation}
-              stationStroke="var(--app-accent-2)"
-            />
+        {/* Hero row — stacked on mobile (orbit on top, content below),
+            two-column at lg+ matching the original landscape layout. */}
+        <div className="px-3 sm:px-5 py-4 flex flex-col lg:grid lg:gap-4 gap-3 lg:[grid-template-columns:220px_1fr]">
+          {/* Orbital diagram — 140px on mobile, 220px on desktop */}
+          <div className="flex items-center justify-center lg:[min-height:220px]">
+            <div className="lg:hidden">
+              <OrbitalDiagram
+                size={140}
+                starType={system?.star_type}
+                planets={system?.planets || []}
+                hasStation={hasStation}
+                stationStroke="var(--app-accent-2)"
+              />
+            </div>
+            <div className="hidden lg:block">
+              <OrbitalDiagram
+                size={220}
+                starType={system?.star_type}
+                planets={system?.planets || []}
+                hasStation={hasStation}
+                stationStroke="var(--app-accent-2)"
+              />
+            </div>
           </div>
 
           {/* Right column */}
@@ -134,7 +143,7 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
               <StatTile label="Economy" value={system?.economy_type || '—'} sub={system?.economy_level || null} />
               <StatTile label="Conflict" value={system?.conflict_level || '—'} />
               <StatTile label="Lifeform" value={system?.dominant_lifeform || '—'} truncate />
@@ -169,16 +178,16 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
         </div>
 
         {/* Detail strip — planet biome thumbnails + feature badges + glyph row */}
-        <div className="px-5 py-3 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="px-3 sm:px-5 py-3 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           {planets.length > 0 && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="opacity-60 mono uppercase tracking-wider text-[10px] shrink-0" style={{ width: 70 }}>Planets</span>
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="opacity-60 mono uppercase tracking-wider text-[10px] shrink-0 w-12 lg:w-[70px]">Planets</span>
+              <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
                 {planets.map((p, i) => (
                   <div
                     key={i}
                     title={`${p.name || `P${i + 1}`}${p.biome ? ' · ' + p.biome : ''}`}
-                    className="w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-bold"
+                    className="w-5 h-5 lg:w-6 lg:h-6 rounded-md flex items-center justify-center text-[9px] font-bold"
                     style={{
                       background: BIOME_TINTS[p.biome] || 'rgba(255,255,255,0.10)',
                       color: '#0a0e27',
@@ -193,7 +202,7 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
 
           {features.length > 0 && (
             <div className="flex items-center gap-2 text-xs">
-              <span className="opacity-60 mono uppercase tracking-wider text-[10px] shrink-0" style={{ width: 70 }}>Features</span>
+              <span className="opacity-60 mono uppercase tracking-wider text-[10px] shrink-0 w-12 lg:w-[70px]">Features</span>
               <div className="flex flex-wrap gap-1">
                 {features.map((f) => (
                   <span key={f} className="pill pill-amber text-[10px]">★ {f}</span>
@@ -203,7 +212,7 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
           )}
 
           <div className="flex items-center gap-2 text-xs">
-            <span className="opacity-60 mono uppercase tracking-wider text-[10px] shrink-0" style={{ width: 70 }}>Glyphs</span>
+            <span className="opacity-60 mono uppercase tracking-wider text-[10px] shrink-0 w-12 lg:w-[70px]">Glyphs</span>
             <div className="flex items-center gap-1 flex-wrap">
               {Array.from({ length: 12 }).map((_, i) => {
                 const c = glyphChars[i]
@@ -211,7 +220,7 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
                 return (
                   <div
                     key={i}
-                    className="w-6 h-6 rounded flex items-center justify-center"
+                    className="w-5 h-5 lg:w-6 lg:h-6 rounded flex items-center justify-center"
                     style={{
                       background: 'rgba(0,0,0,0.35)',
                       border: '1px solid rgba(255,255,255,0.08)',
@@ -223,7 +232,8 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
                       <img
                         src={`/haven-ui-photos/${file}`}
                         alt={c}
-                        style={{ width: 22, height: 22, objectFit: 'cover', mixBlendMode: 'screen', filter: 'brightness(1.4)' }}
+                        className="w-[18px] h-[18px] lg:w-[22px] lg:h-[22px]"
+                        style={{ objectFit: 'cover', mixBlendMode: 'screen', filter: 'brightness(1.4)' }}
                       />
                     ) : (
                       <span className="mono text-[10px] opacity-50">·</span>
@@ -233,7 +243,7 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
               })}
             </div>
             {system?.glyph_code && glyphChars.length === 12 && (
-              <span className="mono text-[10px] opacity-50 ml-2">{system.glyph_code}</span>
+              <span className="mono text-[10px] opacity-50 ml-2 hidden sm:inline">{system.glyph_code}</span>
             )}
           </div>
         </div>
@@ -241,7 +251,7 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
         {/* Region footer (matches the original portrait panel) */}
         {system?.region_x != null && (
           <div
-            className="px-5 py-2 text-[10px] mono uppercase tracking-wider opacity-50"
+            className="px-3 sm:px-5 py-2 text-[10px] mono uppercase tracking-wider opacity-50"
             style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
           >
             Region [{system.region_x}, {system.region_y}, {system.region_z}]
