@@ -342,8 +342,8 @@ class FeaturedCog(commands.Cog):
 
 # -------------------- SETUP --------------------
 async def setup(bot: commands.Bot):
-    PHOTO_CHANNEL_ID = int(os.getenv("PHOTO_CHANNEL_ID", "0"))
-    FEATURED_CHANNEL_ID = int(os.getenv("FEATURED_CHANNEL_ID", "0"))
+    PHOTO_CHANNEL_ID = int(os.getenv("PHOTO_CHANNEL_ID"))
+    FEATURED_CHANNEL_ID = int(os.getenv("FEATURED_CHANNEL_ID"))
     FEATURED_THRESHOLD = int(os.getenv("FEATURED_THRESHOLD", "5"))
     FEATURED_TIME_LIMIT = int(os.getenv("FEATURED_TIME_LIMIT", str(7 * 24 * 60 * 60)))
 
