@@ -112,20 +112,27 @@ class FeaturedCog(commands.Cog):
                 self.log("ERROR", "Featured channel not found")
                 return
 
-            image = next((a for a in message.attachments if is_valid_image(a.filename)), None)
-            if not image:
+            images = [a for a in message.attachments if is_valid_image(a.filename)]
+
+            if not images:
                 return
-
-            embed = discord.Embed(
-                title="📸 Featured Photo",
-                description=f"Featured by {message.author.mention}",
-                color=0x008080
-            )
-            embed.set_image(url=image.url)
-            embed.add_field(name="Original Message", value=f"[Jump to photo]({message.jump_url})", inline=False)
-
-            await featured_channel.send(embed=embed)
-
+            
+            for index, image in enumerate(images, start=1):
+                embed = discord.Embed(
+                    title=f"📸 Featured Photo #{index}",
+                    description=f"Featured by {message.author.mention}",
+                    color=0x008080
+                )
+            
+                embed.set_image(url=image.url)
+            
+                embed.add_field(
+                    name="Original Message",
+                    value=f"[Jump to photo]({message.jump_url})",
+                    inline=False
+                )
+            
+                await featured_channel.send(embed=embed)
             self.FEATURED_MESSAGES.add(message.id)
             self.save_featured_messages()
 
