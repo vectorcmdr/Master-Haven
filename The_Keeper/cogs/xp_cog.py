@@ -119,7 +119,7 @@ async def add_global_xp(user_id, amount):
         if level == 7:
             dm = 1
 
-    save_global(user_id, xp, level, dm)
+    await save_global(user_id, xp, level, dm)
     return level, leveled_up, bool(dm)
 
 
@@ -142,7 +142,7 @@ async def process_message_xp(message):
 
     xp = get_cfg("xp.primary_per_message", 1)
 
-    add_xp(user_id, role, xp)
+    await add_xp(user_id, role, xp)
 
     level, leveled_up, dm = await add_global_xp(user_id, xp)
 
