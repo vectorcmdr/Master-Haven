@@ -293,7 +293,7 @@ async def main():
     async def setup_hook():        
         await init_db()
 
-        bot.setup_hook = setup_hook
+    bot.setup_hook = setup_hook
 
     for cog in COGS:
         await bot.load_extension(cog)
