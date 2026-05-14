@@ -217,6 +217,12 @@ def get_cfg(key, default=0):
     section, sub = key.split(".")
     return CONFIG.get(section, {}).get(sub, default)
 
+def rank_name_to_level(name: str) -> int:
+    for rank in CONFIG["ranks"]:
+        if rank["name"].lower() == name.lower():
+            return rank["min_level"]
+    return 1
+
 
 # ---------------- DB HELPERS ----------------
 def get_rank_data(level: int):
@@ -282,7 +288,7 @@ async def add_xp(user_id, role, amount):
         row = await cur.fetchone()
 
         xp, old_level = row
-        level = int(old_level)
+        level = int(old_level) if str(old_level).isdigit() else rank_name_to_level(old_level)
 
         xp += amount
 
