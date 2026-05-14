@@ -188,8 +188,6 @@ bot.PRIMARY_ROLES = PRIMARY_ROLES
 bot.XP_ENABLED_CHANNELS = XP_ENABLED_CHANNELS
 bot.role_welcome_messages = role_welcome_messages
 from cogs.Data.xpdata import init_db, CONFIG
-
-await init_db()
 # -------------------- COGS --------------------
 COGS = [
     "cogs.personality",
@@ -293,6 +291,7 @@ async def on_command_error(ctx, error):
 # -------------------- RUN --------------------
 async def main():
     async def setup_hook():        
+        await init_db()
 
         bot.setup_hook = setup_hook
 
