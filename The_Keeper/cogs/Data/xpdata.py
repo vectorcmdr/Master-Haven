@@ -217,13 +217,6 @@ def get_cfg(key, default=0):
     section, sub = key.split(".")
     return CONFIG.get(section, {}).get(sub, default)
 
-def rank_name_to_level(name: str) -> int:
-    for rank in CONFIG["ranks"]:
-        if rank["name"].lower() == name.lower():
-            return rank["min_level"]
-    return 1
-
-
 # ---------------- DB HELPERS ----------------
 def get_rank_data(level: int):
     """
@@ -288,18 +281,20 @@ async def add_xp(user_id, role, amount):
         row = await cur.fetchone()
 
         xp, old_level = row
-        level = int(old_level) if str(old_level).isdigit() else rank_name_to_level(old_level)
 
         xp += amount
 
         while level < CONFIG["leveling"]["max_level"]:
-            needed = await get_xp_requirement(level)
+            needed = get_rank(level)["xp_per_level"]
 
             if xp < needed:
                 break
 
             xp -= needed
             level += 1
+
+        old_rank = get_rank(old_level)
+        new_rank = get_rank(level)
 
         await db.execute("""
         UPDATE user_roles
@@ -327,8 +322,8 @@ async def get_level(user_id, role):
     return row[0] if row else 1
 
 def get_rank(user_id, role):
-    level = get_level(user_id, role)
-    return get_rank_name(level)
+    level = await get_level(user_id, role)
+    return get_rank(level)["name"]
 
 
 async def set_level(user_id, role, level):
