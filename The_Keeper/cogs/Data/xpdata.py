@@ -187,6 +187,11 @@ async def init_db():
             senior_dm_sent INTEGER DEFAULT 0
         )
         """)
+        await db.execute("""
+        UPDATE user_roles
+        SET level = 1
+        WHERE typeof(level) = 'text'
+        """)
 
         await db.commit()
     
