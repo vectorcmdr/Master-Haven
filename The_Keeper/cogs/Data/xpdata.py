@@ -309,7 +309,7 @@ async def add_xp(user_id, role, amount):
 
         await db.commit()
 
-    leveled_up = level > old_level
+    leveled_up = int(level) > int(old_level)
 
     return xp, level, leveled_up
 
