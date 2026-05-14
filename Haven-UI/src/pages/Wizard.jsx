@@ -724,13 +724,25 @@ export default function Wizard() {
       const evidenceUrls = (d.evidence_urls || '')
         .split('\n').map((s) => s.trim()).filter(Boolean)
       const allEvidence = [...photos.slice(1).map((p) => p.path), ...evidenceUrls]
+      // Only pass through numeric DB ids — the wizard's synthetic picker
+      // ids ("planet-0", "P1::M1::0") are not valid planets.id / moons.id
+      // values and SQLite's loose type affinity would let them land as
+      // strings inside INTEGER columns, breaking the LEFT JOIN on the
+      // discoveries browse page. New-system admin saves where these are
+      // synthetic end up with a NULL link (same as public-path drafts
+      // whose planet_name doesn't resolve at approval time).
+      const _numericOrNull = (v) => {
+        if (v == null) return null
+        const n = typeof v === 'number' ? v : (/^\d+$/.test(String(v)) ? parseInt(v, 10) : NaN)
+        return Number.isFinite(n) ? n : null
+      }
       const body = {
         discovery_name: d.discovery_name.trim(),
         discovery_type: d.discovery_type,
         description: d.description?.trim() || null,
         system_id: systemId,
-        planet_id: d.planet_id || null,
-        moon_id: d.moon_id || null,
+        planet_id: _numericOrNull(d.planet_id),
+        moon_id: _numericOrNull(d.moon_id),
         location_type: d.location_type || 'planet',
         location_name: d.location_name?.trim() || null,
         discord_username: submitterDiscordUsername.trim() || personalDiscordUsername.trim() || (user?.username || ''),

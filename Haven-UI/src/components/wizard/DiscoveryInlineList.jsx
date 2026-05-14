@@ -247,24 +247,38 @@ function DiscoveryCard({
               <select
                 className="w-full mt-2 p-2 rounded text-sm"
                 style={{ backgroundColor: 'var(--app-card)', border: '1px solid var(--app-accent-3)' }}
-                value={discovery.planet_id || ''}
-                onChange={(e) => onChange({ planet_id: e.target.value ? Number(e.target.value) : null })}
+                value={discovery.planet_id != null ? String(discovery.planet_id) : ''}
+                // Keep the value as a string — the synthetic IDs from new
+                // submissions (e.g. "planet-0") are not numeric, so
+                // Number() would yield NaN and the controlled select would
+                // snap back to "— Pick a planet —". buildDiscoveryDraftEntry
+                // compares both sides via String() so this works for either
+                // synthetic strings or real DB ids alike.
+                onChange={(e) => onChange({ planet_id: e.target.value || null })}
               >
                 <option value="">— Pick a planet —</option>
-                {planets.map((p, i) => <option key={p.id || i} value={p.id || i}>{p.name || `Planet ${i + 1}`}</option>)}
+                {planets.map((p, i) => {
+                  const v = String(p.id ?? i)
+                  return <option key={v} value={v}>{p.name || `Planet ${i + 1}`}</option>
+                })}
               </select>
             )}
             {discovery.location_type === 'moon' && (
               <select
                 className="w-full mt-2 p-2 rounded text-sm"
                 style={{ backgroundColor: 'var(--app-card)', border: '1px solid var(--app-accent-3)' }}
-                value={discovery.moon_id || ''}
-                onChange={(e) => onChange({ moon_id: e.target.value ? Number(e.target.value) : null })}
+                value={discovery.moon_id != null ? String(discovery.moon_id) : ''}
+                onChange={(e) => onChange({ moon_id: e.target.value || null })}
               >
                 <option value="">— Pick a moon —</option>
-                {moons.map((m, i) => <option key={m.id || i} value={m.id || i}>
-                  {m.name || `Moon ${i + 1}`}{m.parentPlanetName ? ` (${m.parentPlanetName})` : ''}
-                </option>)}
+                {moons.map((m, i) => {
+                  const v = String(m.id ?? i)
+                  return (
+                    <option key={v} value={v}>
+                      {m.name || `Moon ${i + 1}`}{m.parentPlanetName ? ` (${m.parentPlanetName})` : ''}
+                    </option>
+                  )
+                })}
               </select>
             )}
             <input
