@@ -281,6 +281,7 @@ async def add_xp(user_id, role, amount):
         row = await cur.fetchone()
 
         xp, old_level = row
+        level=int(old_level)
 
         xp += amount
 
