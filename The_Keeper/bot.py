@@ -189,7 +189,7 @@ bot.XP_ENABLED_CHANNELS = XP_ENABLED_CHANNELS
 bot.role_welcome_messages = role_welcome_messages
 from cogs.Data.xpdata import init_db, CONFIG
 
-init_db()
+await init_db()
 # -------------------- COGS --------------------
 COGS = [
     "cogs.personality",
