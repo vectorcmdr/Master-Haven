@@ -171,7 +171,7 @@ class ReactionRoles(commands.Cog):
 
         for guild in self.bot.guilds:
 
-            data = get_panel(guild.id)
+            data = await get_panel(guild.id)
 
             if not data:
                 continue
