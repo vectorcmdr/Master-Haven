@@ -300,39 +300,39 @@ class FeaturedCog(commands.Cog):
 
 
     @commands.command(name="picusers")
-@commands.has_permissions(administrator=True)
-async def picusers(self, ctx, limit: int = 10):
-
-    user_stats = await self.gather_featured_user_stats()
-
-    if not user_stats:
-        await ctx.send("No featured photos found.")
-        return
-
-    sorted_users = sorted(
-        user_stats.items(),
-        key=lambda x: (x[1]["photos"], x[1]["reactions"]),
-        reverse=True
-    )
-
-    embed = discord.Embed(
-        title="🏆 Featured Photo User Leaderboard",
-        description="Ranked by featured photos + total reactions",
-        color=0x00AAFF
-    )
-
-    for rank, (user, stats) in enumerate(sorted_users[:limit], start=1):
-        embed.add_field(
-            name=f"{rank}.",
-            value=(
-                f"{user}\n"
-                f"📸 Featured Photos: {stats['photos']}\n"
-                f"⭐ Total Reactions (featured only): {stats['reactions']}"
-            ),
-            inline=False
+    @commands.has_permissions(administrator=True)
+    async def picusers(self, ctx, limit: int = 10):
+    
+        user_stats = await self.gather_featured_user_stats()
+    
+        if not user_stats:
+            await ctx.send("No featured photos found.")
+            return
+    
+        sorted_users = sorted(
+            user_stats.items(),
+            key=lambda x: (x[1]["photos"], x[1]["reactions"]),
+            reverse=True
         )
-
-    await ctx.send(embed=embed)
+    
+        embed = discord.Embed(
+            title="🏆 Featured Photo User Leaderboard",
+            description="Ranked by featured photos + total reactions",
+            color=0x00AAFF
+        )
+    
+        for rank, (user, stats) in enumerate(sorted_users[:limit], start=1):
+            embed.add_field(
+                name=f"{rank}.",
+                value=(
+                    f"{user}\n"
+                    f"📸 Featured Photos: {stats['photos']}\n"
+                    f"⭐ Total Reactions (featured only): {stats['reactions']}"
+                ),
+                inline=False
+            )
+    
+        await ctx.send(embed=embed)
 
 
 # -------------------- SETUP --------------------
