@@ -299,45 +299,40 @@ class FeaturedCog(commands.Cog):
         self.log("LEADERBOARD", f"Leaderboard posted with {len(top_photos)} photos")
 
 
-    @commands.command(name="pictest")
-    @commands.has_permissions(administrator=True)
-    async def pictest(self, ctx, limit: int = None):
-        await self.post_leaderboard(channel=ctx.channel, limit=limit)
-
-
     @commands.command(name="picusers")
-    @commands.has_permissions(administrator=True)
-    async def picusers(self, ctx, limit: int = 10):
-        user_stats = await self.gather_featured_user_stats()
+@commands.has_permissions(administrator=True)
+async def picusers(self, ctx, limit: int = 10):
 
-        if not user_stats:
-            await ctx.send("No featured photos found.")
-            return
+    user_stats = await self.gather_featured_user_stats()
 
-        sorted_users = sorted(
-            user_stats.items(),
-            key=lambda x: (x[1]["photos"], x[1]["reactions"]),
-            reverse=True
+    if not user_stats:
+        await ctx.send("No featured photos found.")
+        return
+
+    sorted_users = sorted(
+        user_stats.items(),
+        key=lambda x: (x[1]["photos"], x[1]["reactions"]),
+        reverse=True
+    )
+
+    embed = discord.Embed(
+        title="🏆 Featured Photo User Leaderboard",
+        description="Ranked by featured photos + total reactions",
+        color=0x00AAFF
+    )
+
+    for rank, (user, stats) in enumerate(sorted_users[:limit], start=1):
+        embed.add_field(
+            name=f"{rank}.",
+            value=(
+                f"{user}\n"
+                f"📸 Featured Photos: {stats['photos']}\n"
+                f"⭐ Total Reactions (featured only): {stats['reactions']}"
+            ),
+            inline=False
         )
 
-        embed = discord.Embed(
-            title="🏆 Featured Photo User Leaderboard",
-            description="Ranked by featured photos + total reactions",
-            color=0x00AAFF
-        )
-
-        for rank, (user, stats) in enumerate(sorted_users[:limit], start=1):
-            embed.add_field(
-                name=f"{rank}.",
-                value=(
-                    f"{user}\n"
-                    f"📸 Photos: {stats['photos']}\n"
-                    f"⭐ Reactions: {stats['reactions']}"
-                ),
-                inline=False
-            )
-
-        await ctx.send(embed=embed)
+    await ctx.send(embed=embed)
 
 
 # -------------------- SETUP --------------------
