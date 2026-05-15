@@ -12,10 +12,10 @@ def tc(amount: int) -> str:
 
 
 class WalletCog(commands.Cog): 
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.Bot, api: TravelersExchangeAPI):
         self.bot = bot 
+        self.api = api
         self.session = aiohttp.ClientSession()
-
     async def cog_unload(self):
         await self.session.close()
     
@@ -151,4 +151,4 @@ class WalletCog(commands.Cog):
 
 async def setup(bot: commands.Bot):
     api = TravelersExchangeAPI(bot, BASE_URL, API_KEY) 
-    await bot.add_cog(WalletCog(bot))
+    await bot.add_cog(WalletCog(bot, api)) 
