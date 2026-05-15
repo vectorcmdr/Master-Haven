@@ -11,6 +11,8 @@ os.makedirs("Data", exist_ok=True)
 def is_valid_image(filename: str):
     return filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
 
+DB_PATH = "featured.db"
+
 class FeaturedCog(commands.Cog):
 
     def __init__(
