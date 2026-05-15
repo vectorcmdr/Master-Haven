@@ -5,7 +5,11 @@ import sqlite3
 import os
 
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "cogs","Data","xp.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "exchange.db")
+
+# Ensure directory exists (prevents "unable to open database file")
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -29,7 +33,10 @@ class ConnectCog(commands.Cog):
         self.bot = bot
         init_db()
 
-    @app_commands.command(name="connect", description="Link your Discord account to your Exchange account")
+    @app_commands.command(
+        name="connect",
+        description="Link your Discord account to your Exchange account"
+    )
     @app_commands.describe(exchange_username="Your Travelers Exchange username")
     async def connect(self, interaction: discord.Interaction, exchange_username: str):
         discord_id = str(interaction.user.id)
@@ -38,7 +45,6 @@ class ConnectCog(commands.Cog):
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
 
-        # Insert or update existing link
         cur.execute("""
         INSERT INTO user_links (discord_id, discord_name, exchange_username)
         VALUES (?, ?, ?)
