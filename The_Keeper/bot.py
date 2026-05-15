@@ -293,13 +293,12 @@ async def on_command_error(ctx, error):
 async def main():
     api = TravelersExchangeAPI(
         bot=bot,
-        base_url=self.base_url,
+        base_url=self.BASE_URL,
         api_key=API_KEY,
         timeout=30
     )
 
     bot.exchange_api = api
-    bot.exchange_service = ExchangeService(api)
 
     async def setup_hook():
         await init_db()
