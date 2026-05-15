@@ -5,7 +5,7 @@ import sqlite3
 import os
 
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "exchange_links.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "Data", "xp.db")
 
 
 def init_db():
