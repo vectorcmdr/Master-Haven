@@ -3,11 +3,14 @@ from discord import app_commands
 from discord.ext import commands
 import sqlite3
 import os
-
+import aiohttp
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "exchange.db")
 
-# Ensure directory exists (prevents "unable to open database file")
+# Your exchange API endpoint
+BASE_URL = "https://travelersexchange.online/api"
+API_KEY = "YOUR_API_KEY"
+
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 
@@ -27,13 +30,99 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+def save_connection(discord_id: str, discord_name: str, exchange_username: str):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO user_links (discord_id, discord_name, exchange_username)
+    VALUES (?, ?, ?)
+    ON CONFLICT(discord_id)
+    DO UPDATE SET
+        discord_name=excluded.discord_name,
+        exchange_username=excluded.exchange_username
+    """, (discord_id, discord_name, exchange_username))
+
+    conn.commit()
+    conn.close()
+
+
 def get_exchange_username(discord_id: str):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("SELECT exchange_username FROM user_links WHERE discord_id=?", (discord_id,))
+
+    cur.execute(
+        "SELECT exchange_username FROM user_links WHERE discord_id=?",
+        (discord_id,)
+    )
+
     row = cur.fetchone()
     conn.close()
+
     return row[0] if row else None
+
+
+class PasswordModal(discord.ui.Modal, title="Connect Exchange Account"):
+    password = discord.ui.TextInput(
+        label="Enter password",
+        placeholder="Your Travelers Exchange password",
+        required=True,
+        style=discord.TextStyle.short
+    )
+
+    def __init__(self, cog, exchange_username: str):
+        super().__init__()
+        self.cog = cog
+        self.exchange_username = exchange_username
+
+    async def on_submit(self, interaction: discord.Interaction):
+        discord_id = str(interaction.user.id)
+        discord_name = str(interaction.user.name)
+
+        async with aiohttp.ClientSession() as session:
+
+            # Verify account exists + password is correct
+            async with session.post(
+                f"{BASE_URL}/login",
+                json={
+                    "username": self.exchange_username,
+                    "password": str(self.password)
+                },
+                headers={
+                    "Authorization": f"Bearer {API_KEY}"
+                }
+            ) as resp:
+
+                if resp.status != 200:
+                    await interaction.response.send_message(
+                        "❌ Invalid username or password.",
+                        ephemeral=True
+                    )
+                    return
+
+        # Save link in exchange.db
+        save_connection(
+            discord_id,
+            discord_name,
+            self.exchange_username
+        )
+
+        embed = discord.Embed(
+            title="✅ Exchange Connected",
+            description=(
+                f"Discord account linked to "
+                f"**{self.exchange_username}**"
+            ),
+            color=discord.Color.green()
+        )
+
+        await interaction.response.send_message(
+            embed=embed,
+            ephemeral=True
+        )
+
+
 class ConnectCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -43,29 +132,35 @@ class ConnectCog(commands.Cog):
         name="connect",
         description="Link your Discord account to your Exchange account"
     )
-    @app_commands.describe(exchange_username="Your Travelers Exchange username")
-    async def connect(self, interaction: discord.Interaction, exchange_username: str):
-        discord_id = str(interaction.user.id)
-        discord_name = str(interaction.user.name)
+    @app_commands.describe(
+        exchange_username="Your Travelers Exchange username"
+    )
+    async def connect(
+        self,
+        interaction: discord.Interaction,
+        exchange_username: str
+    ):
 
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
+        # Check username exists on exchange
+        async with aiohttp.ClientSession() as session:
 
-        cur.execute("""
-        INSERT INTO user_links (discord_id, discord_name, exchange_username)
-        VALUES (?, ?, ?)
-        ON CONFLICT(discord_id)
-        DO UPDATE SET
-            discord_name=excluded.discord_name,
-            exchange_username=excluded.exchange_username
-        """, (discord_id, discord_name, exchange_username))
+            async with session.get(
+                f"{BASE_URL}/users/{exchange_username}",
+                headers={
+                    "Authorization": f"Bearer {API_KEY}"
+                }
+            ) as resp:
 
-        conn.commit()
-        conn.close()
+                if resp.status != 200:
+                    await interaction.response.send_message(
+                        "❌ Exchange username not found.",
+                        ephemeral=True
+                    )
+                    return
 
-        await interaction.response.send_message(
-            f"✅ Connected **{discord_name}** → Exchange account **{exchange_username}**",
-            ephemeral=True
+        # Show password popup
+        await interaction.response.send_modal(
+            PasswordModal(self, exchange_username)
         )
 
 
