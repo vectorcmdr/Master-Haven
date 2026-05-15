@@ -10,12 +10,6 @@ def tc(amount: int) -> str: return f"{amount:,} TC"
 class WalletCog(commands.Cog): 
     def __init__(self, bot: commands.Bot):
         self.bot = bot 
-        self.api = TravelersExchangeAPI(
-            bot=bot,
-            base_url=BASE_URL,
-            api_key=API_KEY,
-            timeout=30
-        )
         self.session = aiohttp.ClientSession()
 
     async def cog_unload(self):
@@ -133,6 +127,7 @@ class WalletCog(commands.Cog):
     
         await interaction.followup.send(embed=embed)
     
-async def setup(bot: commands.Bot): 
+async def setup(bot: commands.Bot):
+    api = TravelersExchangeAPI(bot, BASE_URL, API_KEY) 
     await bot.add_cog(WalletCog(bot)) 
 
