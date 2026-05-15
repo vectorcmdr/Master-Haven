@@ -1,6 +1,11 @@
-import os import aiohttp import discord from discord import app_commands from discord.ext import commands
+import os 
+import aiohttp 
+import discord 
+from discord import app_commands 
+from discord.ext import commands
 
-BASE_URL = os.getenv("EXCHANGE_BASE_URL", "https://travelers-exchange.online") API_KEY = os.getenv("EXCHANGE_API_KEY", "")
+BASE_URL ="https://travelers-exchange.online"
+API_KEY =
 
 def tc(amount: int) -> str: return f"{amount:,} TC"
 
