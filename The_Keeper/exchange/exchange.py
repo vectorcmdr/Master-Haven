@@ -2,19 +2,15 @@ import aiohttp
 import asyncio
 from typing import Any, Optional
 from discord.ext import commands
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from exchange.exchange import TravelersExchangeAPI
 
 
-class ExchangeService:
-    def __init__(self, api: "TravelersExchangeAPI"):
-        self.api = api
-        self.bot = api.bot
-        self.base_url = api.base_url.rstrip("/")
-        self.api_key = api.api_key
-        self.timeout = aiohttp.ClientTimeout(total=api.timeout)
+
+class TravelersExchangeAPI:
+    def __init__(self, bot, base_url, api_key, timeout=10):
+        self.bot = bot
+        self.base_url = base_url
+        self.api_key = api_key
+        self.timeout = timeout
 
         self.session: Optional[aiohttp.ClientSession] = None
 
