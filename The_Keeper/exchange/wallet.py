@@ -49,8 +49,10 @@ class WalletCog(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         username = get_exchange_username(str(interaction.user.id))
-    
-        data, status = await self._get("/api/wallet", interaction.user.id)
+if not username:
+    return await interaction.followup.send("❌ You are not connected.")
+
+data, status = await self._get(f"/api/wallet/{username}", interaction.user.id)
     
         if status != 200:
             return await interaction.followup.send(data.get("detail", "Error fetching wallet"))
