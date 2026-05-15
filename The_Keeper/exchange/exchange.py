@@ -7,7 +7,7 @@ BASE_URL="https://travelers-exchange.online/"
 API_KEY="tx_live_c7f3247ac8aa28027e83e83e7f907192"
 
 class TravelersExchangeAPI:
-    def __init__(self, bot, base_url, api_key, timeout=10):
+    def __init__(self, bot, base_url, api_key, timeout=30):
         self.bot = bot
         self.base_url = BASE_URL
         self.api_key = API_KEY
