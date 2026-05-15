@@ -78,28 +78,33 @@ class PasswordModal(discord.ui.Modal, title="Connect Exchange Account"):
         discord_id = str(interaction.user.id)
         discord_name = str(interaction.user.name)
 
-        async with aiohttp.ClientSession() as session:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{BASE_URL}/login",
+                    json={
+                        "username": self.exchange_username,
+                        "password": str(self.password)
+                    },
+                    headers={"Authorization": f"Bearer {API_KEY}"}
+                ) as resp:
 
-            # Verify account exists + password is correct
-            async with session.post(
-                f"{BASE_URL}/login",
-                json={
-                    "username": self.exchange_username,
-                    "password": str(self.password)
-                },
-                headers={
-                    "Authorization": f"Bearer {API_KEY}"
-                }
-            ) as resp:
+                    if resp.status != 200:
+                        await interaction.response.send_message(
+                            "❌ Invalid username or password.",
+                            ephemeral=True
+                        )
+                        return
 
-                if resp.status != 200:
-                    await interaction.response.send_message(
-                        "❌ Invalid username or password.",
-                        ephemeral=True
-                    )
-                    return
+                    data = await resp.json()
 
-        # Save link in exchange.db
+        except aiohttp.ClientError:
+            await interaction.response.send_message(
+                "❌ Failed to connect to Exchange API.",
+                ephemeral=True
+            )
+            return
+
         save_connection(
             discord_id,
             discord_name,
@@ -108,10 +113,7 @@ class PasswordModal(discord.ui.Modal, title="Connect Exchange Account"):
 
         embed = discord.Embed(
             title="✅ Exchange Connected",
-            description=(
-                f"Discord account linked to "
-                f"**{self.exchange_username}**"
-            ),
+            description=f"Discord account linked to **{self.exchange_username}**",
             color=discord.Color.green()
         )
 
@@ -138,50 +140,6 @@ class ConnectCog(commands.Cog):
         interaction: discord.Interaction,
         exchange_username: str
     ):
-
-        # Check username exists on exchange
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{BASE_URL}/users/{exchange_username}",
-                        headers={
-                            "Authorization": f"Bearer {API_KEY}"
-                    }
-                    ) as resp:
-                    print("STATUS:", resp.status)
-                    print("TEXT:", await resp.text())
-
-                    if resp.status == 404:
-                        await interaction.response.send_message(
-                            "❌ Exchange username not found.",
-                            ephemeral=True
-                        )
-                        return
-
-                    if resp.status != 200:
-                        await interaction.response.send_message(
-                            f"❌ API error ({resp.status})",
-                            ephemeral=True
-                        )
-                        return
-
-                    data = await resp.json()
-
-                    # Extra validation
-                    if not data or data.get("username", "").lower() != exchange_username.lower():
-                        await interaction.response.send_message(
-                            "❌ Invalid exchange account.",
-                            ephemeral=True
-                        )
-                        return
-
-        except aiohttp.ClientError:
-            await interaction.response.send_message(
-                "❌ Failed to connect to Exchange API.",
-                ephemeral=True
-            )
-            return
-
         await interaction.response.send_modal(
             PasswordModal(self, exchange_username)
         )
