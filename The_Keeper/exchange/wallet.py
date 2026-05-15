@@ -54,7 +54,7 @@ class WalletCog(commands.Cog):
     
         
         data, status = await self.api.get_my_wallet(
-            discord_user_id=str(interaction.user.id)
+            discord_user_id=str(interaction.user.id))
 
             
         if status != 200:
