@@ -7,9 +7,7 @@ import aiohttp
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "exchange.db")
 
-# Your exchange API endpoint
-BASE_URL = "https://travelersexchange.online/api"
-API_KEY = "YOUR_API_KEY"
+from exchange.exchange import BASE_URL, API_KEY
 
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
@@ -158,7 +156,7 @@ class ConnectCog(commands.Cog):
                     )
                     return
 
-        # Show password popup
+       
         await interaction.response.send_modal(
             PasswordModal(self, exchange_username)
         )
