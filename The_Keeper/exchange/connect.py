@@ -142,29 +142,29 @@ class ConnectCog(commands.Cog):
         # Check username exists on exchange
         try:
             async with aiohttp.ClientSession() as session:
-                 async with session.get(
+                async with session.get(
                     f"{BASE_URL}/users/{exchange_username}",
                     headers={
                         "Authorization": f"Bearer {API_KEY}"
                     }
                 ) as resp:
-            
+
                     if resp.status == 404:
                         await interaction.response.send_message(
                             "❌ Exchange username not found.",
                             ephemeral=True
                         )
                         return
-            
+
                     if resp.status != 200:
                         await interaction.response.send_message(
                             f"❌ API error ({resp.status})",
                             ephemeral=True
                         )
                         return
-            
+
                     data = await resp.json()
-            
+
                     # Extra validation
                     if not data or data.get("username", "").lower() != exchange_username.lower():
                         await interaction.response.send_message(
@@ -172,15 +172,14 @@ class ConnectCog(commands.Cog):
                             ephemeral=True
                         )
                         return
-            
-            except aiohttp.ClientError:
-                await interaction.response.send_message(
-                    "❌ Failed to connect to Exchange API.",
-                    ephemeral=True
-                )
-                return
-        
-       
+
+        except aiohttp.ClientError:
+            await interaction.response.send_message(
+                "❌ Failed to connect to Exchange API.",
+                ephemeral=True
+            )
+            return
+
         await interaction.response.send_modal(
             PasswordModal(self, exchange_username)
         )
