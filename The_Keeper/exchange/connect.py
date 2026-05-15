@@ -27,7 +27,13 @@ def init_db():
     conn.commit()
     conn.close()
 
-
+def get_exchange_username(discord_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("SELECT exchange_username FROM user_links WHERE discord_id=?", (discord_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row[0] if row else None
 class ConnectCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
