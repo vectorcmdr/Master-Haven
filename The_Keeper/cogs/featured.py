@@ -13,7 +13,17 @@ def is_valid_image(filename: str):
     return filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
 
 class FeaturedCog(commands.Cog):
-    def __init__(self, bot, PHOTO_CHANNEL_ID, FEATURED_CHANNEL_ID, FEATURED_THRESHOLD, FEATURED_TIME_LIMIT, log_func, count_total_reactions_func):
+
+    def __init__(
+        self,
+        bot,
+        PHOTO_CHANNEL_ID,
+        FEATURED_CHANNEL_ID,
+        FEATURED_THRESHOLD,
+        FEATURED_TIME_LIMIT,
+        log_func,
+        count_total_reactions_func
+    ):
         self.bot = bot
         self.PHOTO_CHANNEL_ID = PHOTO_CHANNEL_ID
         self.FEATURED_CHANNEL_ID = FEATURED_CHANNEL_ID
@@ -22,10 +32,24 @@ class FeaturedCog(commands.Cog):
         self.log = log_func
         self.count_total_reactions = count_total_reactions_func
 
-        self.FEATURED_MESSAGES = self.load_featured_messages()
         self.PROCESSING = set()
-
         self.bootstrapped = False
+
+    # -------------------- SQLITE INIT --------------------
+    async def init_db(self):
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS featured_messages (
+                    message_id INTEGER PRIMARY KEY,
+                    author_id INTEGER,
+                    channel_id INTEGER,
+                    jump_url TEXT,
+                    image_url TEXT,
+                    reactions INTEGER,
+                    created_at TEXT
+                )
+            """)
+            await db.commit()
 
     # -------------------- LOAD / SAVE --------------------
     def load_featured_messages(self):
