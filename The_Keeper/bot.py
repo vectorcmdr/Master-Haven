@@ -209,6 +209,7 @@ COGS = [
     "cmds.slash",
     "cmds.voyager",
     "exchange.wallet",
+    "exchange.connect",
     "setup",
 ]
 @bot.tree.interaction_check
