@@ -3,7 +3,7 @@ import asyncio
 from typing import Any, Optional
 from discord.ext import commands
 
-BASE_URL = "https://travelers-exchange.online/"
+BASE_URL="https://travelers-exchange.online/"
 
 class TravelersExchangeAPI:
     def __init__(self, bot, base_url, api_key, timeout=10):
