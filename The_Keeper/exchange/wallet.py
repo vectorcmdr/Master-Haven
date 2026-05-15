@@ -6,9 +6,10 @@ from discord.ext import commands
 from exchange.exchange import TravelersExchangeAPI, BASE_URL, API_KEY
 from .connect import get_exchange_username
 
-username = get_exchange_username(str(interaction.user.id))
 
-def tc(amount: int) -> str: return f"{amount:,} TC"
+def tc(amount: int) -> str:
+    return f"{amount:,} TC"
+
 
 class WalletCog(commands.Cog): 
     def __init__(self, bot: commands.Bot):
@@ -46,13 +47,15 @@ class WalletCog(commands.Cog):
     @wallet_group.command(name="me", description="View your wallet")
     async def wallet_me(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+
+        username = get_exchange_username(str(interaction.user.id))
     
         data, status = await self._get("/api/wallet", interaction.user.id)
     
         if status != 200:
             return await interaction.followup.send(data.get("detail", "Error fetching wallet"))
     
-        embed = discord.Embed(title="Your Wallet", color=discord.Color.green())
+        embed = discord.Embed(title=f"Your Wallet ({username})", color=discord.Color.green())
         embed.add_field(name="Balance", value=tc(data.get("balance", 0)), inline=False)
         embed.add_field(name="Nation", value=data.get("nation", "None"), inline=False)
     
@@ -75,13 +78,15 @@ class WalletCog(commands.Cog):
     @wallet_group.command(name="history", description="View wallet transactions")
     async def wallet_history(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+
+        username = get_exchange_username(str(interaction.user.id))
     
         data, status = await self._get("/api/wallet/me/transactions", interaction.user.id)
     
         if status != 200:
             return await interaction.followup.send(data.get("detail", "Error fetching history"))
     
-        embed = discord.Embed(title="Recent Transactions", color=discord.Color.purple())
+        embed = discord.Embed(title=f"Recent Transactions ({username})", color=discord.Color.purple())
     
         for tx in data.get("items", [])[:10]:
             embed.add_field(
@@ -95,11 +100,14 @@ class WalletCog(commands.Cog):
     @wallet_group.command(name="send", description="Send TC to a wallet")
     async def wallet_send(self, interaction: discord.Interaction, to_address: str, amount: int, memo: str = ""):
         await interaction.response.defer(ephemeral=True)
+
+        username = get_exchange_username(str(interaction.user.id))
     
         payload = {
             "to_address": to_address,
             "amount": amount,
-            "memo": memo or None
+            "memo": memo or None,
+            "from_user": username
         }
     
         data, status = await self._post("/api/transactions/transfer", interaction.user.id, payload)
@@ -110,19 +118,22 @@ class WalletCog(commands.Cog):
         embed = discord.Embed(title="Transfer Successful", color=discord.Color.gold())
         embed.add_field(name="Amount", value=tc(amount), inline=False)
         embed.add_field(name="To", value=to_address, inline=False)
+        embed.add_field(name="From", value=username, inline=False)
     
         await interaction.followup.send(embed=embed)
     
     @wallet_group.command(name="tx", description="Lookup a transaction")
     async def wallet_tx(self, interaction: discord.Interaction, tx_hash: str):
         await interaction.response.defer(ephemeral=True)
+
+        username = get_exchange_username(str(interaction.user.id))
     
         data, status = await self._get(f"/api/transactions/{tx_hash}", interaction.user.id)
     
         if status != 200:
             return await interaction.followup.send(data.get("detail", "Transaction not found"))
     
-        embed = discord.Embed(title="Transaction", color=discord.Color.orange())
+        embed = discord.Embed(title=f"Transaction ({username})", color=discord.Color.orange())
         embed.add_field(name="Hash", value=tx_hash, inline=False)
         embed.add_field(name="Amount", value=tc(data.get("amount",0)), inline=False)
         embed.add_field(name="From", value=data.get("from_address"))
@@ -130,7 +141,7 @@ class WalletCog(commands.Cog):
     
         await interaction.followup.send(embed=embed)
     
+
 async def setup(bot: commands.Bot):
     api = TravelersExchangeAPI(bot, BASE_URL, API_KEY) 
-    await bot.add_cog(WalletCog(bot)) 
-
+    await bot.add_cog(WalletCog(bot))
