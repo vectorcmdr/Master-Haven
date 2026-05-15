@@ -148,6 +148,8 @@ class ConnectCog(commands.Cog):
                         "Authorization": f"Bearer {API_KEY}"
                     }
                 ) as resp:
+                print("STATUS:", resp.status)
+                print("TEXT:", await resp.text())
 
                     if resp.status == 404:
                         await interaction.response.send_message(
