@@ -51,59 +51,35 @@ class FeaturedCog(commands.Cog):
             """)
             await db.commit()
 
-    # -------------------- LOAD / SAVE --------------------
-    def load_featured_messages(self):
-        if not os.path.exists(FEATURED_FILE):
-            with open(FEATURED_FILE, "w") as f:
-                json.dump([], f, indent=4)
+    
 
-        try:
-            with open(FEATURED_FILE, "r") as f:
-                content = f.read().strip()
-                if not content:
-                    return set()
-                data = json.loads(content)
-                if isinstance(data, list):
-                    return set(data)
-                else:
-                    print("featured_messages.json invalid format. Resetting.")
-        except (json.JSONDecodeError, ValueError):
-            print("featured_messages.json corrupted. Resetting.")
-
-        with open(FEATURED_FILE, "w") as f:
-            json.dump([], f, indent=4)
-        return set()
-
-    def save_featured_messages(self):
-        try:
-            with open(FEATURED_FILE, "w") as f:
-                json.dump(list(self.FEATURED_MESSAGES), f, indent=4)
-        except Exception as e:
-            print(f"Failed saving featured messages: {e}")
-
-    # -------------------- STARTUP BOOTSTRAP --------------------
+ # -------------------- STARTUP BOOTSTRAP --------------------
     @commands.Cog.listener()
     async def on_ready(self):
         if self.bootstrapped:
             return
+    
         self.bootstrapped = True
+    
+        await self.init_db()
         await self.bootstrap_recent_photos()
-
+    
     async def bootstrap_recent_photos(self):
         await self.bot.wait_until_ready()
-
+    
         photo_channel = self.bot.get_channel(self.PHOTO_CHANNEL_ID)
+    
         if not photo_channel:
             self.log("BOOTSTRAP", "Photo channel not found")
             return
-
+    
         try:
             async for message in photo_channel.history(limit=5):
                 await self.try_feature_message(message)
                 await asyncio.sleep(0.2)
-
+    
             self.log("BOOTSTRAP", "Checked last 5 photos on startup")
-
+    
         except Exception as e:
             self.log("BOOTSTRAP_ERROR", str(e))
 
