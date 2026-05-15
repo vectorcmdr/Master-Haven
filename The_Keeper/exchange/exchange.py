@@ -7,6 +7,12 @@ from discord.ext import commands
 BASE_URL="https://travelers-exchange.online/"
 API_KEY="tx_live_c7f3247ac8aa28027e83e83e7f907192"
 
+class ExchangeAPIError(Exception):
+    def __init__(self, status: int, message: str):
+        super().__init__(f"{status}: {message}")
+        self.status = status
+        self.message = message
+
 class TravelersExchangeAPI:
     def __init__(self, bot, base_url, api_key, timeout=30):
         self.bot = bot
