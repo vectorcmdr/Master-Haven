@@ -53,7 +53,10 @@ class WalletCog(commands.Cog):
             return await interaction.followup.send("❌ You are not connected.")
     
         
-        data, status = await self._get(f"/api/wallet/{username}", interaction.user.id)
+        data, status = await self.api.get_my_wallet(
+            discord_user_id=str(interaction.user.id),
+            username=username
+        )
 
             
         if status != 200:
