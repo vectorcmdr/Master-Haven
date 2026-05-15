@@ -293,7 +293,7 @@ async def on_command_error(ctx, error):
 async def main():
     api = TravelersExchangeAPI(
         bot=bot,
-        base_url=BASE_URL,
+        base_url=self.base_url,
         api_key=API_KEY,
         timeout=30
     )
