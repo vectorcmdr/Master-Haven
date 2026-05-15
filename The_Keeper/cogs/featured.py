@@ -7,8 +7,6 @@ from discord.ext import commands, tasks
 
 os.makedirs("Data", exist_ok=True)
 
-FEATURED_FILE = "Data/featured_messages.json"
-
 def is_valid_image(filename: str):
     return filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
 
