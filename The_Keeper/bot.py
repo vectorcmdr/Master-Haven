@@ -201,11 +201,11 @@ COGS = [
     "cogs.Haven_upload",
     "cogs.announcements",
     "cogs.hex",
-    "cogs.exchange",
     "cmds.exclaim",
     "cmds.list",
     "cmds.slash",
     "cmds.voyager",
+    "exchange.exchange",
     "setup",
 ]
 @bot.tree.interaction_check
