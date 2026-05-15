@@ -131,4 +131,3 @@ class WalletCog(commands.Cog):
     async def setup(bot: commands.Bot): 
         await bot.add_cog(WalletCog(bot)) 
 
-bot.tree.add_command(WalletCog.wallet_group)
