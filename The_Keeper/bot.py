@@ -33,6 +33,8 @@ if not TOKEN:
 
 HAVEN_API = os.getenv("HAVEN_API", "https://havenmap.online")
 
+BASE_URL="https://travelers-exchange.online/"
+
 # -------------------- CONFIG --------------------
 ROLES = {
     "cartographer": {
