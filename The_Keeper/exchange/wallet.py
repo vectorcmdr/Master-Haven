@@ -49,7 +49,7 @@ class WalletCog(commands.Cog):
     async def wallet_me(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        username = get_exchange_username(str(interaction.user.id))
+        username = await get_exchange_username(str(interaction.user.id))
         if not username:
             return await interaction.followup.send("❌ You are not connected.")
     
