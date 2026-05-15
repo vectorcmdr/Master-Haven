@@ -1,5 +1,6 @@
 import os 
 import aiohttp 
+from aiohttp import ClientTimeout
 import discord 
 from discord import app_commands 
 from discord.ext import commands
@@ -15,7 +16,7 @@ class WalletCog(commands.Cog):
     def __init__(self, bot: commands.Bot, api: TravelersExchangeAPI):
         self.bot = bot 
         self.api = api
-        self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession(timeout=ClientTimeout(total=30))
     async def cog_unload(self):
         await self.session.close()
     
