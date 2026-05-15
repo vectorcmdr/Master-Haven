@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 
 class ExchangeService:
-    def __init__(self, api: TravelersExchangeAPI):
+    def __init__(self, api: "TravelersExchangeAPI"):
         self.api = api
         self.bot = api.bot
         self.base_url = api.base_url.rstrip("/")
