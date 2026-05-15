@@ -188,6 +188,7 @@ bot.PRIMARY_ROLES = PRIMARY_ROLES
 bot.XP_ENABLED_CHANNELS = XP_ENABLED_CHANNELS
 bot.role_welcome_messages = role_welcome_messages
 from cogs.Data.xpdata import init_db, CONFIG
+from exchange.exchange import TravellersExchangeAPI
 # -------------------- COGS --------------------
 COGS = [
     "cogs.personality",
@@ -205,7 +206,7 @@ COGS = [
     "cmds.list",
     "cmds.slash",
     "cmds.voyager",
-    "exchange.exchange",
+    "exchange.wallet",
     "setup",
 ]
 @bot.tree.interaction_check
