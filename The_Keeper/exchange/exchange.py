@@ -8,7 +8,7 @@ BASE_URL = https://travelers-exchange.online/
 class TravelersExchangeAPI:
     def __init__(self, bot, base_url, api_key, timeout=10):
         self.bot = bot
-        self.base_url = base_url
+        self.base_url = BASE_URL
         self.api_key = api_key
         self.timeout = timeout
 
