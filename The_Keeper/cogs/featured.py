@@ -32,7 +32,7 @@ class FeaturedCog(commands.Cog):
         self.FEATURED_TIME_LIMIT = FEATURED_TIME_LIMIT
         self.log = log_func
         self.count_total_reactions = count_total_reactions_func
-
+        self.FEATURED_MESSAGES = set()
         self.PROCESSING = set()
         self.bootstrapped = False
 
@@ -149,6 +149,58 @@ class FeaturedCog(commands.Cog):
             self.log("ERROR", f"Feature error: {e}")
         finally:
             self.PROCESSING.discard(message.id)
+
+async def is_featured(self, message_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT 1 FROM featured_messages WHERE message_id = ?",
+            (message_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row is not None
+
+
+async def save_featured(self, message, images, reactions):
+    async with aiosqlite.connect(DB_PATH) as db:
+
+        image_url = images[0].url if images else None
+
+        await db.execute("""
+            INSERT OR REPLACE INTO featured_messages (
+                message_id,
+                author_id,
+                channel_id,
+                jump_url,
+                image_url,
+                reactions,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            message.id,
+            message.author.id,
+            message.channel.id,
+            message.jump_url,
+            image_url,
+            reactions,
+            message.created_at.isoformat()
+        ))
+
+        await db.commit()
+
+
+async def load_featured_messages(self):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT message_id FROM featured_messages"
+        ) as cursor:
+
+            rows = await cursor.fetchall()
+            self.FEATURED_MESSAGES = {row[0] for row in rows}
+
+
+def save_featured_messages(self):
+    pass
 
     # -------------------- EVENT LISTENERS --------------------
     @commands.Cog.listener()
