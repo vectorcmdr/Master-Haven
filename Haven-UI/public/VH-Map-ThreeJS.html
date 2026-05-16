@@ -808,8 +808,10 @@
     </div>
 
     <!-- Back to Haven Control Room Button -->
+    <!-- v1.68.1 — was href="/" which 404'd in production where the React
+         SPA is mounted at /haven-ui/. Bare "/" only works in vite dev. -->
     <div id="back-to-haven" style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 150;">
-        <a href="/" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: rgba(157, 78, 221, 0.9); border: 1px solid #9d4edd; border-radius: 8px; color: white; text-decoration: none; font-size: 14px; font-weight: bold; backdrop-filter: blur(10px); transition: all 0.2s;">
+        <a href="/haven-ui/" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: rgba(157, 78, 221, 0.9); border: 1px solid #9d4edd; border-radius: 8px; color: white; text-decoration: none; font-size: 14px; font-weight: bold; backdrop-filter: blur(10px); transition: all 0.2s;">
             <span style="font-size: 18px;">🏠</span> Haven Control Room
         </a>
     </div>
@@ -919,6 +921,20 @@
             </div>
         </div>
     </div>
+
+    <!-- v1.68.3 focus tracking chip. Was at top:20px which collided with
+         #back-to-haven (top:20px z-index:150) and got hidden behind it,
+         so the user reported tracking "disappeared" on the galaxy view.
+         Moved down to top:70px and bumped z-index to clear. -->
+    <div id="focus-filter-chip" style="
+        display:none; position:fixed; top:70px; left:50%; transform:translateX(-50%);
+        z-index:160; padding:8px 14px; align-items:center;
+        background:rgba(20,27,61,0.95); backdrop-filter:blur(10px);
+        border:1px solid rgba(0,194,179,0.5); border-radius:8px;
+        color:#E0EEFB; font-family:'Inter',-apple-system,system-ui,sans-serif; font-size:12px;
+        box-shadow:0 4px 18px rgba(0,0,0,0.4);
+    "></div>
+
 
     <div id="system-info">
         <span class="close-btn" onclick="closeSystemInfo()">×</span>
@@ -1227,6 +1243,108 @@
         // Store fetched region data globally
         let regionsData = [];
 
+        // =========================================================================
+        // MAP FOCUS — v1.68.0
+        // Parses ?focus=<type>:<value> from the URL and routes the render
+        // pipeline to either (a) highlight a single entity (region/system),
+        // or (b) filter the galaxy to a civ's / contributor's territory.
+        //
+        // URL forms accepted on /map/latest:
+        //   ?focus=region:rx,ry,rz   → highlight + auto-pan to that region
+        //   ?focus=system:<id>       → resolve via /api/systems/{id}, then
+        //                              treat as region focus on its parent
+        //   ?focus=civ:<TAG>         → hide non-focused regions, color the
+        //                              rest with the civ's color, show toggle
+        //   ?focus=user:<username>   → same shape as civ for a contributor
+        // =========================================================================
+        let mapFocus = null;        // {kind, ...} or null
+        let mapFocusFilterActive = false;  // true when civ/user is hiding non-focused
+        let mapFocusFilterEnabled = true;  // toggle state — false = "show all"
+
+        function parseMapFocus() {
+            const raw = new URLSearchParams(window.location.search).get('focus');
+            if (!raw) return null;
+            const idx = raw.indexOf(':');
+            if (idx < 0) return null;
+            const kind = raw.slice(0, idx).toLowerCase();
+            const value = raw.slice(idx + 1);
+            if (kind === 'region') {
+                const parts = value.split(',').map(s => parseInt(s.trim(), 10));
+                if (parts.length !== 3 || parts.some(n => Number.isNaN(n))) return null;
+                return { kind: 'region', rx: parts[0], ry: parts[1], rz: parts[2] };
+            }
+            if (kind === 'system') return { kind: 'system', id: value };
+            if (kind === 'civ') return { kind: 'civ', tag: value };
+            if (kind === 'user') return { kind: 'user', name: value };
+            return null;
+        }
+
+        function focusOnRegionCoords(rx, ry, rz, displayName) {
+            console.log('[FOCUS] focusOnRegionCoords called', { rx, ry, rz, displayName, regionsDataLen: regionsData.length });
+            const region = regionsData.find(r =>
+                r.region_x === rx && r.region_y === ry && r.region_z === rz
+            );
+            if (!region) {
+                console.warn('[FOCUS] Region not found in regionsData', rx, ry, rz);
+                console.warn('[FOCUS] First 3 sample regions:', regionsData.slice(0, 3).map(r => ({rx: r.region_x, ry: r.region_y, rz: r.region_z})));
+                return;
+            }
+            const tx = (region.display_x || 0) * DISPLAY_SCALE;
+            const ty = (region.display_y || 0) * DISPLAY_SCALE;
+            const tz = (region.display_z || 0) * DISPLAY_SCALE;
+            console.log('[FOCUS] Found region, target position:', { tx, ty, tz });
+            const targetPosition = new THREE.Vector3(tx, ty, tz);
+            focusOnSystem(targetPosition);
+            setTimeout(() => {
+                console.log('[FOCUS] Dropping highlight ring at:', { tx, ty, tz });
+                highlightSystem(tx, ty, tz, displayName || region.region_name || `Region (${rx},${ry},${rz})`);
+            }, 1500);
+        }
+
+        // Sticky tracking chip. Shows for ALL focus kinds — once the user
+        // searches for something and clicks View on Map, that entity stays
+        // pinned through every layer transition until they click ✕.
+        function updateFocusFilterChip() {
+            const chip = document.getElementById('focus-filter-chip');
+            if (!chip) return;
+            if (!mapFocus) {
+                chip.style.display = 'none';
+                return;
+            }
+            chip.style.display = 'flex';
+            let label = '';
+            let extra = '';
+            if (mapFocus.kind === 'system') {
+                const name = mapFocus._systemName || (mapFocus.id || '').slice(0, 12);
+                label = `⭐ Tracking: ${name}`;
+            } else if (mapFocus.kind === 'region') {
+                label = `📍 Tracking: Region (${mapFocus.rx}, ${mapFocus.ry}, ${mapFocus.rz})`;
+            } else if (mapFocus.kind === 'civ') {
+                label = `🎯 civ: ${mapFocus.tag}`;
+                const action = mapFocusFilterEnabled ? 'Show all regions' : 'Hide non-focused';
+                extra = '<button onclick="toggleMapFocusFilter()" style="margin-left:10px;background:rgba(0,194,179,0.18);border:1px solid rgba(0,194,179,0.5);color:#7CD9EA;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px">' + action + '</button>';
+            } else if (mapFocus.kind === 'user') {
+                label = `🎯 user: ${mapFocus.name}`;
+                const action = mapFocusFilterEnabled ? 'Show all regions' : 'Hide non-focused';
+                extra = '<button onclick="toggleMapFocusFilter()" style="margin-left:10px;background:rgba(0,194,179,0.18);border:1px solid rgba(0,194,179,0.5);color:#7CD9EA;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px">' + action + '</button>';
+            }
+            chip.innerHTML =
+                '<span style="opacity:0.85">' + label + '</span>' +
+                extra +
+                '<button onclick="clearMapFocus()" title="Stop tracking" style="margin-left:6px;background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.4);color:#FFB0B0;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px">✕</button>';
+        }
+
+        function toggleMapFocusFilter() {
+            mapFocusFilterEnabled = !mapFocusFilterEnabled;
+            loadAndCreateSystems();
+        }
+
+        function clearMapFocus() {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('focus');
+            window.location.href = url.toString();
+        }
+
         async function init() {
             console.log('Init starting... [v3 with async loading]');
 
@@ -1286,6 +1404,30 @@
 
             // Load discord tag colors for region coloring
             await loadDiscordTagColors();
+
+            // v1.68.0 — parse ?focus= before first data load.
+            mapFocus = parseMapFocus();
+            console.log('[FOCUS] parseMapFocus →', mapFocus);
+
+            if (mapFocus && mapFocus.kind === 'system') {
+                try {
+                    console.log('[FOCUS] Fetching system to resolve region:', mapFocus.id);
+                    const r = await fetch('/api/systems/' + encodeURIComponent(mapFocus.id));
+                    console.log('[FOCUS] System fetch HTTP:', r.status);
+                    if (r.ok) {
+                        const sys = await r.json();
+                        console.log('[FOCUS] System resolved → name:', sys?.name, 'region:', sys?.region_x, sys?.region_y, sys?.region_z);
+                        if (sys && sys.region_x != null) {
+                            mapFocus._systemName = sys.name;
+                            mapFocus._systemRegion = { rx: sys.region_x, ry: sys.region_y, rz: sys.region_z };
+                        } else {
+                            console.warn('[FOCUS] System has no region coords — cannot pin on galaxy');
+                        }
+                    } else {
+                        console.warn('[FOCUS] System fetch failed:', r.status, r.statusText);
+                    }
+                } catch (e) { console.warn('[FOCUS] focus=system resolution failed', e); }
+            }
 
             // Load and create systems asynchronously
             await loadAndCreateSystems();
@@ -1514,6 +1656,9 @@
                 const params = new URLSearchParams();
                 if (filterReality) params.append('reality', filterReality);
                 if (filterGalaxy) params.append('galaxy', filterGalaxy);
+                // v1.68.0 — focus_civ/focus_user pass through.
+                if (mapFocus && mapFocus.kind === 'civ') params.append('focus_civ', mapFocus.tag);
+                if (mapFocus && mapFocus.kind === 'user') params.append('focus_user', mapFocus.name);
                 const queryString = params.toString();
                 const url = '/api/map/regions-aggregated' + (queryString ? '?' + queryString : '');
 
@@ -1563,7 +1708,13 @@
             // Build regionMap from pre-aggregated data (no iteration over all systems needed!)
             const regionMap = new Map();
 
-            regionsData.forEach(region => {
+            // v1.68.0 — civ/user focus filter (hide non-focused with toggle).
+            mapFocusFilterActive = !!(mapFocus && (mapFocus.kind === 'civ' || mapFocus.kind === 'user'));
+            const renderRegions = (mapFocusFilterActive && mapFocusFilterEnabled)
+                ? regionsData.filter(r => r.is_focused)
+                : regionsData;
+
+            renderRegions.forEach(region => {
                 const rx = region.region_x;
                 const ry = region.region_y;
                 const rz = region.region_z;
@@ -1579,7 +1730,8 @@
                     system_count: region.system_count,
                     galaxies: new Set(region.galaxies || ['Euclid']),
                     region_name: region.region_name || null,
-                    dominant_tag: region.dominant_tag || null
+                    dominant_tag: region.dominant_tag || null,
+                    is_focused: !!region.is_focused
                 });
             });
 
@@ -1641,10 +1793,32 @@
 
             // Update stats and create the 3D points
             const totalSystems = regionsData.reduce((sum, r) => sum + (r.system_count || 0), 0);
-            document.getElementById('system-count').textContent = `${totalSystems} systems in ${regionMap.size} regions`;
+            // v1.68.6 — filtered system count when civ/user focus hides non-focused.
+            const systemsForCounter = (mapFocusFilterActive && mapFocusFilterEnabled)
+                ? regionsData.filter(r => r.is_focused).reduce((s, r) => s + (r.system_count || 0), 0)
+                : totalSystems;
+            document.getElementById('system-count').textContent =
+                (mapFocusFilterActive && mapFocusFilterEnabled)
+                    ? `${systemsForCounter} systems in ${regionMap.size} focused regions (of ${regionsData.length} total)`
+                    : `${totalSystems} systems in ${regionMap.size} regions`;
 
             // Create the 3D geometry using shared function
             createPointsGeometry(positions, colors, sizes, densities);
+
+            // v1.68.6 — focus pipeline. This block was previously only in
+            // the dead `renderRegions()` legacy helper that runs on API
+            // fetch failure, so the focus chip + camera pan + pulse ring
+            // never fired on a normal load. Now lives in the ACTIVE path.
+            updateFocusFilterChip();
+            console.log('[FOCUS] After load — mapFocus:', mapFocus, 'regions loaded:', regionsData.length);
+            if (mapFocus && mapFocus.kind === 'region') {
+                focusOnRegionCoords(mapFocus.rx, mapFocus.ry, mapFocus.rz, null);
+            } else if (mapFocus && mapFocus.kind === 'system' && mapFocus._systemRegion) {
+                const r = mapFocus._systemRegion;
+                focusOnRegionCoords(r.rx, r.ry, r.rz, mapFocus._systemName);
+            } else if (mapFocus && mapFocus.kind === 'system') {
+                console.warn('[FOCUS] system focus has no _systemRegion — pre-load fetch failed?');
+            }
         }
 
         function createStarTexture() {
@@ -1830,8 +2004,26 @@
             });
 
             const totalSystems = regionsData.reduce((sum, r) => sum + (r.system_count || 0), 0);
-            document.getElementById('system-count').textContent = `${totalSystems} systems in ${regionMap.size} regions`;
+            const systemsForCounter = (mapFocusFilterActive && mapFocusFilterEnabled)
+                ? regionsData.filter(r => r.is_focused).reduce((s, r) => s + (r.system_count || 0), 0)
+                : totalSystems;
+            document.getElementById('system-count').textContent =
+                (mapFocusFilterActive && mapFocusFilterEnabled)
+                    ? `${systemsForCounter} systems in ${regionMap.size} focused regions (of ${regionsData.length} total)`
+                    : `${totalSystems} systems in ${regionMap.size} regions`;
             createPointsGeometry(positions, colors, sizes, densities);
+
+            // v1.68.0 — focus pipeline: pan + pulse the target after render.
+            updateFocusFilterChip();
+            console.log('[FOCUS] After load — mapFocus:', mapFocus, 'regions loaded:', regionsData.length);
+            if (mapFocus && mapFocus.kind === 'region') {
+                focusOnRegionCoords(mapFocus.rx, mapFocus.ry, mapFocus.rz, null);
+            } else if (mapFocus && mapFocus.kind === 'system' && mapFocus._systemRegion) {
+                const r = mapFocus._systemRegion;
+                focusOnRegionCoords(r.rx, r.ry, r.rz, mapFocus._systemName);
+            } else if (mapFocus && mapFocus.kind === 'system') {
+                console.warn('[FOCUS] system focus has no _systemRegion — pre-load fetch failed?');
+            }
         }
 
         // Create the Three.js geometry from arrays
@@ -2063,9 +2255,13 @@
             document.getElementById('system-description').textContent =
                 'Click "Enter Region" to view individual systems';
 
-            // Update link to go to Region View
+            // Update link to go to Region View.
+            // v1.68.2 — preserve ?focus= so sticky tracking survives drill-down.
             const systemLink = document.getElementById('view-system-link');
-            systemLink.href = `/map/region?rx=${region.region_x}&ry=${region.region_y}&rz=${region.region_z}`;
+            const currentFocus = new URLSearchParams(window.location.search).get('focus');
+            let regionUrl = `/map/region?rx=${region.region_x}&ry=${region.region_y}&rz=${region.region_z}`;
+            if (currentFocus) regionUrl += `&focus=${encodeURIComponent(currentFocus)}`;
+            systemLink.href = regionUrl;
             systemLink.textContent = 'Enter Region →';
 
             document.getElementById('system-info').style.display = 'block';
@@ -2109,10 +2305,18 @@
             document.getElementById('system-description').textContent =
                 system.description || '';
 
-            // Set link to 3D system view
+            // Set link to 3D system view.
+            // v1.68.2 — preserve ?focus= for sticky tracking. If user clicks
+            // a system from the galaxy with focus already set, that focus
+            // stays through the drill-down. If they click a different system,
+            // we keep the original focus too — the tracking chip remains a
+            // back-reference to the entity they started searching for.
             const systemLink = document.getElementById('view-system-link');
             const systemId = system.id || system.name;
-            systemLink.href = `/map/system/${encodeURIComponent(systemId)}`;
+            const currentFocus = new URLSearchParams(window.location.search).get('focus');
+            let sysHref = `/map/system/${encodeURIComponent(systemId)}`;
+            if (currentFocus) sysHref += `?focus=${encodeURIComponent(currentFocus)}`;
+            systemLink.href = sysHref;
             systemLink.textContent = 'View System →';
 
             // Show glyph display (may have been hidden by region info)
@@ -2455,40 +2659,29 @@
             // Store target position for distance calculation
             const targetPos = new THREE.Vector3(x, y, z);
 
-            // Animate the highlight with zoom-responsive scaling that MATCHES point shader
+            // v1.68.7 — Constant screen-space size. The previous logic copied
+            // numbers from the PointsMaterial shader (which uses screen pixels
+            // for size) and applied them as WORLD units to the ring geometry,
+            // producing a giant ring filling the viewport whenever the camera
+            // zoomed in close to a region. Now we scale the ring's world size
+            // proportional to camera distance, so it always appears at a
+            // similar pixel size on screen regardless of zoom level.
             let pulse = 0;
             const animateHighlight = () => {
                 if (!highlightedMesh) return;
 
                 pulse += 0.05;
 
-                // Calculate scale using SAME zones as point shader
+                // Ring world-radius proportional to camera distance →
+                // constant screen size at all zoom levels. Lower clamp keeps
+                // the ring visible when camera is right on top of the region
+                // (where 0.04*distance would shrink it to invisibility). No
+                // upper clamp — at extreme zoom-out the ring scales with
+                // distance so it stays at consistent screen pixel size.
                 const distance = camera.position.distanceTo(targetPos);
-                const nearZone = 200.0;
-                const midZone = 500.0;
-                const farZone = 3000.0;
+                const ringScale = Math.max(0.5, distance * 0.04);
 
-                // Base size matches point base size (around 12 for typical regions)
-                const baseSize = 12 * pointSizeMultiplier;
-                let pointScale;
-
-                if (distance < nearZone) {
-                    // Close: match shader's shrink behavior
-                    const t = Math.min(1, Math.max(0, (distance / nearZone)));
-                    const smoothT = t * t * (3 - 2 * t);  // smoothstep approximation
-                    pointScale = baseSize * (0.15 + smoothT * 0.45);  // 0.15 to 0.6
-                } else if (distance < midZone) {
-                    pointScale = baseSize * 0.6;
-                } else if (distance < farZone) {
-                    pointScale = baseSize * (300.0 / distance);
-                } else {
-                    pointScale = Math.max(baseSize * (300.0 / farZone), 3.0);
-                }
-
-                // Scale ring to be slightly larger than the point (1.5x)
-                const ringScale = pointScale * 1.5;
-
-                // Add pulse animation on top
+                // Pulse animation on top.
                 const pulseScale = 1 + Math.sin(pulse) * 0.15;
                 const finalScale = ringScale * pulseScale;
 

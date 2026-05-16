@@ -213,13 +213,22 @@ async def api_stats_daily_changes():
 @router.get('/api/map/regions-aggregated')
 async def api_map_regions_aggregated(
     reality: str = None,
-    galaxy: str = None
+    galaxy: str = None,
+    focus_civ: str = None,
+    focus_user: str = None,
 ):
     """Get pre-aggregated region data for the 3D galaxy map.
 
     Args:
         reality: Optional filter - 'Normal' or 'Permadeath' (None for all)
         galaxy: Optional filter - galaxy name like 'Euclid' (None for all)
+        focus_civ: Mark regions where this discord_tag has systems with
+            is_focused=True. Does NOT filter — the full region list is still
+            returned so the map can offer a "show all regions" toggle that
+            doesn't require a re-fetch.
+        focus_user: Same shape as focus_civ but matches against
+            discovered_by / personal_discord_username (the contributor on
+            the row). Useful for "View on Map" from a contributor search hit.
 
     Returns one data point per region with:
     - Region coordinates (region_x, region_y, region_z)
@@ -227,6 +236,8 @@ async def api_map_regions_aggregated(
     - System count
     - Custom region name if set
     - List of galaxies present
+    - is_focused: bool — true when the region contains systems matching
+      focus_civ / focus_user, false otherwise. Always present.
 
     This is MUCH faster than loading all individual systems,
     as it uses SQL aggregation instead of Python-side processing.
@@ -252,6 +263,33 @@ async def api_map_regions_aggregated(
             params.append(galaxy)
 
         where_sql = " AND ".join(where_clauses)
+
+        # Pre-compute the set of focused region coord tuples so the per-row
+        # is_focused flag is an O(1) lookup. Done as a second query to keep
+        # the aggregated query simple — the focused-region count is always
+        # small (one civ's territory, or one user's submissions).
+        focused_keys = set()
+        if focus_civ:
+            cursor.execute(
+                "SELECT DISTINCT region_x, region_y, region_z "
+                "FROM systems "
+                "WHERE region_x IS NOT NULL AND region_y IS NOT NULL AND region_z IS NOT NULL "
+                "AND discord_tag = ? COLLATE NOCASE",
+                (focus_civ,)
+            )
+            focused_keys = {(r['region_x'], r['region_y'], r['region_z']) for r in cursor.fetchall()}
+        elif focus_user:
+            # Match contributor by either column. Case-insensitive — the
+            # leaderboard normalizes harder (strips discriminators) but for
+            # map focus a simple NOCASE compare is the right precision.
+            cursor.execute(
+                "SELECT DISTINCT region_x, region_y, region_z "
+                "FROM systems "
+                "WHERE region_x IS NOT NULL AND region_y IS NOT NULL AND region_z IS NOT NULL "
+                "AND (discovered_by = ? COLLATE NOCASE OR personal_discord_username = ? COLLATE NOCASE)",
+                (focus_user, focus_user)
+            )
+            focused_keys = {(r['region_x'], r['region_y'], r['region_z']) for r in cursor.fetchall()}
 
         # Single aggregated query - returns one row per populated region
         # Includes discord_tag info for custom region coloring
@@ -304,12 +342,21 @@ async def api_map_regions_aggregated(
             else:
                 region['discord_tags'] = []
                 region['dominant_tag'] = None
+            # v1.68.0 — focus flag. False when no focus_* param is set, so the
+            # client can rely on the field always being present.
+            region['is_focused'] = (
+                (region['region_x'], region['region_y'], region['region_z']) in focused_keys
+                if (focus_civ or focus_user) else False
+            )
             regions.append(region)
 
         return {
             'regions': regions,
             'total_systems': total_systems,
-            'total_regions': len(regions)
+            'total_regions': len(regions),
+            'focus_active': bool(focus_civ or focus_user),
+            'focus_civ': focus_civ,
+            'focus_user': focus_user,
         }
 
     except Exception as e:

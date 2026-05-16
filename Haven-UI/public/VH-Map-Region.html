@@ -528,6 +528,35 @@
         <a href="#" class="view-system-btn" id="view-system-link">View System Details →</a>
     </div>
 
+    <!-- v1.68.0 — persistent navigation breadcrumb. -->
+    <div id="map-nav-bar" style="
+        position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:120;
+        display:flex; gap:8px; align-items:center;
+        background:rgba(20,27,61,0.95); backdrop-filter:blur(10px);
+        border:1px solid rgba(0,194,179,0.5); border-radius:8px;
+        padding:8px 14px; color:#E0EEFB; font-family:'Inter',-apple-system,system-ui,sans-serif; font-size:12px;
+        box-shadow:0 4px 18px rgba(0,0,0,0.4);
+    ">
+        <a id="map-nav-galaxy" href="/map/latest" style="
+            color:#7CD9EA; text-decoration:none; padding:4px 10px;
+            background:rgba(0,194,179,0.15); border:1px solid rgba(0,194,179,0.4);
+            border-radius:5px; font-weight:500;
+        ">↑ Galaxy</a>
+        <span style="opacity:0.6">›</span>
+        <span style="opacity:0.85">📍 Region <span id="map-nav-region-coords"></span></span>
+    </div>
+
+    <!-- v1.68.2 — sticky tracking chip. Persists across layer transitions
+         when ?focus= is set in the URL. ✕ clears the focus param. -->
+    <div id="focus-filter-chip" style="
+        display:none; position:fixed; top:64px; left:50%; transform:translateX(-50%);
+        z-index:120; padding:6px 12px; align-items:center;
+        background:rgba(20,27,61,0.95); backdrop-filter:blur(10px);
+        border:1px solid rgba(0,194,179,0.5); border-radius:8px;
+        color:#E0EEFB; font-family:'Inter',-apple-system,system-ui,sans-serif; font-size:12px;
+        box-shadow:0 4px 18px rgba(0,0,0,0.4);
+    "></div>
+
     <div id="tooltip"></div>
 
     <!-- View Controls -->
@@ -785,11 +814,16 @@
         // Parse URL parameters for region coordinates and highlight system
         function getRegionFromURL() {
             const params = new URLSearchParams(window.location.search);
+            let highlightSystemId = params.get('highlight') || null;
+            const focus = params.get('focus') || '';
+            if (!highlightSystemId && focus.startsWith('system:')) {
+                highlightSystemId = focus.slice('system:'.length);
+            }
             return {
                 region_x: parseInt(params.get('rx')) || 0,
                 region_y: parseInt(params.get('ry')) || 0,
                 region_z: parseInt(params.get('rz')) || 0,
-                highlightSystemId: params.get('highlight') || null,
+                highlightSystemId,
                 glyphCode: params.get('glyph') || null
             };
         }
@@ -829,6 +863,61 @@
 
         async function init() {
             console.log('Initializing Region View...');
+
+            // v1.68.2 — Sticky tracking. If ?focus= is set (e.g. user is
+            // tracking a system), the breadcrumb up-link preserves it so
+            // the parent galaxy view stays focused on the same entity.
+            // If no focus is set, default to focusing the current region.
+            (function setupNav() {
+                const region = getRegionFromURL();
+                const currentFocus = new URLSearchParams(window.location.search).get('focus');
+                const upFocus = currentFocus || `region:${region.region_x},${region.region_y},${region.region_z}`;
+                const galaxyLink = document.getElementById('map-nav-galaxy');
+                if (galaxyLink) galaxyLink.href = `/map/latest?focus=${encodeURIComponent(upFocus)}`;
+                const coords = document.getElementById('map-nav-region-coords');
+                if (coords) coords.textContent = `(${region.region_x}, ${region.region_y}, ${region.region_z})`;
+            })();
+
+            // v1.68.2 — sticky tracking chip. Mirrors the galaxy chip.
+            (async function setupTrackingChip() {
+                const focus = new URLSearchParams(window.location.search).get('focus');
+                const chip = document.getElementById('focus-filter-chip');
+                if (!chip || !focus) return;
+                const idx = focus.indexOf(':');
+                if (idx < 0) return;
+                const kind = focus.slice(0, idx).toLowerCase();
+                const val = focus.slice(idx + 1);
+                let label = '';
+                if (kind === 'system') {
+                    label = `⭐ Tracking: ${val.slice(0, 12)}…`;
+                    try {
+                        const r = await fetch('/api/systems/' + encodeURIComponent(val));
+                        if (r.ok) {
+                            const sys = await r.json();
+                            label = `⭐ Tracking: ${sys.name || val}`;
+                        }
+                    } catch {}
+                } else if (kind === 'region') {
+                    label = `📍 Tracking: Region (${val})`;
+                } else if (kind === 'civ') {
+                    label = `🎯 civ: ${val}`;
+                } else if (kind === 'user') {
+                    label = `🎯 user: ${val}`;
+                } else {
+                    return;
+                }
+                chip.style.display = 'flex';
+                chip.innerHTML =
+                    '<span style="opacity:0.85">' + label + '</span>' +
+                    '<button onclick="window.clearMapFocus()" title="Stop tracking" style="margin-left:8px;background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.4);color:#FFB0B0;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px">✕</button>';
+            })();
+
+            // Shared focus-clear helper for the chip ✕.
+            window.clearMapFocus = function () {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('focus');
+                window.location.href = url.toString();
+            };
 
             // Check admin status, load discord tags, and load region name
             await checkAdminStatus();
@@ -1350,10 +1439,14 @@
                 document.getElementById('view-system-link').style.display = '';
             }
 
-            // Set link to system view (even if hidden, set href for consistency)
+            // Set link to system view (even if hidden, set href for consistency).
+            // v1.68.2 — preserve ?focus= for sticky tracking on drill-down.
             const systemLink = document.getElementById('view-system-link');
             const systemId = system.id || system.name;
-            systemLink.href = `/map/system/${encodeURIComponent(systemId)}`;
+            const currentFocus = new URLSearchParams(window.location.search).get('focus');
+            let sysHref = `/map/system/${encodeURIComponent(systemId)}`;
+            if (currentFocus) sysHref += `?focus=${encodeURIComponent(currentFocus)}`;
+            systemLink.href = sysHref;
 
             document.getElementById('system-info').style.display = 'block';
         }
@@ -1393,6 +1486,37 @@
             selectedSystem = null;
         }
 
+        // v1.68.0 — pulsing ring for cross-layer focus consistency.
+        let focusHighlightMesh = null;
+        function dropFocusPulseRing(position) {
+            if (focusHighlightMesh) {
+                if (focusHighlightMesh.animationFrame) cancelAnimationFrame(focusHighlightMesh.animationFrame);
+                scene.remove(focusHighlightMesh);
+                focusHighlightMesh.geometry.dispose();
+                focusHighlightMesh.material.dispose();
+                focusHighlightMesh = null;
+            }
+            const geometry = new THREE.RingGeometry(1.5, 2.1, 32);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x00ff00, side: THREE.DoubleSide, transparent: true, opacity: 0.85,
+            });
+            focusHighlightMesh = new THREE.Mesh(geometry, material);
+            focusHighlightMesh.position.copy(position);
+            focusHighlightMesh.lookAt(camera.position);
+            scene.add(focusHighlightMesh);
+            let pulse = 0;
+            const tick = () => {
+                if (!focusHighlightMesh) return;
+                pulse += 0.05;
+                const scale = 3 + Math.sin(pulse) * 0.8;
+                focusHighlightMesh.scale.set(scale, scale, scale);
+                focusHighlightMesh.material.opacity = 0.55 + Math.sin(pulse) * 0.25;
+                focusHighlightMesh.lookAt(camera.position);
+                focusHighlightMesh.animationFrame = requestAnimationFrame(tick);
+            };
+            tick();
+        }
+
         function highlightSystemFromURL() {
             const params = getRegionFromURL();
 
@@ -1408,15 +1532,12 @@
             }
 
             if (targetSystem) {
-                // Show info and focus on the system
                 showSystemInfo(targetSystem.system);
-
-                // Focus camera on the system
                 const targetPosition = targetSystem.position;
                 camera.position.set(targetPosition.x + 50, targetPosition.y + 30, targetPosition.z + 80);
                 controls.target.copy(targetPosition);
                 controls.update();
-
+                dropFocusPulseRing(targetPosition);
                 console.log('Highlighted system:', targetSystem.system.name);
             }
         }

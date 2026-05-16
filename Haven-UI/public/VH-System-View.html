@@ -680,8 +680,9 @@
     </div>
 
     <!-- Back to Haven Control Room Button -->
+    <!-- v1.68.1 — was href="/" which 404'd in production. -->
     <div id="back-to-haven">
-        <a href="/" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: rgba(157, 78, 221, 0.9); border: 1px solid #9d4edd; border-radius: 8px; color: white; text-decoration: none; font-size: 14px; font-weight: bold; backdrop-filter: blur(10px); transition: all 0.2s;">
+        <a href="/haven-ui/" style="display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: rgba(157, 78, 221, 0.9); border: 1px solid #9d4edd; border-radius: 8px; color: white; text-decoration: none; font-size: 14px; font-weight: bold; backdrop-filter: blur(10px); transition: all 0.2s;">
             <span style="font-size: 18px;">🏠</span> Haven Control Room
         </a>
     </div>
@@ -715,6 +716,40 @@
     </div>
 
     <div id="tooltip"></div>
+
+    <!-- v1.68.0 — persistent navigation breadcrumb with up-links to
+         Region and Galaxy carrying focus context. -->
+    <div id="map-nav-bar" style="
+        position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:120;
+        display:flex; gap:8px; align-items:center;
+        background:rgba(20,27,61,0.95); backdrop-filter:blur(10px);
+        border:1px solid rgba(0,194,179,0.5); border-radius:8px;
+        padding:8px 14px; color:#E0EEFB; font-family:'Inter',-apple-system,system-ui,sans-serif; font-size:12px;
+        box-shadow:0 4px 18px rgba(0,0,0,0.4);
+    ">
+        <a id="map-nav-galaxy" href="/map/latest" style="
+            color:#7CD9EA; text-decoration:none; padding:4px 10px;
+            background:rgba(0,194,179,0.15); border:1px solid rgba(0,194,179,0.4);
+            border-radius:5px; font-weight:500;
+        ">↑ Galaxy</a>
+        <a id="map-nav-region" href="#" style="
+            color:#7CD9EA; text-decoration:none; padding:4px 10px;
+            background:rgba(0,194,179,0.15); border:1px solid rgba(0,194,179,0.4);
+            border-radius:5px; font-weight:500;
+        ">↑ Region</a>
+        <span style="opacity:0.6">›</span>
+        <span style="opacity:0.85">⭐ <span id="map-nav-system-name"></span></span>
+    </div>
+
+    <!-- v1.68.2 — sticky tracking chip. -->
+    <div id="focus-filter-chip" style="
+        display:none; position:fixed; top:64px; left:50%; transform:translateX(-50%);
+        z-index:120; padding:6px 12px; align-items:center;
+        background:rgba(20,27,61,0.95); backdrop-filter:blur(10px);
+        border:1px solid rgba(0,194,179,0.5); border-radius:8px;
+        color:#E0EEFB; font-family:'Inter',-apple-system,system-ui,sans-serif; font-size:12px;
+        box-shadow:0 4px 18px rgba(0,0,0,0.4);
+    "></div>
 
     <!-- Bottom Navigation Buttons -->
     <div id="back-link">
@@ -777,6 +812,53 @@
             ORBIT_LINE: 0x00C2B3
         };
 
+        // v1.68.0 — parse ?focus=planet:<id> / ?focus=moon:<id> from URL.
+        // v1.68.2 — also handles ?focus=system:<id> (pulses the sun when
+        // the tracked system is the one being viewed) for sticky tracking.
+        function parseSystemFocus() {
+            const raw = new URLSearchParams(window.location.search).get('focus');
+            if (!raw) return null;
+            const idx = raw.indexOf(':');
+            if (idx < 0) return null;
+            const kind = raw.slice(0, idx).toLowerCase();
+            const id = raw.slice(idx + 1);
+            if (kind === 'planet' || kind === 'moon' || kind === 'system') return { kind, id };
+            return null;
+        }
+
+        // Pulsing ring on a focused body (planet or moon).
+        let focusHighlightMesh = null;
+        function dropFocusPulseRing(position, radius) {
+            if (focusHighlightMesh) {
+                if (focusHighlightMesh.animationFrame) cancelAnimationFrame(focusHighlightMesh.animationFrame);
+                scene.remove(focusHighlightMesh);
+                focusHighlightMesh.geometry.dispose();
+                focusHighlightMesh.material.dispose();
+                focusHighlightMesh = null;
+            }
+            const ringInner = (radius || 1) * 1.8;
+            const ringOuter = ringInner + 0.4;
+            const geometry = new THREE.RingGeometry(ringInner, ringOuter, 32);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x00ff00, side: THREE.DoubleSide, transparent: true, opacity: 0.85,
+            });
+            focusHighlightMesh = new THREE.Mesh(geometry, material);
+            focusHighlightMesh.position.copy(position);
+            focusHighlightMesh.lookAt(camera.position);
+            scene.add(focusHighlightMesh);
+            let pulse = 0;
+            const tick = () => {
+                if (!focusHighlightMesh) return;
+                pulse += 0.05;
+                const scale = 1 + Math.sin(pulse) * 0.18;
+                focusHighlightMesh.scale.set(scale, scale, scale);
+                focusHighlightMesh.material.opacity = 0.55 + Math.sin(pulse) * 0.25;
+                focusHighlightMesh.lookAt(camera.position);
+                focusHighlightMesh.animationFrame = requestAnimationFrame(tick);
+            };
+            tick();
+        }
+
         function init() {
             console.log('Initializing system view...');
 
@@ -784,6 +866,82 @@
                 document.getElementById('system-name').textContent = 'No system data';
                 return;
             }
+
+            // v1.68.2 — Sticky tracking. If URL already has ?focus= (the
+            // user is tracking something specific), propagate it through
+            // the up-links. Otherwise default to focusing this system at
+            // every layer above (so opening directly drops a tracking pin).
+            (function setupNav() {
+                const sys = window.SYSTEM_DATA || {};
+                const sysId = sys.id;
+                const rx = sys.region_x, ry = sys.region_y, rz = sys.region_z;
+                const currentFocus = new URLSearchParams(window.location.search).get('focus');
+                const upFocus = currentFocus || (sysId ? `system:${sysId}` : null);
+                const galaxyLink = document.getElementById('map-nav-galaxy');
+                const regionLink = document.getElementById('map-nav-region');
+                if (galaxyLink) {
+                    galaxyLink.href = upFocus
+                        ? `/map/latest?focus=${encodeURIComponent(upFocus)}`
+                        : `/map/latest`;
+                }
+                if (regionLink) {
+                    if (rx != null) {
+                        regionLink.href = upFocus
+                            ? `/map/region?rx=${rx}&ry=${ry}&rz=${rz}&focus=${encodeURIComponent(upFocus)}`
+                            : `/map/region?rx=${rx}&ry=${ry}&rz=${rz}`;
+                    } else {
+                        regionLink.style.display = 'none';
+                    }
+                }
+                const nameEl = document.getElementById('map-nav-system-name');
+                if (nameEl) nameEl.textContent = sys.name || sys.glyph_code || 'System';
+            })();
+
+            // v1.68.2 — sticky tracking chip.
+            (async function setupTrackingChip() {
+                const focus = new URLSearchParams(window.location.search).get('focus');
+                const chip = document.getElementById('focus-filter-chip');
+                if (!chip || !focus) return;
+                const idx = focus.indexOf(':');
+                if (idx < 0) return;
+                const kind = focus.slice(0, idx).toLowerCase();
+                const val = focus.slice(idx + 1);
+                let label = '';
+                if (kind === 'system') {
+                    // If the tracked system IS the one we're viewing, use
+                    // its name from the already-loaded SYSTEM_DATA. Otherwise
+                    // fetch it so the chip is accurate.
+                    const sys = window.SYSTEM_DATA || {};
+                    if (sys.id && String(sys.id) === String(val)) {
+                        label = `⭐ Tracking: ${sys.name || val}`;
+                    } else {
+                        label = `⭐ Tracking: ${val.slice(0, 12)}…`;
+                        try {
+                            const r = await fetch('/api/systems/' + encodeURIComponent(val));
+                            if (r.ok) {
+                                const s = await r.json();
+                                label = `⭐ Tracking: ${s.name || val} (not in this view)`;
+                            }
+                        } catch {}
+                    }
+                } else if (kind === 'region') {
+                    label = `📍 Tracking: Region (${val})`;
+                } else if (kind === 'planet' || kind === 'moon') {
+                    label = `${kind === 'moon' ? '🌑' : '🌍'} Tracking: ${val.slice(0, 12)}…`;
+                } else {
+                    return;
+                }
+                chip.style.display = 'flex';
+                chip.innerHTML =
+                    '<span style="opacity:0.85">' + label + '</span>' +
+                    '<button onclick="window.clearMapFocus()" title="Stop tracking" style="margin-left:8px;background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.4);color:#FFB0B0;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px">✕</button>';
+            })();
+
+            window.clearMapFocus = function () {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('focus');
+                window.location.href = url.toString();
+            };
 
             // Scene
             scene = new THREE.Scene();
@@ -834,6 +992,37 @@
             renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: false });
             renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: false });
             renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: false });
+
+            // v1.68.0 — apply ?focus=planet:<id> / ?focus=moon:<id>.
+            // v1.68.3 — focus=system:THIS no longer pulses the sun. The
+            // sun IS the entire system view (only one star visible), so
+            // a pulse ring is redundant noise. The tracking chip at the
+            // top is enough confirmation that the user is viewing the
+            // tracked system. Planet/moon focus still pulses since they
+            // identify a specific body within a system that has many.
+            (function applySystemFocus() {
+                const focus = parseSystemFocus();
+                if (!focus) return;
+                if (focus.kind === 'system') {
+                    return;  // No pulse for system focus on system view.
+                }
+                const wantId = String(focus.id);
+                const pool = focus.kind === 'planet' ? planets : moons;
+                const target = pool.find(m => m.userData && m.userData.data && String(m.userData.data.id) === wantId);
+                if (!target) {
+                    console.warn('System focus target not found:', focus);
+                    return;
+                }
+                showObjectInfo(target.userData);
+                const radius = (target.geometry && target.geometry.parameters)
+                    ? (target.geometry.parameters.radius || 1)
+                    : 1;
+                dropFocusPulseRing(target.position, radius);
+                const target3 = new THREE.Vector3(target.position.x + 6, target.position.y + 4, target.position.z + 8);
+                camera.position.copy(target3);
+                controls.target.copy(target.position);
+                controls.update();
+            })();
 
             // Start animation
             animate();

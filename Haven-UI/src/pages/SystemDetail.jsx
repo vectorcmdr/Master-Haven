@@ -604,28 +604,67 @@ function PencilIcon() {
 }
 
 function ShowOnMapButton({ system, variant = 'ghost' }) {
-  // Was `/map?focus=...` which didn't match any SPA route — the actual 3D map
-  // is mounted at `/map/latest` (matches navbar). Pre-fix this 404'd.
-  const href = `/map/latest?focus=system:${encodeURIComponent(system.id)}`
-  const common = (
-    <>
-      <svg className="w-3.5 h-3.5" style={{ color: 'var(--app-primary)' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-      </svg>
-      Show on Map
-    </>
-  )
+  // v1.68.2 — sister buttons that drop a sticky tracking pin. Every button
+  // sets focus=system:<id> on the URL, so clicking any of the three buttons
+  // pins the same system across all 3 map layers — the chip appears on
+  // every page, and the user removes the pin with ✕ when done.
+  const sysId = encodeURIComponent(system.id)
+  const focusParam = `focus=system:${sysId}`
+  const rx = system.region_x, ry = system.region_y, rz = system.region_z
+  const hasRegion = rx != null && ry != null && rz != null
+  const buttons = [
+    {
+      label: 'System Map',
+      icon: '⭐',
+      href: `/map/system/${sysId}?${focusParam}`,
+      title: 'Open this system in the planetary 3D viewer',
+    },
+  ]
+  if (hasRegion) {
+    buttons.push({
+      label: 'Region Map',
+      icon: '📍',
+      href: `/map/region?rx=${rx}&ry=${ry}&rz=${rz}&${focusParam}`,
+      title: 'View this system in its region',
+    })
+    buttons.push({
+      label: 'Galaxy Map',
+      icon: '🌌',
+      href: `/map/latest?${focusParam}`,
+      title: 'See where this system sits in the galaxy',
+    })
+  }
   if (variant === 'block') {
     return (
-      <Link to={href} className="haven-btn-ghost w-full px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-2">
-        {common}
-      </Link>
+      <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {buttons.map((b) => (
+          <a
+            key={b.label}
+            href={b.href}
+            title={b.title}
+            className="haven-btn-ghost px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-2"
+          >
+            <span style={{ color: 'var(--app-primary)' }}>{b.icon}</span>
+            {b.label}
+          </a>
+        ))}
+      </div>
     )
   }
   return (
-    <Link to={href} className="haven-btn-ghost px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5">
-      {common}
-    </Link>
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {buttons.map((b) => (
+        <a
+          key={b.label}
+          href={b.href}
+          title={b.title}
+          className="haven-btn-ghost px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5"
+        >
+          <span style={{ color: 'var(--app-primary)' }}>{b.icon}</span>
+          {b.label}
+        </a>
+      ))}
+    </div>
   )
 }
 

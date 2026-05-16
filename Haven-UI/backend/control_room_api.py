@@ -3423,7 +3423,19 @@ async def get_map():
             discoveries = query_discoveries_from_db()
             discoveries_json = json.dumps(discoveries, ensure_ascii=True)
             html = re.sub(r"window\.DISCOVERIES_DATA\s*=\s*\[.*?\];", lambda m: f"window.DISCOVERIES_DATA = {discoveries_json};", html, flags=re.S)
-        return HTMLResponse(html, media_type='text/html')
+        # v1.68.5 — same no-cache headers as /map/system/{id} so the page
+        # always reflects the latest HTML in dist/. Without this the
+        # browser was happily serving its own stale cached copy from
+        # before the focus chip / focus pipeline shipped.
+        return HTMLResponse(
+            html,
+            media_type='text/html',
+            headers={
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+            }
+        )
     except Exception as e:
         logger.error('Failed to render map latest: %s', e)
         return HTMLResponse('<h1>Map Error</h1>')
@@ -3505,7 +3517,17 @@ async def get_region_map(rx: int = 0, ry: int = 0, rz: int = 0,
                 flags=re.S
             )
 
-        return HTMLResponse(html, media_type='text/html')
+        # v1.68.5 — no-cache headers (was missing; browser was serving its
+        # stale cached copy from before the focus chip + drill-down rework).
+        return HTMLResponse(
+            html,
+            media_type='text/html',
+            headers={
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+            }
+        )
     except Exception as e:
         logger.error('Failed to render region map: %s', e)
         return HTMLResponse(f'<h1>Region Map Error: {e}</h1>')

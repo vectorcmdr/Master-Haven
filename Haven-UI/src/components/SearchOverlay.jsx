@@ -319,6 +319,26 @@ export default function SearchOverlay() {
   )
 }
 
+// v1.68.0 — derive the matching map URL per search result. Mirrors the
+// row click destinations but routes to the static map pages instead of
+// the React Systems/Profile pages. Each carries a ?focus= that the
+// corresponding map page reads to auto-pan + pulse the entity.
+function buildMapHref(kind, row) {
+  if (kind === 'system') {
+    return `/map/system/${encodeURIComponent(row.id)}?focus=system:${encodeURIComponent(row.id)}`
+  }
+  if (kind === 'region') {
+    return `/map/region?rx=${row.region_x}&ry=${row.region_y}&rz=${row.region_z}`
+  }
+  if (kind === 'community') {
+    return `/map/latest?focus=civ:${encodeURIComponent(row.tag)}`
+  }
+  if (kind === 'contributor') {
+    return `/map/latest?focus=user:${encodeURIComponent(row.username || '')}`
+  }
+  return null
+}
+
 function CategorizedResults({ data, flatRows, activeIndex, onActivate, onHoverIndex }) {
   // Walks the same ordering used in flatRows so activeIndex aligns with what
   // gets highlighted. Each section header is non-interactive — only result
@@ -340,6 +360,7 @@ function CategorizedResults({ data, flatRows, activeIndex, onActivate, onHoverIn
               active={idx === activeIndex}
               onClick={() => onActivate({ kind, row })}
               onMouseEnter={() => onHoverIndex(idx)}
+              mapHref={buildMapHref(kind, row)}
             >
               {renderRow(row)}
             </SearchRow>
@@ -423,20 +444,46 @@ function Section({ label, count, children }) {
   )
 }
 
-function SearchRow({ active, onClick, onMouseEnter, children }) {
+function SearchRow({ active, onClick, onMouseEnter, mapHref, children }) {
+  // v1.68.0 — refactored from a single <button> to a flex container with
+  // two clickable regions: the row body (activates the React destination)
+  // and a small map-icon button on the right (opens the corresponding
+  // map page focused on the entity). Map button stops propagation so
+  // clicking it doesn't also fire the row's onClick.
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       onMouseEnter={onMouseEnter}
-      className={`w-full text-left px-3 py-2 flex items-center justify-between gap-3 ${active ? '' : 'saved-row'}`}
+      className={`w-full flex items-stretch ${active ? '' : 'saved-row'}`}
       style={{
         borderBottom: '1px solid var(--border-soft)',
         background: active ? 'var(--app-primary-dim)' : undefined,
       }}
     >
-      {children}
-    </button>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex-1 text-left px-3 py-2 flex items-center justify-between gap-3 min-w-0"
+        style={{ background: 'transparent' }}
+      >
+        {children}
+      </button>
+      {mapHref && (
+        <a
+          href={mapHref}
+          onClick={(e) => e.stopPropagation()}
+          title="Open on map"
+          aria-label="Open on map"
+          className="flex items-center justify-center px-3 shrink-0 hover:bg-white/5 transition-colors"
+          style={{
+            borderLeft: '1px solid var(--border-soft)',
+            color: 'var(--app-primary)',
+            textDecoration: 'none',
+          }}
+        >
+          <span style={{ fontSize: '16px', lineHeight: 1 }}>🗺</span>
+        </a>
+      )}
+    </div>
   )
 }
 
