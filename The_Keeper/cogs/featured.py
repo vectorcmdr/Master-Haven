@@ -297,12 +297,29 @@ class FeaturedCog(commands.Cog):
             LAST_LEADERBOARD_RUN = now.date()
 
             leaderboard_channel = self.bot.get_channel(self.FEATURED_CHANNEL_ID)
-            photo_data = await self.gather_featured_photos()
-            if not leaderboard_channel or not photo_data:
-                self.log("LEADERBOARD", "Cannot post weekly leaderboard")
+            
+            async with aiosqlite.connect(DB_PATH) as db:
+                async with db.execute("""
+                    SELECT author_id, image_url, reactions, jump_url
+                    FROM featured_messages
+                """) as cursor:
+                    rows = await cursor.fetchall()
+                    if not leaderboard_channel or not photo_data:
+                        self.log("LEADERBOARD", "Cannot post weekly leaderboard")
                 return
+                
+        photo_data = [
+    {
+        "author_id": r[0],
+        "image_url": r[1],
+        "reactions": r[2],
+        "url": r[3]
+    }
+      for r in rows
+]
 
             top_photos = sorted(photo_data, key=lambda x: x["reactions"], reverse=True)[:LEADERBOARD_TOP]
+
             embed = discord.Embed(
                 title="🏆 Weekly Featured Photo Leaderboard",
                 description="Top photos by reactions this week",
@@ -441,15 +458,7 @@ class FeaturedCog(commands.Cog):
         count = 0
         
         async for message in featured_channel.history(limit=None):
-        
-            original_message_id = None
 
-        if embed.footer and embed.footer.text.startswith("MSG_ID:"):
-            original_message_id = int(embed.footer.text.replace("MSG_ID:", "").strip())
-        
-        if original_message_id and await self.is_featured(original_message_id):
-            continue
-        
             if not message.embeds:
                 continue
         
@@ -458,7 +467,10 @@ class FeaturedCog(commands.Cog):
             if not embed.image:
                 continue
         
-            reactions = 0
+            if await self.is_featured(message.id):
+                continue
+        
+            reactions = self.count_total_reactions(message)
         
             await self.save_featured(
                 message,
@@ -467,8 +479,8 @@ class FeaturedCog(commands.Cog):
             )
         
             count += 1
-        
-        await ctx.send(f"Synced {count} featured photos into database.")
+            
+            await ctx.send(f"Synced {count} featured photos into database.")
             
 
 
