@@ -362,54 +362,54 @@ class FeaturedCog(commands.Cog):
 
 
     @commands.command(name="picusers")
-@commands.has_permissions(administrator=True)
-async def picusers(self, ctx, limit: int = 10):
-
-    await self.init_db()
-
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("""
-            SELECT author_id,
-                   COUNT(*) as photos,
-                   SUM(reactions) as reactions
-            FROM featured_messages
-            GROUP BY author_id
-            ORDER BY photos DESC, reactions DESC
-            LIMIT ?
-        """, (limit,)) as cursor:
-
-            rows = await cursor.fetchall()
-
-    if not rows:
-        await ctx.send("No featured photos found.")
-        return
-
-    embed = discord.Embed(
-        title="🏆 Featured Photo User Leaderboard",
-        description="Ranked by featured photos + total reactions",
-        color=0x00AAFF
-    )
-
-    for rank, (author_id, photos, reactions) in enumerate(rows, start=1):
-
-        user = self.bot.get_user(author_id)
-
-        if user:
-            user_text = user.mention
-        else:
-            user_text = f"<@{author_id}>"
-
-        embed.add_field(
-            name=f"{rank}.",
-            value=(
-                f"{user_text}\n"
-                f"📸 Featured Photos: {photos}\n"
-                f"⭐ Total Reactions: {reactions or 0}"
-            ),
-            inline=False
+    @commands.has_permissions(administrator=True)
+    async def picusers(self, ctx, limit: int = 10):
+    
+        await self.init_db()
+    
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute("""
+                SELECT author_id,
+                       COUNT(*) as photos,
+                       SUM(reactions) as reactions
+                FROM featured_messages
+                GROUP BY author_id
+                ORDER BY photos DESC, reactions DESC
+                LIMIT ?
+            """, (limit,)) as cursor:
+    
+                rows = await cursor.fetchall()
+    
+        if not rows:
+            await ctx.send("No featured photos found.")
+            return
+    
+        embed = discord.Embed(
+            title="🏆 Featured Photo User Leaderboard",
+            description="Ranked by featured photos + total reactions",
+            color=0x00AAFF
         )
-
-    await ctx.send(embed=embed)
+    
+        for rank, (author_id, photos, reactions) in enumerate(rows, start=1):
+    
+            user = self.bot.get_user(author_id)
+    
+            if user:
+                user_text = user.mention
+            else:
+                user_text = f"<@{author_id}>"
+    
+            embed.add_field(
+                name=f"{rank}.",
+                value=(
+                    f"{user_text}\n"
+                    f"📸 Featured Photos: {photos}\n"
+                    f"⭐ Total Reactions: {reactions or 0}"
+                ),
+                inline=False
+            )
+    
+        await ctx.send(embed=embed)
         
     @commands.command(name="sync")
     @commands.has_permissions(administrator=True)
