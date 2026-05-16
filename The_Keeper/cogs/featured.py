@@ -318,7 +318,7 @@ class FeaturedCog(commands.Cog):
       for r in rows
 ]
 
-            top_photos = sorted(photo_data, key=lambda x: x["reactions"], reverse=True)[:LEADERBOARD_TOP]
+        top_photos = sorted(photo_data, key=lambda x: x["reactions"], reverse=True)[:LEADERBOARD_TOP]
 
             embed = discord.Embed(
                 title="🏆 Weekly Featured Photo Leaderboard",
