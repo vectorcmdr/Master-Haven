@@ -41,7 +41,7 @@ class FeaturedCog(commands.Cog):
         self.FEATURED_TIME_LIMIT = FEATURED_TIME_LIMIT
         self.log = log_func
         self.count_total_reactions = count_total_reactions_func       
-        self.weekly_leaderboard_task.start()
+        
         self.FEATURED_MESSAGES = set()
         self.PROCESSING = set()
         self.bootstrapped = False
