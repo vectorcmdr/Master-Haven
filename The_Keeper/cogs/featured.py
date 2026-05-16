@@ -40,7 +40,8 @@ class FeaturedCog(commands.Cog):
         self.FEATURED_THRESHOLD = FEATURED_THRESHOLD
         self.FEATURED_TIME_LIMIT = FEATURED_TIME_LIMIT
         self.log = log_func
-        self.count_total_reactions = count_total_reactions_func        
+        self.count_total_reactions = count_total_reactions_func
+        self.weekly_leaderboard_task = self.create_weekly_leaderboard_task(LEADERBOARD_DAY, LEADERBOARD_TOP)
         self.weekly_leaderboard_task.start()
         self.FEATURED_MESSAGES = set()
         self.PROCESSING = set()
@@ -96,13 +97,12 @@ class FeaturedCog(commands.Cog):
 
     # -------------------- FEATURE LOGIC --------------------
     async def try_feature_message(self, message: discord.Message):
-        if message.id in self.FEATURED_MESSAGES or message.id in self.PROCESSING:
+        if message.id in self.PROCESSING:
             return
-
-        if message.id in self.FEATURED_MESSAGES:
+    
+        if await self.is_featured(message.id):
             return
-            
-
+    
         self.PROCESSING.add(message.id)
         try:
             now = datetime.now(timezone.utc)
@@ -111,107 +111,55 @@ class FeaturedCog(commands.Cog):
                 created = created.replace(tzinfo=timezone.utc)
             if (now - created).total_seconds() > self.FEATURED_TIME_LIMIT:
                 return
-
+    
             if not message.attachments:
                 return
-
+    
             total_reactions = self.count_total_reactions(message)
             if total_reactions < self.FEATURED_THRESHOLD:
                 return
-
+    
             featured_channel = self.bot.get_channel(self.FEATURED_CHANNEL_ID)
             if not featured_channel:
                 self.log("ERROR", "Featured channel not found")
                 return
-
+    
             images = [a for a in message.attachments if is_valid_image(a.filename)]
-
             if not images:
                 return
-            
+    
             for index, image in enumerate(images, start=1):
                 embed = discord.Embed(
                     title=f"📸 Featured Photo #{index}",
                     description=f"Featured by {message.author.mention}",
                     color=0x008080
                 )
-            
+    
                 embed.set_image(url=image.url)
-            
+    
                 embed.add_field(
                     name="Original Message",
                     value=f"[Jump to photo]({message.jump_url})",
                     inline=False
                 )
-            
+    
                 await featured_channel.send(embed=embed)
-
+    
+            await self.save_featured(message, images, total_reactions)
+    
             self.FEATURED_MESSAGES.add(message.id)
-            self.save_featured_messages()
-
+    
             try:
                 await message.add_reaction("🌟")
             except discord.HTTPException:
                 pass
-
+    
             self.log("FEATURE", f"Featured {message.id} ({total_reactions} reactions)")
-
+    
         except Exception as e:
             self.log("ERROR", f"Feature error: {e}")
         finally:
             self.PROCESSING.discard(message.id)
-
-    async def is_featured(self, message_id: int):
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute(
-                "SELECT 1 FROM featured_messages WHERE message_id = ?",
-                (message_id,)
-            ) as cursor:
-                row = await cursor.fetchone()
-                return row is not None
-
-
-    async def save_featured(self, message, images, reactions):
-        async with aiosqlite.connect(DB_PATH) as db:
-    
-            image_url = images[0].url if images else None
-    
-            await db.execute("""
-                INSERT OR REPLACE INTO featured_messages (
-                    message_id,
-                    author_id,
-                    channel_id,
-                    jump_url,
-                    image_url,
-                    reactions,
-                    created_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                message.id,
-                message.author.id,
-                message.channel.id,
-                message.jump_url,
-                image_url,
-                reactions,
-                message.created_at.isoformat()
-            ))
-    
-            await db.commit()
-    
-    
-    async def load_featured_messages(self):
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute(
-                "SELECT message_id FROM featured_messages"
-            ) as cursor:
-    
-                rows = await cursor.fetchall()
-                self.FEATURED_MESSAGES = {row[0] for row in rows}
-    
-    
-    def save_featured_messages(self):
-        pass
 
     # -------------------- EVENT LISTENERS --------------------
     @commands.Cog.listener()
