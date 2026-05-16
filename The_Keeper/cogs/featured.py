@@ -5,13 +5,14 @@ import aiosqlite
 from datetime import datetime, timezone
 import discord
 from discord.ext import commands, tasks
+import shutil
 
 os.makedirs("Data", exist_ok=True)
 
 def is_valid_image(filename: str):
     return filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
 
-DB_PATH = "featured.db"
+DB_PATH = os.path.join("The_Keeper", "cogs", "Data", "featured.db")
 
 class FeaturedCog(commands.Cog):
 
