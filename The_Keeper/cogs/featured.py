@@ -7,12 +7,14 @@ import discord
 from discord.ext import commands, tasks
 import shutil
 
-os.makedirs("Data", exist_ok=True)
 
 def is_valid_image(filename: str):
     return filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
 
-DB_PATH = os.path.join("The_Keeper", "cogs", "Data", "featured.db")
+BASE_DIR = os.path.join(os.path.dirname(__file__), "Data")
+os.makedirs(BASE_DIR, exist_ok=True)
+
+DB_PATH = os.path.join(BASE_DIR, "featured.db")
 
 class FeaturedCog(commands.Cog):
 
