@@ -264,6 +264,7 @@ async def on_ready():
     print("[...The Keeper is watching...]")
 
     featured_cog = bot.get_cog("FeaturedCog")
+    await featured_cog.load_featured_messages()
     if featured_cog:
         leaderboard_task = featured_cog.create_weekly_leaderboard_task(
             LEADERBOARD_DAY, LEADERBOARD_TOP
