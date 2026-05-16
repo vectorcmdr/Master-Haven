@@ -1302,6 +1302,30 @@ export default function SystemApprovalTab({
                     {body.notes && (
                       <div className="mt-1 text-gray-300"><span className="text-gray-400">Notes:</span> {body.notes}</div>
                     )}
+                    {/* Wonders Page Notes (migration v1.76.0). Free-form
+                        narrative from the in-game NMS Log → Exploration
+                        Guide page. Captured by the wizard and stored on
+                        planets/moons but never rendered for approvers —
+                        a gap the approval pass identified. Only render
+                        when at least one field is populated to keep
+                        cards lean. */}
+                    {(body.estimated_age || body.core_element || body.lore_notes || body.root_structure || body.nutrient_source) && (
+                      <div className="mt-2 p-2 rounded bg-amber-900/20 border border-amber-700/40 text-xs">
+                        <div className="font-semibold text-amber-300 mb-1">★ Wonders Page Notes</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-1 text-gray-200">
+                          {body.estimated_age && <div><span className="text-amber-400/80">Age:</span> {body.estimated_age}</div>}
+                          {body.core_element && <div><span className="text-amber-400/80">Core:</span> {body.core_element}</div>}
+                          {body.root_structure && <div><span className="text-amber-400/80">Roots:</span> {body.root_structure}</div>}
+                          {body.nutrient_source && <div><span className="text-amber-400/80">Nutrient:</span> {body.nutrient_source}</div>}
+                        </div>
+                        {body.lore_notes && (
+                          <div className="mt-1.5">
+                            <span className="text-amber-400/80">Lore:</span>
+                            <div className="mt-0.5 whitespace-pre-wrap text-gray-200">{body.lore_notes}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {body.photo && (
                       <div className="mt-2"><span className="text-gray-400">Photo:</span> <span className="text-cyan-300">{body.photo}</span></div>
                     )}
@@ -1336,6 +1360,28 @@ export default function SystemApprovalTab({
                                         <div className="col-span-2">Resources: {moon.materials || moon.resources?.join(', ')}</div>
                                       )}
                                     </div>
+                                    {(moon.ancient_bones || moon.vile_brood || moon.salvageable_scrap || moon.storm_crystals || moon.gravitino_balls || moon.is_infested || moon.is_dissonant || moon.is_bubble || moon.is_floating_islands) && (
+                                      <div className="mt-1 flex flex-wrap gap-1">
+                                        {moon.ancient_bones ? <span className="text-[10px] px-1 py-0.5 rounded bg-amber-800/60 text-amber-300">Bones</span> : null}
+                                        {moon.vile_brood ? <span className="text-[10px] px-1 py-0.5 rounded bg-red-800/60 text-red-300">Brood</span> : null}
+                                        {moon.salvageable_scrap ? <span className="text-[10px] px-1 py-0.5 rounded bg-orange-800/60 text-orange-300">Scrap</span> : null}
+                                        {moon.storm_crystals ? <span className="text-[10px] px-1 py-0.5 rounded bg-cyan-800/60 text-cyan-300">Crystals</span> : null}
+                                        {moon.gravitino_balls ? <span className="text-[10px] px-1 py-0.5 rounded bg-purple-800/60 text-purple-300">Gravitino</span> : null}
+                                        {moon.is_dissonant ? <span className="text-[10px] px-1 py-0.5 rounded bg-violet-800/60 text-violet-300">Dissonant</span> : null}
+                                        {moon.is_bubble ? <span className="text-[10px] px-1 py-0.5 rounded bg-pink-800/60 text-pink-300">Bubble</span> : null}
+                                        {moon.is_floating_islands ? <span className="text-[10px] px-1 py-0.5 rounded bg-teal-800/60 text-teal-300">Floating</span> : null}
+                                      </div>
+                                    )}
+                                    {(moon.estimated_age || moon.core_element || moon.lore_notes || moon.root_structure || moon.nutrient_source) && (
+                                      <div className="mt-1.5 p-1.5 rounded bg-amber-900/20 border border-amber-700/40 text-[10px]">
+                                        <div className="font-semibold text-amber-300 mb-0.5">★ Wonders Notes</div>
+                                        {moon.estimated_age && <div className="text-gray-300"><span className="text-amber-400/80">Age:</span> {moon.estimated_age}</div>}
+                                        {moon.core_element && <div className="text-gray-300"><span className="text-amber-400/80">Core:</span> {moon.core_element}</div>}
+                                        {moon.root_structure && <div className="text-gray-300"><span className="text-amber-400/80">Roots:</span> {moon.root_structure}</div>}
+                                        {moon.nutrient_source && <div className="text-gray-300"><span className="text-amber-400/80">Nutrient:</span> {moon.nutrient_source}</div>}
+                                        {moon.lore_notes && <div className="mt-0.5 text-gray-300 whitespace-pre-wrap"><span className="text-amber-400/80">Lore:</span> {moon.lore_notes}</div>}
+                                      </div>
+                                    )}
                                   </>
                                 )}
                               </div>
@@ -1524,6 +1570,63 @@ export default function SystemApprovalTab({
                 </p>
               )}
             </div>
+
+            {/* Wizard v1 extras — submitter notes, co-authors, expedition,
+                proposed region name. All four were captured by the wizard
+                and stored either as dedicated columns or inside system_data
+                JSON, but none were rendered here, so approvers couldn't see
+                what they were approving. Read both paths to cover legacy
+                rows that pre-date the dedicated columns. */}
+            {(() => {
+              const sd = selectedSubmission.system_data || {}
+              const submitterNotes = selectedSubmission.submitter_notes ?? sd.submitter_notes
+              const expeditionId = selectedSubmission.expedition_id ?? sd.expedition_id
+              const coauthors = sd.coauthors || selectedSubmission.coauthors
+              const proposedRegionName = sd.proposed_region_name ?? selectedSubmission.proposed_region_name
+              const hasAny = submitterNotes || expeditionId || (coauthors && coauthors.length) || proposedRegionName
+              if (!hasAny) return null
+              return (
+                <div className="mt-3 p-3 rounded border border-cyan-700 bg-cyan-950/40 text-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-cyan-300 mb-2">Wizard Submission Extras</div>
+                  <div className="space-y-1.5">
+                    {coauthors && coauthors.length > 0 && (
+                      <div>
+                        <strong>Co-authors:</strong>{' '}
+                        <span className="inline-flex flex-wrap gap-1 align-middle">
+                          {coauthors.map((c, i) => {
+                            const name = typeof c === 'string' ? c : (c?.username || c?.name || '?')
+                            return (
+                              <span key={i} className="px-1.5 py-0.5 rounded bg-cyan-900/60 text-xs font-mono">
+                                {name}
+                              </span>
+                            )
+                          })}
+                        </span>
+                      </div>
+                    )}
+                    {expeditionId && (
+                      <div>
+                        <strong>Expedition:</strong>{' '}
+                        <span className="px-1.5 py-0.5 rounded bg-violet-900/60 text-xs font-mono">{expeditionId}</span>
+                      </div>
+                    )}
+                    {proposedRegionName && (
+                      <div>
+                        <strong>Proposed Region Name:</strong>{' '}
+                        <span className="px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-200 text-xs">{proposedRegionName}</span>
+                        <span className="ml-2 opacity-60 text-xs">(approved as part of the system)</span>
+                      </div>
+                    )}
+                    {submitterNotes && (
+                      <div>
+                        <strong>Submitter Notes:</strong>
+                        <div className="mt-1 p-2 rounded bg-black/30 whitespace-pre-wrap text-xs">{submitterNotes}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Co-submitted discoveries panel (Wizard v1.64.0).
                 The wizard's public submit path bundles in-progress
@@ -2108,6 +2211,15 @@ function CoSubmittedDiscoveriesPanel({ raw }) {
               ? `Moon · ${d.moon_name} (${d.planet_name})`
               : `Moon · ${d.moon_name}`
           }
+          // v1.66 — surface evidence so the approver knows what's attached.
+          const photoUrl = d.photo_url || null
+          const evidenceList = (d.evidence_urls || '')
+            .split(',')
+            .map((u) => u.trim())
+            .filter(Boolean)
+          const metaEntries = d.type_metadata && typeof d.type_metadata === 'object'
+            ? Object.entries(d.type_metadata).filter(([, v]) => v !== null && v !== undefined && v !== '')
+            : []
           return (
             <div key={i} className="p-2 rounded text-sm" style={{ backgroundColor: 'rgba(0,0,0,0.25)' }}>
               <div className="flex items-center gap-2 flex-wrap">
@@ -2126,6 +2238,47 @@ function CoSubmittedDiscoveriesPanel({ raw }) {
               </div>
               {d.description && (
                 <div className="text-xs opacity-70 mt-1 line-clamp-2">{d.description}</div>
+              )}
+              {(photoUrl || evidenceList.length > 0 || metaEntries.length > 0) && (
+                <div className="mt-2 pt-2 border-t border-white/10 space-y-1.5">
+                  {photoUrl && (
+                    <div className="flex items-start gap-2 text-xs">
+                      <span className="opacity-70">📷 Photo:</span>
+                      <a href={photoUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:underline break-all">
+                        {photoUrl}
+                      </a>
+                    </div>
+                  )}
+                  {evidenceList.length > 0 && (
+                    <div className="text-xs">
+                      <span className="opacity-70">🔗 Evidence ({evidenceList.length}):</span>
+                      <ul className="ml-4 mt-0.5 list-disc">
+                        {evidenceList.map((u, ei) => (
+                          <li key={ei}>
+                            {u.startsWith('http') ? (
+                              <a href={u} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:underline break-all">{u}</a>
+                            ) : (
+                              <span className="text-cyan-300 break-all">{u}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {metaEntries.length > 0 && (
+                    <div className="text-xs">
+                      <span className="opacity-70">ℹ Type metadata:</span>
+                      <div className="ml-4 mt-0.5 grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-0.5">
+                        {metaEntries.map(([k, v]) => (
+                          <div key={k}>
+                            <span className="opacity-60">{k}:</span>{' '}
+                            <span className="font-mono">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )

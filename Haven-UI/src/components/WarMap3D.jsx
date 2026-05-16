@@ -704,9 +704,13 @@ export default function WarMap3D({ className = '', onSystemSelect }) {
         </div>
       )}
 
-      {/* Drill-down systems panel */}
+      {/* Drill-down systems panel.
+          On phone (~360px wide), w-80 (320px) + right-3 covered 89% of the
+          viewport with no escape. Now becomes a bottom sheet on <sm (inset-x
+          + auto width), reverts to the desktop panel on sm+. Height capped
+          to 60vh on phone to keep the map underneath visible. */}
       {drillDownRegion && (
-        <div className="absolute bottom-3 right-3 bg-black/95 border border-red-500/30 rounded p-4 w-80 max-h-[400px] flex flex-col">
+        <div className="absolute inset-x-3 bottom-3 sm:inset-x-auto sm:right-3 bg-black/95 border border-red-500/30 rounded p-4 w-auto sm:w-80 max-h-[60vh] sm:max-h-[400px] flex flex-col">
           <div className="flex items-start justify-between mb-3">
             <div>
               <div className="flex items-center gap-2">

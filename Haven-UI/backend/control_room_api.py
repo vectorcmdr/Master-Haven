@@ -2013,9 +2013,12 @@ async def api_batch_reject_region_names(payload: dict, session: Optional[str] = 
             raise HTTPException(status_code=403, detail='Batch approvals permission required')
 
     submission_ids = payload.get('submission_ids', [])
-    reason = payload.get('reason', '')
+    reason = (payload.get('reason', '') or '').strip()
     if not submission_ids or not isinstance(submission_ids, list):
         raise HTTPException(status_code=400, detail='submission_ids array is required')
+    # Non-empty reason required — parity with /api/reject_systems/batch
+    if not reason:
+        raise HTTPException(status_code=400, detail='Rejection reason is required')
 
     results = {'rejected': [], 'failed': [], 'skipped': []}
     approver_username = session_data.get('username', 'admin')
@@ -2037,6 +2040,16 @@ async def api_batch_reject_region_names(payload: dict, session: Optional[str] = 
 
                 submission = dict(row)
                 proposed_name = submission['proposed_name']
+
+                # Skip user's own submissions (parity with batch approve & batch
+                # reject of systems). Super admin + partner exempted in helper.
+                if check_self_submission(submission, session_data):
+                    results['skipped'].append({
+                        'id': submission_id,
+                        'name': proposed_name,
+                        'reason': 'Cannot reject your own submission',
+                    })
+                    continue
 
                 # Mark as rejected
                 cursor.execute('''
@@ -2262,6 +2275,46 @@ async def get_system(system_id: str, session: Optional[str] = Cookie(None)):
             system['original_submitter'] = (
                 (original or {}).get('name') or system.get('discovered_by')
             )
+
+            # Linked discoveries (planet / moon / space). v1.33 added the link
+            # but SystemDetail never fetched them, leaving an entire feature
+            # unreachable from the system page. LEFT JOIN to surface the
+            # planet/moon names since most discoveries are scoped that way.
+            try:
+                cursor.execute("""
+                    SELECT d.id, d.discovery_name, d.discovery_type, d.type_slug,
+                           d.description, d.discovered_by, d.discord_tag,
+                           d.submission_timestamp, d.photos, d.featured,
+                           d.view_count, d.type_metadata, d.location_name,
+                           d.location_type, d.planet_id, d.moon_id,
+                           p.name AS planet_name,
+                           m.name AS moon_name
+                    FROM discoveries d
+                    LEFT JOIN planets p ON p.id = d.planet_id
+                    LEFT JOIN moons m ON m.id = d.moon_id
+                    WHERE d.system_id = ?
+                      AND COALESCE(d.analysis_status, 'approved') = 'approved'
+                    ORDER BY d.submission_timestamp DESC
+                """, (sys_id,))
+                discoveries_rows = cursor.fetchall()
+                discoveries_list = []
+                for row in discoveries_rows:
+                    d_dict = dict(row)
+                    # Parse JSON-ish fields so the frontend doesn't have to
+                    for json_field in ('photos', 'type_metadata'):
+                        raw = d_dict.get(json_field)
+                        if isinstance(raw, str) and raw:
+                            try:
+                                d_dict[json_field] = json.loads(raw)
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+                    discoveries_list.append(d_dict)
+                system['discoveries'] = discoveries_list
+            except Exception as disc_err:
+                # Non-fatal — the discoveries table may not have all the
+                # joined columns on older schemas. Log + return empty list.
+                logger.warning(f"Failed to fetch system discoveries: {disc_err}")
+                system['discoveries'] = []
 
             # Apply field restrictions if applicable
             if restriction and restriction.get('hidden_fields'):
@@ -2658,7 +2711,12 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
             except (TypeError, ValueError):
                 wizard_expedition_id = None
 
-            # Update existing system (including contributor tracking, clear stub flag, wizard v1 fields)
+            # Update existing system (including contributor tracking, clear stub flag, wizard v1 fields).
+            # game_mode now updated on edit too — previously frozen at the
+            # original value so a player switching difficulty (Normal →
+            # Permadeath) and resubmitting kept the original mode forever.
+            # COALESCE preserves the existing value when the payload doesn't
+            # include game_mode (legacy clients).
             cursor.execute('''
                 UPDATE systems SET
                     name = ?, galaxy = ?, reality = ?, x = ?, y = ?, z = ?,
@@ -2671,6 +2729,7 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                     stellar_classification = ?,
                     last_updated_by = ?, last_updated_at = ?, contributors = ?,
                     game_version = ?, expedition_id = ?,
+                    game_mode = COALESCE(?, game_mode),
                     is_stub = 0
                 WHERE id = ?
             ''', (
@@ -2702,6 +2761,7 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                 json.dumps(contributors_list),
                 wizard_game_version,
                 wizard_expedition_id,
+                payload.get('game_mode'),
                 sys_id
             ))
             logger.info(f"Updated system {sys_id}, last_updated_by: {editor_username}")
@@ -2723,15 +2783,18 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
             except (TypeError, ValueError):
                 wizard_expedition_id = None
 
-            # Insert new system (including contributor tracking, wizard v1 fields)
+            # Insert new system (including contributor tracking, wizard v1 fields).
+            # game_mode added — was silently defaulting to 'Normal' via the
+            # column default regardless of what the wizard sent, misclassifying
+            # every Permadeath/Survival/Creative partner direct-create.
             cursor.execute('''
                 INSERT INTO systems (id, name, galaxy, reality, x, y, z, star_x, star_y, star_z, description,
                     glyph_code, glyph_planet, glyph_solar_system, region_x, region_y, region_z,
                     star_type, economy_type, economy_level, conflict_level, dominant_lifeform, discord_tag,
                     stellar_classification, discovered_by, discovered_at, contributors,
                     profile_id, personal_discord_username, source,
-                    game_version, expedition_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    game_version, expedition_id, game_mode)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 sys_id,
                 name,
@@ -2765,6 +2828,7 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                 'manual',
                 wizard_game_version,
                 wizard_expedition_id,
+                payload.get('game_mode') or 'Normal',
             ))
             logger.info(f"Created new system {sys_id}, discovered_by: {editor_username}")
 
@@ -2849,15 +2913,21 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
             ))
             planet_id = cursor.lastrowid
 
-            # Insert moons with ALL fields
+            # Insert moons with ALL fields.
+            # Column list now matches the approve_system / batch_approve paths
+            # exactly — previously save_system was missing biome / biome_subtype
+            # / weather / planet_size / common_resource / uncommon_resource /
+            # rare_resource / plant_resource, which silently dropped moon biome
+            # data on every partner direct-create.
             for moon in planet.get('moons', []):
                 cursor.execute('''
                     INSERT INTO moons (planet_id, name, orbit_radius, orbit_speed, climate, sentinel, fauna, flora, materials, notes, description, photo,
                         has_rings, is_dissonant, is_infested, extreme_weather, water_world, vile_brood, exotic_trophy,
                         ancient_bones, salvageable_scrap, storm_crystals, gravitino_balls, infested, is_gas_giant,
                         is_bubble, is_floating_islands,
+                        biome, biome_subtype, weather, planet_size, common_resource, uncommon_resource, rare_resource, plant_resource,
                         estimated_age, core_element, lore_notes, root_structure, nutrient_source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     planet_id,
                     moon.get('name', 'Unknown'),
@@ -2886,6 +2956,15 @@ async def save_system(payload: dict, session: Optional[str] = Cookie(None)):
                     1 if moon.get('is_gas_giant') else 0,
                     1 if moon.get('is_bubble') else 0,
                     1 if moon.get('is_floating_islands') else 0,
+                    # Per-moon biome / resource fields (parity with approval paths)
+                    moon.get('biome'),
+                    moon.get('biome_subtype'),
+                    moon.get('weather'),
+                    moon.get('planet_size'),
+                    moon.get('common_resource'),
+                    moon.get('uncommon_resource'),
+                    moon.get('rare_resource'),
+                    moon.get('plant_resource'),
                     # Wonders Page Notes (migration 1.76.0)
                     moon.get('estimated_age'),
                     moon.get('core_element'),

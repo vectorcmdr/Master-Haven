@@ -22,7 +22,7 @@ from services.auth_service import (
     check_self_submission,
     verify_api_key,
 )
-from services.civilizations import civ_scope_filter
+from services.civilizations import civ_scope_filter, user_can_act_for_civ
 
 logger = logging.getLogger('control.room')
 
@@ -315,9 +315,13 @@ async def browse_discoveries(
             where_clauses.append("type_slug = ?")
             params.append(type)
 
-        # Search query
-        if q:
-            q_pattern = f"%{q}%"
+        # Search query — 2-char minimum mirrors the v1.51 Stage 2 hardening
+        # of the older /api/discoveries endpoint. Single-char wildcard scans
+        # against discovery_name/description/location_name across the full
+        # table are the OOM pattern the prior fix was meant to prevent.
+        q_clean = (q or '').strip()
+        if q_clean and len(q_clean) >= 2:
+            q_pattern = f"%{q_clean}%"
             where_clauses.append("(discovery_name LIKE ? OR description LIKE ? OR location_name LIKE ?)")
             params.extend([q_pattern, q_pattern, q_pattern])
 
@@ -866,9 +870,17 @@ async def get_pending_discoveries(session: Optional[str] = Cookie(None)):
 
 @router.get('/api/pending_discoveries/{submission_id}')
 async def get_pending_discovery_detail(submission_id: int, session: Optional[str] = Cookie(None)):
-    """Get full details of a pending discovery submission."""
+    """Get full details of a pending discovery submission.
+
+    Community-scoped (parity with pending_systems detail endpoint). Returns
+    404 (not 403) when out of scope so callers cannot enumerate IDs to
+    discover what civs are submitting what.
+    """
     if not verify_session(session):
         raise HTTPException(status_code=401, detail="Admin authentication required")
+
+    session_data = get_session(session)
+    is_super = session_data.get('user_type') == 'super_admin' if session_data else False
 
     conn = None
     try:
@@ -881,6 +893,13 @@ async def get_pending_discovery_detail(submission_id: int, session: Optional[str
             raise HTTPException(status_code=404, detail="Submission not found")
 
         submission = dict(row)
+
+        # Community scoping for non-super-admins
+        if not is_super:
+            sub_tag = submission.get('discord_tag')
+            if not user_can_act_for_civ(session_data, sub_tag):
+                raise HTTPException(status_code=404, detail="Submission not found")
+
         if submission.get('discovery_data'):
             try:
                 submission['discovery_data'] = json.loads(submission['discovery_data'])
@@ -1083,26 +1102,16 @@ async def reject_discovery(submission_id: int, payload: dict, session: Optional[
         if submission['status'] != 'pending':
             raise HTTPException(status_code=400, detail=f"Submission already {submission['status']}")
 
-        # Self-rejection blocking: same rules as system rejection
-        if current_user_type != 'super_admin':
-            submitter_account_id = submission.get('submitter_account_id')
-            submitter_account_type = submission.get('submitter_account_type')
-            submitted_by = submission.get('submitted_by')
-
-            normalized_current = normalize_discord_username(current_username)
-            is_self = False
-
-            if submitter_account_id is not None and submitter_account_type:
-                if current_user_type == submitter_account_type and current_account_id == submitter_account_id:
-                    is_self = True
-            elif submitted_by and normalized_current and normalize_discord_username(submitted_by) == normalized_current:
-                is_self = True
-
-            if is_self:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You cannot reject your own submission."
-                )
+        # Self-rejection blocking: use the canonical helper. The inline
+        # version this replaced was missing the profile_id comparison and
+        # the personal_discord_username fallback that approve_discovery's
+        # check_self_submission() call covers — letting a self-rejection
+        # slip through gaps the helper closes.
+        if check_self_submission(submission, session_data):
+            raise HTTPException(
+                status_code=403,
+                detail="You cannot reject your own submission."
+            )
 
         # Update status
         cursor.execute('''

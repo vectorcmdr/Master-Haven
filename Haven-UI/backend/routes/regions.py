@@ -14,9 +14,11 @@ from planet_atlas_wrapper import generate_planet_html
 from services.auth_service import (
     get_session,
     verify_session,
+    is_super_admin,
     require_feature,
     verify_api_key,
     normalize_username_for_dedup,
+    check_self_submission,
 )
 from services.civilizations import civ_scope_filter
 from services.dispatch import fire_and_forget
@@ -614,9 +616,22 @@ async def api_get_region(rx: int, ry: int, rz: int,
 
 
 @router.get('/api/regions/{rx}/{ry}/{rz}/systems')
-async def api_region_systems(rx: int, ry: int, rz: int, page: int = 1, limit: int = 50,
-                              include_planets: bool = False, session: Optional[str] = Cookie(None)):
-    """Get paginated systems for a specific region (lazy-loading endpoint)."""
+async def api_region_systems(
+    rx: int, ry: int, rz: int,
+    page: int = 1, limit: int = 50,
+    include_planets: bool = False,
+    reality: Optional[str] = None,
+    galaxy: Optional[str] = None,
+    session: Optional[str] = Cookie(None),
+):
+    """Get paginated systems for a specific region (lazy-loading endpoint).
+
+    Reality + galaxy scoping (per regions table 5-key UNIQUE since v1.49.0).
+    Pre-fix this endpoint matched only on (rx,ry,rz), mixing systems from
+    different galaxies/realities under one region — wrong list for any
+    non-Euclid/Normal region. Backwards-compatible: missing params skip
+    the WHERE clause (matches old behavior for legacy callers).
+    """
     session_data = get_session(session)
 
     conn = None
@@ -633,11 +648,21 @@ async def api_region_systems(rx: int, ry: int, rz: int, page: int = 1, limit: in
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute('''
+        where_clauses = ['region_x = ?', 'region_y = ?', 'region_z = ?']
+        params: list = [rx, ry, rz]
+        if reality:
+            where_clauses.append('COALESCE(reality, ?) = ?')
+            params.extend(['Normal', normalize_reality(reality)])
+        if galaxy:
+            where_clauses.append('COALESCE(galaxy, ?) = ?')
+            params.extend(['Euclid', galaxy])
+        where_sql = ' AND '.join(where_clauses)
+
+        cursor.execute(f'''
             SELECT * FROM systems
-            WHERE region_x = ? AND region_y = ? AND region_z = ?
+            WHERE {where_sql}
             ORDER BY created_at ASC NULLS FIRST, id ASC
-        ''', (rx, ry, rz))
+        ''', params)
 
         all_systems = [dict(row) for row in cursor.fetchall()]
         all_systems = apply_data_restrictions(all_systems, session_data)
@@ -1050,13 +1075,15 @@ async def get_planet_3d_map(planet_id: int, session: Optional[str] = Cookie(None
 
 @router.put('/api/regions/{rx}/{ry}/{rz}')
 async def api_update_region(rx: int, ry: int, rz: int, payload: dict, session: Optional[str] = Cookie(None)):
-    """Update/set custom region name. Admin only. Scoped by reality+galaxy.
+    """Update/set custom region name. Super admin only. Scoped by reality+galaxy.
 
-    Direct admin update path. Poster cache invalidation fires after the
-    response — see services/dispatch.py.
+    Direct admin update path (bypasses approval). Was gated on verify_session
+    which let any logged-in admin tier through; the audit confirmed only
+    super-admins should rename without approval. Poster cache invalidation
+    fires after the response — see services/dispatch.py.
     """
-    if not verify_session(session):
-        raise HTTPException(status_code=401, detail='Admin authentication required')
+    if not is_super_admin(session):
+        raise HTTPException(status_code=403, detail='Super admin access required')
 
     custom_name = payload.get('custom_name', '').strip()
     if not custom_name:
@@ -1111,10 +1138,23 @@ async def api_update_region(rx: int, ry: int, rz: int, payload: dict, session: O
 
 
 @router.delete('/api/regions/{rx}/{ry}/{rz}/name')
-async def api_delete_region_name(rx: int, ry: int, rz: int, session: Optional[str] = Cookie(None)):
-    """Remove custom region name. Admin only."""
-    if not verify_session(session):
-        raise HTTPException(status_code=401, detail='Admin authentication required')
+async def api_delete_region_name(
+    rx: int, ry: int, rz: int,
+    reality: Optional[str] = None,
+    galaxy: Optional[str] = None,
+    session: Optional[str] = Cookie(None),
+):
+    """Remove custom region name. Super admin only. Scoped by reality+galaxy.
+
+    Before: deleted EVERY row matching (rx,ry,rz) regardless of reality/galaxy
+    — would nuke Permadeath/Calypso region names when deleting an Euclid one.
+    Now requires reality+galaxy query params and scopes the DELETE.
+    """
+    if not is_super_admin(session):
+        raise HTTPException(status_code=403, detail='Super admin access required')
+
+    reality_val = normalize_reality(reality)
+    galaxy_val = galaxy or 'Euclid'
 
     conn = None
     try:
@@ -1125,10 +1165,15 @@ async def api_delete_region_name(rx: int, ry: int, rz: int, session: Optional[st
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute('DELETE FROM regions WHERE region_x = ? AND region_y = ? AND region_z = ?', (rx, ry, rz))
+        cursor.execute(
+            'DELETE FROM regions WHERE region_x = ? AND region_y = ? AND region_z = ? AND reality = ? AND galaxy = ?',
+            (rx, ry, rz, reality_val, galaxy_val),
+        )
         conn.commit()
 
-        return {'status': 'ok', 'region_x': rx, 'region_y': ry, 'region_z': rz, 'message': 'Region name removed'}
+        return {'status': 'ok', 'region_x': rx, 'region_y': ry, 'region_z': rz,
+                'reality': reality_val, 'galaxy': galaxy_val,
+                'message': 'Region name removed'}
     except Exception as e:
         logger.error(f"Error deleting region name: {e}")
         logger.exception("Internal server error")
@@ -1183,12 +1228,17 @@ async def api_submit_region_name(
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute('SELECT region_x, region_y, region_z FROM regions WHERE custom_name = ?', (proposed_name,))
+        # Scoped by (reality, galaxy) — same name can legitimately be used
+        # in different galaxies/realities per the 5-key UNIQUE on regions.
+        cursor.execute('''
+            SELECT region_x, region_y, region_z FROM regions
+            WHERE custom_name = ? AND reality = ? AND galaxy = ?
+        ''', (proposed_name, reality, galaxy))
         existing = cursor.fetchone()
         if existing:
             raise HTTPException(
                 status_code=409,
-                detail=f'Region name "{proposed_name}" is already used by region [{existing["region_x"]}, {existing["region_y"]}, {existing["region_z"]}]'
+                detail=f'Region name "{proposed_name}" is already used by region [{existing["region_x"]}, {existing["region_y"]}, {existing["region_z"]}] in {galaxy}/{reality}'
             )
 
         cursor.execute('''
@@ -1206,13 +1256,13 @@ async def api_submit_region_name(
 
         cursor.execute('''
             SELECT region_x, region_y, region_z FROM pending_region_names
-            WHERE proposed_name = ? AND status = 'pending'
-        ''', (proposed_name,))
+            WHERE proposed_name = ? AND reality = ? AND galaxy = ? AND status = 'pending'
+        ''', (proposed_name, reality, galaxy))
         pending_same_name = cursor.fetchone()
         if pending_same_name:
             raise HTTPException(
                 status_code=409,
-                detail=f'Region name "{proposed_name}" is already pending approval for another region'
+                detail=f'Region name "{proposed_name}" is already pending approval for another region in {galaxy}/{reality}'
             )
 
         cursor.execute('''
@@ -1355,18 +1405,34 @@ async def api_approve_region_name(
         rx, ry, rz = submission['region_x'], submission['region_y'], submission['region_z']
         proposed_name = submission['proposed_name']
 
-        cursor.execute('SELECT id FROM regions WHERE custom_name = ?', (proposed_name,))
+        # Self-approval prevention — was missing entirely on this endpoint
+        # before. A sub-admin could submit a region name and approve it
+        # themselves via this per-id route, even though the batch endpoint
+        # blocked it. Super admin + partner exemption is in the helper.
+        if check_self_submission(submission, get_session(session)):
+            raise HTTPException(
+                status_code=403,
+                detail='You cannot approve your own region name submission'
+            )
+
+        reality = submission.get('reality') or 'Normal'
+        galaxy = submission.get('galaxy') or 'Euclid'
+
+        # Scoped duplicate check — same name in different galaxy/reality is fine
+        cursor.execute(
+            'SELECT id FROM regions WHERE custom_name = ? AND reality = ? AND galaxy = ?',
+            (proposed_name, reality, galaxy),
+        )
         if cursor.fetchone():
             cursor.execute('''
                 UPDATE pending_region_names
                 SET status = 'rejected', review_date = ?, review_notes = ?
                 WHERE id = ?
-            ''', (datetime.now(timezone.utc).isoformat(), 'Name already taken by another region', submission_id))
+            ''', (datetime.now(timezone.utc).isoformat(),
+                  f'Name already taken by another region in {galaxy}/{reality}', submission_id))
             conn.commit()
-            raise HTTPException(status_code=409, detail='Region name was already taken by another region')
-
-        reality = submission.get('reality') or 'Normal'
-        galaxy = submission.get('galaxy') or 'Euclid'
+            raise HTTPException(status_code=409,
+                                detail=f'Region name was already taken by another region in {galaxy}/{reality}')
         cursor.execute('''
             INSERT INTO regions (region_x, region_y, region_z, custom_name, reality, galaxy, source, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -1437,12 +1503,19 @@ async def api_approve_region_name(
 
 @router.post('/api/pending_region_names/{submission_id}/reject')
 async def api_reject_region_name(submission_id: int, payload: dict = None, session: Optional[str] = Cookie(None)):
-    """Reject a pending region name submission. Admin only."""
+    """Reject a pending region name submission. Admin only.
+
+    Self-rejection prevention + non-empty reason required (parity with
+    /api/reject_systems/batch). Previously sub-admin could reject their own
+    submission with no reason.
+    """
     if not verify_session(session):
         raise HTTPException(status_code=401, detail='Admin authentication required')
     require_feature(get_session(session), 'approvals')
 
-    review_notes = payload.get('notes', '') if payload else ''
+    review_notes = (payload.get('notes', '') if payload else '').strip()
+    if not review_notes:
+        raise HTTPException(status_code=400, detail='Rejection reason is required')
 
     conn = None
     try:
@@ -1461,6 +1534,13 @@ async def api_reject_region_name(submission_id: int, payload: dict = None, sessi
         submission_dict = dict(submission)
         proposed_name = submission_dict['proposed_name']
         rx, ry, rz = submission_dict['region_x'], submission_dict['region_y'], submission_dict['region_z']
+
+        # Self-rejection prevention — was missing entirely on this endpoint.
+        if check_self_submission(submission_dict, get_session(session)):
+            raise HTTPException(
+                status_code=403,
+                detail='You cannot reject your own region name submission'
+            )
 
         cursor.execute('''
             UPDATE pending_region_names

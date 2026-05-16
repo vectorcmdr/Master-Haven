@@ -44,6 +44,8 @@ const FILTER_SCALAR_KEYS = [
 ]
 // Hierarchy keys we must NOT treat as filters.
 const HIERARCHY_KEYS = new Set(['reality', 'galaxy', 'rx', 'ry', 'rz', 'rname'])
+// Non-filter, non-hierarchy URL keys (currently just the search query).
+const RESERVED_KEYS = new Set(['q'])
 
 /**
  * Resolve which level view to render from the current selection state.
@@ -114,11 +116,26 @@ export function SystemsProvider({ children }) {
     setScopeState(next)
   }, [])
 
+  // ---- Search query state (URL-synced via ?q=...) ---------------------------
+  // Single source of truth: the URL. Components that need to react to query
+  // changes read `q` from this context; the SearchOverlay's local input state
+  // is debounced before being committed back here.
+  const q = searchParams.get('q') || ''
+  const setQ = useCallback((next) => {
+    setSearchParams((prev) => {
+      const out = new URLSearchParams(prev)
+      const trimmed = (next || '').trim()
+      if (trimmed) out.set('q', trimmed)
+      else out.delete('q')
+      return out
+    }, { replace: true })
+  }, [setSearchParams])
+
   // ---- Filter state (mirrored to query string for refresh-safe deep links) --
   const filters = useMemo(() => {
     const out = {}
     for (const [k, v] of searchParams.entries()) {
-      if (HIERARCHY_KEYS.has(k)) continue
+      if (HIERARCHY_KEYS.has(k) || RESERVED_KEYS.has(k)) continue
       if (FILTER_MULTI_KEYS.includes(k)) {
         const parts = v.split(',').map((p) => p.trim()).filter(Boolean)
         if (parts.length) out[k] = parts
@@ -139,8 +156,8 @@ export function SystemsProvider({ children }) {
   const setFilters = useCallback((next) => {
     setSearchParams((prev) => {
       const out = new URLSearchParams()
-      // Preserve hierarchy params untouched
-      for (const k of ['reality', 'galaxy', 'rx', 'ry', 'rz', 'rname']) {
+      // Preserve hierarchy params + the search query untouched
+      for (const k of ['reality', 'galaxy', 'rx', 'ry', 'rz', 'rname', 'q']) {
         const v = prev.get(k)
         if (v != null) out.set(k, v)
       }
@@ -211,7 +228,7 @@ export function SystemsProvider({ children }) {
   const writeHierarchy = useCallback((snap, opts = {}) => {
     setSearchParams((prev) => {
       const out = new URLSearchParams()
-      // Carry filter params forward
+      // Carry filter params (and search query) forward
       for (const [k, v] of prev.entries()) {
         if (!HIERARCHY_KEYS.has(k)) out.set(k, v)
       }
@@ -390,6 +407,8 @@ export function SystemsProvider({ children }) {
     selectReality, selectGalaxy, selectRegion, goToLevel,
     // scope
     scope, setScope,
+    // search query (URL-synced)
+    q, setQ,
     // filters
     filters, setFilters, removeFilter, clearFilters, activeFilterCount,
     // history
@@ -406,6 +425,7 @@ export function SystemsProvider({ children }) {
     reality, galaxy, region, level,
     selectReality, selectGalaxy, selectRegion, goToLevel,
     scope, setScope,
+    q, setQ,
     filters, removeFilter, clearFilters, activeFilterCount,
     canGoBack, canGoForward, navBack, navForward,
     recentlyViewed, pushRecentlyViewed, clearRecentlyViewed,

@@ -122,6 +122,7 @@ const EMPTY_SYSTEM = {
   dominant_lifeform: '',
   stellar_classification: '',
   game_version: '',     // wizard v1
+  game_mode: 'Normal',  // wizard v1.56 — was silently defaulted backend-side
   discord_tag: null,
   planets: [],
   space_station: null,
@@ -186,6 +187,12 @@ export default function Wizard() {
   // Discoveries — owned by the wizard so DiscoveryInlineList stays controlled.
   // Submitted to /api/submit_discovery one at a time after the system save returns.
   const [discoveries, setDiscoveries] = useState([])
+  // Edit mode only: live discoveries already linked to this system. Shown as
+  // a read-only summary so the approver/editor knows what's already attached
+  // and can choose to add new ones in the editable list below. Existing ones
+  // aren't touched by the edit submit — the approval pipeline only inserts
+  // entries from `discoveries_draft`, never updates live `discoveries` rows.
+  const [existingDiscoveries, setExistingDiscoveries] = useState([])
 
   // Same-name soft warning (mockup v11CheckSameName 9937)
   const [sameNameMatches, setSameNameMatches] = useState([])
@@ -229,6 +236,23 @@ export default function Wizard() {
 
   // ----- Refs -----
   const explicitSubmitRef = useRef(false)
+  // Once the user types into the System Name field, the procgen / region-info
+  // useEffect must STOP auto-overwriting their input — even on subsequent
+  // reality/galaxy changes that re-trigger /api/namegen. The stale
+  // `_lastProceduralName` sentinel alone wasn't enough: if the user typed a
+  // name that matched the last procgen, OR cleared the field intending to
+  // retype, the auto-fill kicked in and clobbered intent.
+  const userEditedNameRef = useRef(false)
+  // Captures the originally-loaded space_station on edit so toggling the
+  // station off/on doesn't replace a real loaded station with an
+  // auto-generated placeholder. Cleared on submit / Submit Another.
+  const originalStationRef = useRef(null)
+  // Captures full coauthor objects {username, profile_id, credited_at}
+  // on edit-mode load so we can preserve metadata on round-trip. The
+  // CoAuthorChipInput renders simple string usernames, so the system
+  // state only holds strings — this ref carries the rest so buildPayload
+  // can re-attach profile_id / credited_at on submit.
+  const originalCoauthorsRef = useRef([])
 
   // ----- Hooks: drafts / completeness / dirty tracking -----
   const profileId = user?.profileId || user?.profile_id || null
@@ -255,10 +279,22 @@ export default function Wizard() {
         const data = r.data || {}
         const merged = { ...EMPTY_SYSTEM, ...data }
         // Normalize coauthors to string[] (response is [{username, profile_id, credited_at}])
+        // and stash the full objects so submit can re-attach metadata for
+        // names that survived the edit — preserves credited_at + profile_id
+        // for users who weren't removed.
+        originalCoauthorsRef.current = Array.isArray(data.coauthors) ? data.coauthors : []
         merged.coauthors = (data.coauthors || []).map((c) => c.username)
         setSystem(merged)
         setOriginalSystem(merged)
         setHasStation(!!(data.space_station && Object.keys(data.space_station).length > 0))
+        // Capture the loaded station so toggleStation can restore it instead
+        // of replacing it with an auto-generated placeholder on toggle off/on.
+        originalStationRef.current = data.space_station ? { ...data.space_station } : null
+        // Hydrate live discoveries into a read-only sidecar list so the
+        // Discoveries section actually shows what's already attached. Previous
+        // behavior left this empty on edit, so editors couldn't see what
+        // discoveries existed without leaving the wizard.
+        setExistingDiscoveries(Array.isArray(data.discoveries) ? data.discoveries : [])
         // Edit mode skips the gate
         setFlow('advanced')
       })
@@ -314,6 +350,13 @@ export default function Wizard() {
           axios.get('/api/namegen', { params: { glyph: system.glyph_code, galaxy } })
             .then((ng) => {
               setSystem((s) => {
+                // Procgen must never overwrite a name the user has touched.
+                // userEditedNameRef flips true on any keystroke in the name
+                // input (see SectionPortal). The legacy `_lastProceduralName`
+                // sentinel stays as a secondary guard for the auto-suggested
+                // initial fill (so re-decode doesn't fight itself when the
+                // user hasn't typed yet).
+                if (userEditedNameRef.current) return s
                 const cur = s.name || ''
                 if (!cur || cur === s._lastProceduralName) {
                   return { ...s, name: ng.data.system_name, _lastProceduralName: ng.data.system_name }
@@ -392,6 +435,34 @@ export default function Wizard() {
   function pullExistingIntoForm() {
     if (!existingMatch?.summary) return
     const s = existingMatch.summary
+    // Detect every field that's already populated and would be replaced by a
+    // non-empty value from the existing system. Surface them so the user
+    // explicitly opts in instead of silently losing typed input.
+    const candidateFields = [
+      ['name', 'System Name'],
+      ['galaxy', 'Galaxy'],
+      ['reality', 'Reality'],
+      ['star_type', 'Star Color'],
+      ['economy_type', 'Economy Type'],
+      ['economy_level', 'Economy Tier'],
+      ['conflict_level', 'Conflict Level'],
+      ['dominant_lifeform', 'Dominant Lifeform'],
+      ['stellar_classification', 'Stellar Classification'],
+      ['description', 'Description'],
+      ['game_version', 'Game Version'],
+      ['expedition_id', 'Expedition'],
+    ]
+    const wouldOverwrite = candidateFields
+      .filter(([k]) => system[k] && s[k] && String(system[k]).trim() !== String(s[k]).trim())
+      .map(([, label]) => label)
+    if (wouldOverwrite.length > 0) {
+      const ok = window.confirm(
+        `Pulling existing data will replace the values you've entered for:\n\n` +
+        wouldOverwrite.map((l) => `  • ${l}`).join('\n') +
+        `\n\nFields you haven't filled in will be populated normally.\n\nProceed?`
+      )
+      if (!ok) return
+    }
     setSystem((prev) => ({
       ...prev,
       name: s.name || prev.name,
@@ -407,6 +478,9 @@ export default function Wizard() {
       game_version: s.game_version || prev.game_version,
       expedition_id: s.expedition_id || prev.expedition_id,
     }))
+    // Pull-existing is an explicit user choice to adopt this name — mark it
+    // edited so /api/namegen can't overwrite it after the fact.
+    if (s.name) userEditedNameRef.current = true
     setExistingMatch(null)
   }
 
@@ -417,6 +491,10 @@ export default function Wizard() {
     setHasStation(!!draftSnapshot.space_station)
     setDraftBannerOpen(false)
     setDraftSnapshot(null)
+    // The restored draft has a name the user previously typed — protect it
+    // from /api/namegen overwrite the same way fresh typed input is
+    // protected, so changing reality/galaxy after restore doesn't clobber it.
+    if (draftSnapshot.name) userEditedNameRef.current = true
   }
   function dismissDraft() {
     clearWizardDraft()
@@ -471,6 +549,15 @@ export default function Wizard() {
   function toggleStation(checked) {
     setHasStation(checked)
     if (checked) {
+      // Restore the originally-loaded station (edit mode) instead of replacing
+      // its name/race/trade_goods/position with auto-generated defaults. Only
+      // fall through to the generator when there's nothing to restore — new
+      // submissions, or a station the user explicitly cleared after editing.
+      if (originalStationRef.current) {
+        const loaded = originalStationRef.current
+        setSystem((s) => ({ ...s, space_station: { ...loaded } }))
+        return
+      }
       const position = generateStationPosition(system.planets || [])
       const goods = getTradeGoodsForEconomyAndTier(system.economy_type || 'None', system.economy_level || 'T3')
       setSystem((s) => ({
@@ -529,16 +616,25 @@ export default function Wizard() {
     // when the specific fieldId isn't currently in the DOM (e.g. region-name
     // input only renders for unnamed regions).
     const push = (id, label, fieldId, sectionAnchor) => issues.push({ id, label, fieldId, sectionAnchor })
-    if (!system.name?.trim()) push('name', 'System Name is required', 'wiz-system-name', 'portal')
-    if (!system.reality) push('reality', 'Reality is required', 'wiz-reality', 'portal')
-    if (!system.galaxy) push('galaxy', 'Galaxy is required', 'wiz-galaxy', 'portal')
-    if (!system.glyph_code || system.glyph_code.length !== 12) push('glyphs', 'Portal Glyph Code (12 chars) is required', 'wiz-glyphs', 'portal')
-    if (!system.star_type) push('star', 'Star Color is required', 'wiz-star-type', 'attrs')
-    if (!system.economy_type) push('econ', 'Economy Type is required', 'wiz-economy-type', 'attrs')
+    // Edit-mode relaxation: legacy / extractor systems were ingested before
+    // some "required" fields existed (game_mode, stellar_classification, even
+    // economy_level on abandoned systems). Treating every gap as a hard error
+    // on edit blocks small fixes (a typo, a photo upload) behind backfilling
+    // unrelated fields the editor never touched. Strategy: skip a required
+    // check on edit when the field is still equal to the originally-loaded
+    // value (i.e., user didn't make it worse).
+    const editPreserved = (key) => isEditMode && originalSystem &&
+      String(system[key] ?? '') === String(originalSystem[key] ?? '')
+    if (!system.name?.trim() && !editPreserved('name')) push('name', 'System Name is required', 'wiz-system-name', 'portal')
+    if (!system.reality && !editPreserved('reality')) push('reality', 'Reality is required', 'wiz-reality', 'portal')
+    if (!system.galaxy && !editPreserved('galaxy')) push('galaxy', 'Galaxy is required', 'wiz-galaxy', 'portal')
+    if ((!system.glyph_code || system.glyph_code.length !== 12) && !editPreserved('glyph_code')) push('glyphs', 'Portal Glyph Code (12 chars) is required', 'wiz-glyphs', 'portal')
+    if (!system.star_type && !editPreserved('star_type')) push('star', 'Star Color is required', 'wiz-star-type', 'attrs')
+    if (!system.economy_type && !editPreserved('economy_type')) push('econ', 'Economy Type is required', 'wiz-economy-type', 'attrs')
     const abandoned = system.economy_type === 'None' || system.economy_type === 'Abandoned'
-    if (!abandoned && !system.economy_level) push('tier', 'Economy Tier is required', 'wiz-economy-level', 'attrs')
-    if (!abandoned && !system.conflict_level) push('conflict', 'Conflict Level is required', 'wiz-conflict-level', 'attrs')
-    if (!system.dominant_lifeform) push('lifeform', 'Dominant Lifeform is required', 'wiz-lifeform', 'attrs')
+    if (!abandoned && !system.economy_level && !editPreserved('economy_level')) push('tier', 'Economy Tier is required', 'wiz-economy-level', 'attrs')
+    if (!abandoned && !system.conflict_level && !editPreserved('conflict_level')) push('conflict', 'Conflict Level is required', 'wiz-conflict-level', 'attrs')
+    if (!system.dominant_lifeform && !editPreserved('dominant_lifeform')) push('lifeform', 'Dominant Lifeform is required', 'wiz-lifeform', 'attrs')
     if (!system.discord_tag && !isAdmin) push('community', 'Discord Community is required', 'wiz-discord-tag', 'identity')
     if (!isAdmin && !submitterDiscordUsername.trim()) push('user', 'Your Discord Username is required', 'wiz-submitter-username', 'identity')
     if (system.discord_tag === 'personal' && !personalDiscordUsername.trim()) {
@@ -552,6 +648,11 @@ export default function Wizard() {
     if (system.region_x != null && system.region_y != null && regionInfo && !regionInfo.custom_name && !regionInfo.pending_name) {
       if (!proposedRegionName.trim()) {
         push('region', 'Region name proposal is required', 'wiz-region-input', 'portal')
+      } else if (!isAdmin && !submitterDiscordUsername.trim()) {
+        // Without a Discord username the region name lands attributed to
+        // nobody — the submitter can't claim it later. Block unless admin
+        // (admins direct-write regions and don't need attribution).
+        push('region-attribution', 'Discord username required to propose a region name', 'wiz-submitter-username', 'identity')
       }
     }
     // Planets/moons must have names if present
@@ -561,8 +662,30 @@ export default function Wizard() {
         if (!m.name?.trim()) push(`moon-${i}-${j}`, `Moon ${j + 1} of planet ${i + 1} needs a name`, 'wiz-planets', 'planets')
       })
     })
+    // Duplicate body names break the discovery-promotion pipeline on approval
+    // (_promote_draft_discoveries uses (planet, moon) tuples as map keys with
+    // setdefault — second match wins NULL link). Block at submit time so the
+    // user can rename one before they're silently dropped.
+    const planetNameCounts = new Map()
+    ;(system.planets || []).forEach((p) => {
+      const n = p.name?.trim().toLowerCase()
+      if (n) planetNameCounts.set(n, (planetNameCounts.get(n) || 0) + 1)
+    })
+    planetNameCounts.forEach((count, n) => {
+      if (count > 1) push(`dup-planet-${n}`, `Duplicate planet name "${n}" — rename to keep discovery links intact`, 'wiz-planets', 'planets')
+    })
+    ;(system.planets || []).forEach((p, i) => {
+      const moonNameCounts = new Map()
+      ;(p.moons || []).forEach((m) => {
+        const n = m.name?.trim().toLowerCase()
+        if (n) moonNameCounts.set(n, (moonNameCounts.get(n) || 0) + 1)
+      })
+      moonNameCounts.forEach((count, n) => {
+        if (count > 1) push(`dup-moon-${i}-${n}`, `Duplicate moon name "${n}" under planet "${p.name || `#${i + 1}`}"`, 'wiz-planets', 'planets')
+      })
+    })
     return issues
-  }, [system, isAdmin, regionInfo, submitterDiscordUsername, personalDiscordUsername, proposedRegionName])
+  }, [system, isAdmin, regionInfo, submitterDiscordUsername, personalDiscordUsername, proposedRegionName, isEditMode, originalSystem])
 
   // ===========================================================================
   // Section status (for sidebar icons)
@@ -599,6 +722,20 @@ export default function Wizard() {
   function buildPayload() {
     const payload = { ...system }
     delete payload._lastProceduralName
+    // Re-attach coauthor metadata for names that survived this edit. Names
+    // the editor newly added stay as plain strings; the backend treats
+    // string entries as "new credit, no metadata" (credited_at = now).
+    if (Array.isArray(system.coauthors) && originalCoauthorsRef.current.length) {
+      const origByName = new Map(
+        originalCoauthorsRef.current
+          .map((c) => [String(c.username || '').toLowerCase(), c])
+          .filter(([k]) => k)
+      )
+      payload.coauthors = system.coauthors.map((u) => {
+        const orig = origByName.get(String(u || '').toLowerCase())
+        return orig ? { ...orig, username: u } : u
+      })
+    }
     // Capture which wizard flow built this submission so the approval page
     // can re-render the same preview card the user saw at submit time
     // (easy → portrait WizardPreviewPanel; advanced → landscape WizardAdvancedPreview).
@@ -821,7 +958,23 @@ export default function Wizard() {
         clearWizardDraft()
         markFormClean()
       } else {
-        // Public path: profile-lookup gate
+        // Public path.
+        // CRITICAL: build discoveries_draft FIRST and attach to payload before
+        // the profile-lookup branch. v1.64.0 added the draft logic but built
+        // it AFTER the lookup return points (lines below the early returns to
+        // setPendingSubmitPayload(payload)), so any user pushed into the
+        // profile-claim modal had their draft silently dropped on resubmit
+        // via handleProfileUse / handleProfileCreatedContinue. Attaching it
+        // here means the stashed payload carries it through all paths.
+        const draftReady = discoveries
+          .filter((d) => d.discovery_type && d.discovery_name?.trim())
+          .slice(0, 20)
+          .map((d) => buildDiscoveryDraftEntry(d, system))
+        if (draftReady.length) {
+          payload.discoveries_draft = draftReady
+        }
+
+        // Profile-lookup gate
         const lookupName = submitterDiscordUsername.trim() || personalDiscordUsername.trim()
         if (lookupName && !profileId) {
           try {
@@ -851,19 +1004,6 @@ export default function Wizard() {
         }
         const lookupFailed = payload._profile_lookup_failed === true
         delete payload._profile_lookup_failed
-        // v1.64.0 — co-submit discoveries with the system. The backend
-        // stores them as a JSON draft on the pending_systems row and
-        // promotes each into the live discoveries table at approval time,
-        // resolving planet/moon names → DB ids once the planets exist.
-        // Names are sourced from the wizard's local system.planets state
-        // since the synthetic 'planet-N' picker IDs are useless after submit.
-        const draftReady = discoveries
-          .filter((d) => d.discovery_type && d.discovery_name?.trim())
-          .slice(0, 20)
-          .map((d) => buildDiscoveryDraftEntry(d, system))
-        if (draftReady.length) {
-          payload.discoveries_draft = draftReady
-        }
         const r = await axios.post('/api/submit_system', payload)
         setSubmitResult({
           status: 'pending',
@@ -882,7 +1022,25 @@ export default function Wizard() {
         markFormClean()
       }
     } catch (err) {
-      setSubmitError(err.response?.data?.detail || err.message || String(err))
+      // FastAPI returns either a string `detail` (custom HTTPException) or
+      // a list of `{loc, msg, type}` validation errors. Flatten to a
+      // human-readable string instead of `[object Object]`.
+      const detail = err.response?.data?.detail
+      let pretty
+      if (typeof detail === 'string') {
+        pretty = detail
+      } else if (Array.isArray(detail)) {
+        pretty = detail.map((d) => {
+          const path = Array.isArray(d.loc) ? d.loc.filter((p) => p !== 'body').join('.') : ''
+          const msg = d.msg || JSON.stringify(d)
+          return path ? `${path}: ${msg}` : msg
+        }).join(' • ')
+      } else if (detail && typeof detail === 'object') {
+        pretty = JSON.stringify(detail)
+      } else {
+        pretty = err.message || String(err)
+      }
+      setSubmitError(pretty)
     } finally {
       setIsSubmitting(false)
     }
@@ -901,6 +1059,8 @@ export default function Wizard() {
     setHasStation(false)
     setDiscoveries([])
     setSameNameMatches([])
+    userEditedNameRef.current = false
+    originalStationRef.current = null
     setSystem((s) => ({
       ...EMPTY_SYSTEM,
       reality: s.reality,
@@ -909,6 +1069,9 @@ export default function Wizard() {
       coauthors: s.coauthors,
       expedition_id: s.expedition_id,
       game_version: s.game_version,
+      // Submit Another should preserve the difficulty the player set —
+      // they're still in the same NMS session.
+      game_mode: s.game_mode,
     }))
     setActiveSection('portal')
     setEasyStep(0)
@@ -936,15 +1099,20 @@ export default function Wizard() {
     if (!pendingSubmitPayload) return
     try {
       const payload = { ...pendingSubmitPayload, profile_id: pid }
+      // discoveries_draft is already on the payload (attached in doSubmit
+      // before the lookup branch). Read length for the success screen.
+      const draftCount = Array.isArray(payload.discoveries_draft) ? payload.discoveries_draft.length : 0
       const r = await axios.post('/api/submit_system', payload)
       setSubmitResult({
         status: 'pending',
         submission_id: r.data.submission_id,
         system_name: r.data.system_name,
+        submitted_discoveries: draftCount,
         submitted_system: { ...system },
         wizard_flow: flow,
       })
       clearWizardDraft()
+      markFormClean()
     } catch (err) {
       setSubmitError(err.response?.data?.detail || err.message)
     } finally {
@@ -967,15 +1135,18 @@ export default function Wizard() {
     if (!pendingSubmitPayload || !resolvedProfileId) return
     try {
       const payload = { ...pendingSubmitPayload, profile_id: resolvedProfileId }
+      const draftCount = Array.isArray(payload.discoveries_draft) ? payload.discoveries_draft.length : 0
       const r = await axios.post('/api/submit_system', payload)
       setSubmitResult({
         status: 'pending',
         submission_id: r.data.submission_id,
         system_name: r.data.system_name,
+        submitted_discoveries: draftCount,
         submitted_system: { ...system },
         wizard_flow: flow,
       })
       clearWizardDraft()
+      markFormClean()
     } catch (err) {
       setSubmitError(err.response?.data?.detail || err.message)
     } finally {
@@ -1240,6 +1411,7 @@ export default function Wizard() {
               onSaveRegionName={saveRegionNameLocally}
               diffMap={diffMap}
               sameNameMatches={sameNameMatches}
+              userEditedNameRef={userEditedNameRef}
             />
           )}
 
@@ -1275,6 +1447,7 @@ export default function Wizard() {
               system={system}
               discoveries={discoveries}
               setDiscoveries={setDiscoveries}
+              existingDiscoveries={existingDiscoveries}
               defaultGameVersion={system.game_version}
               requiredOnly={requiredOnly}
               openHelp={openHelpAt}
@@ -1442,7 +1615,7 @@ function SectionPortal({
   system, setField, handleGlyphDecoded, regionInfo, regionLoading,
   proposedRegionName, setProposedRegionName,
   regionNameSavedAt, onSaveRegionName,
-  diffMap, sameNameMatches,
+  diffMap, sameNameMatches, userEditedNameRef,
 }) {
   return (
     <Section id="portal" title="01 · Portal Address">
@@ -1457,7 +1630,10 @@ function SectionPortal({
           }}
           placeholder="Auto-generated from glyphs — verify in-game"
           value={system.name || ''}
-          onChange={(e) => setField('name', e.target.value)}
+          onChange={(e) => {
+            if (userEditedNameRef) userEditedNameRef.current = true
+            setField('name', e.target.value)
+          }}
         />
         {/* Same-name soft warning (mockup v11CheckSameName 9937) */}
         {sameNameMatches && sameNameMatches.length > 0 && (
@@ -1728,6 +1904,24 @@ function SectionAttrs({ system, setField, setSystem, requiredOnly, diffMap = {},
             />
           </div>
         )}
+        {!requiredOnly && (
+          <div id="wiz-game-mode">
+            <label className="block text-sm font-medium mb-1">Game Mode</label>
+            <select
+              className="w-full p-2 rounded"
+              style={{ backgroundColor: 'var(--app-bg)', border: `1px solid ${fieldBorder('game_mode', diffMap, system.game_mode)}` }}
+              value={system.game_mode || 'Normal'}
+              onChange={(e) => setField('game_mode', e.target.value)}
+            >
+              <option value="Normal">Normal</option>
+              <option value="Creative">Creative</option>
+              <option value="Relaxed">Relaxed</option>
+              <option value="Survival">Survival</option>
+              <option value="Permadeath">Permadeath</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </div>
+        )}
       </div>
       {!requiredOnly && (
         <div className="mt-3">
@@ -1859,7 +2053,7 @@ function SectionStation({ system, hasStation, toggleStation, setStationField, to
   )
 }
 
-function SectionDiscoveries({ system, discoveries, setDiscoveries, defaultGameVersion, requiredOnly, openHelp }) {
+function SectionDiscoveries({ system, discoveries, setDiscoveries, existingDiscoveries = [], defaultGameVersion, requiredOnly, openHelp }) {
   if (requiredOnly) return null
   // Flatten moons across planets so the discovery card can pick by name+parent.
   const planetList = (system.planets || []).filter((p) => !p.is_moon)
@@ -1872,6 +2066,36 @@ function SectionDiscoveries({ system, discoveries, setDiscoveries, defaultGameVe
   )
   return (
     <Section id="discoveries" title="05 · Discoveries">
+      {existingDiscoveries.length > 0 && (
+        <div
+          className="mb-4 p-3 rounded"
+          style={{ backgroundColor: 'rgba(124,217,234,0.07)', border: '1px solid var(--app-primary)' }}
+        >
+          <div className="text-xs font-semibold uppercase tracking-wider opacity-80 mb-2">
+            Existing discoveries on this system ({existingDiscoveries.length}) — read-only
+          </div>
+          <ul className="space-y-1 text-sm">
+            {existingDiscoveries.map((d) => {
+              const loc = d.moon_name ? `${d.planet_name} · ${d.moon_name}` : (d.planet_name || (d.location_type === 'space' ? 'In space' : 'Unlinked'))
+              return (
+                <li key={d.id} className="flex items-baseline gap-2">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider opacity-80" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                    {d.discovery_type || 'discovery'}
+                  </span>
+                  <span className="font-medium">{d.discovery_name}</span>
+                  <span className="opacity-60 text-xs">— {loc}</span>
+                  {!d.planet_id && !d.moon_id && d.location_type !== 'space' && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300">⚠ unlinked</span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          <div className="text-[11px] opacity-60 mt-2">
+            These will remain attached to the system on save. Add new discoveries below.
+          </div>
+        </div>
+      )}
       <DiscoveryInlineList
         value={discoveries}
         onChange={setDiscoveries}

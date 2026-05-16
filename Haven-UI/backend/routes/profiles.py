@@ -987,14 +987,23 @@ async def admin_update_profile(profile_id: int, request: Request, session: Optio
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id, username, tier, parent_profile_id FROM user_profiles WHERE id = ?", (profile_id,))
+        cursor.execute("""
+            SELECT id, username, tier, parent_profile_id, enabled_features
+            FROM user_profiles WHERE id = ?
+        """, (profile_id,))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
 
-        # Partners can only edit their own sub-admins
+        # Partners can only edit their own sub-admins.
+        # CRITICAL: explicit NULL guard — a legacy partner session has
+        # profile_id=None, and Haven sub-admins have parent_profile_id IS NULL.
+        # Without this guard, None == None passes and a legacy partner could
+        # edit any Haven sub-admin's permissions/password.
         if session_data.get('user_type') == 'partner':
-            if row['parent_profile_id'] != session_data.get('profile_id'):
+            parent_id = session_data.get('profile_id')
+            target_parent = row['parent_profile_id']
+            if parent_id is None or target_parent is None or target_parent != parent_id:
                 raise HTTPException(status_code=403, detail="Can only edit your own sub-admins")
 
         allowed = {'display_name', 'enabled_features', 'is_active',
@@ -1003,7 +1012,30 @@ async def admin_update_profile(profile_id: int, request: Request, session: Optio
         updates = {}
         for k, v in body.items():
             if k in allowed:
-                if k in ('enabled_features', 'additional_discord_tags', 'theme_settings'):
+                if k == 'enabled_features':
+                    # CRITICAL: partners cannot grant their sub-admins features
+                    # they don't have themselves. Without this, a partner could
+                    # self-elevate sub-admins to csv_import / war_room / etc.
+                    # Mirrors the legacy PUT /api/sub_admins/{id} validation.
+                    if session_data.get('user_type') == 'partner':
+                        parent_features_raw = session_data.get('enabled_features') or []
+                        if isinstance(parent_features_raw, str):
+                            try:
+                                parent_features = json.loads(parent_features_raw)
+                            except (json.JSONDecodeError, TypeError):
+                                parent_features = []
+                        else:
+                            parent_features = list(parent_features_raw)
+                        new_features = v if isinstance(v, list) else []
+                        if 'all' not in parent_features:
+                            invalid = [f for f in new_features if f not in parent_features]
+                            if invalid:
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=f"Cannot grant features you don't have yourself: {invalid}",
+                                )
+                    updates[k] = json.dumps(v) if isinstance(v, (list, dict)) else v
+                elif k in ('additional_discord_tags', 'theme_settings'):
                     updates[k] = json.dumps(v) if isinstance(v, (list, dict)) else v
                 elif k == 'can_approve_personal_uploads':
                     updates[k] = 1 if v else 0
@@ -1094,9 +1126,13 @@ async def admin_reset_password(profile_id: int, request: Request, session: Optio
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
 
-        # Partners can only reset their own sub-admins
+        # Partners can only reset their own sub-admins.
+        # CRITICAL: explicit NULL guard so a legacy partner with profile_id=None
+        # cannot match a Haven sub-admin whose parent_profile_id IS NULL.
         if session_data.get('user_type') == 'partner':
-            if row['parent_profile_id'] != session_data.get('profile_id'):
+            parent_id = session_data.get('profile_id')
+            target_parent = row['parent_profile_id']
+            if parent_id is None or target_parent is None or target_parent != parent_id:
                 raise HTTPException(status_code=403, detail="Can only reset password for your own sub-admins")
 
         new_hash = hash_password(new_password)

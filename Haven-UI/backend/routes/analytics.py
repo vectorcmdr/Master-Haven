@@ -15,6 +15,60 @@ logger = logging.getLogger('control.room')
 router = APIRouter()
 
 
+def _scope_analytics_discord_tag(session_data: Optional[dict], requested_tag: Optional[str]):
+    """
+    Enforce community scoping on analytics endpoints. Returns the discord_tag
+    to use in the SQL query (None = all communities, super-admin only).
+
+    Pre-fix behavior:
+        if not is_super and user_discord_tag:
+            discord_tag = user_discord_tag
+
+    Bug: when user_discord_tag was None (Haven sub-admin pre-civ, member with
+    no default_civ_tag, partner with cleared tag), the override never fired
+    and the caller-supplied query param flowed straight into the WHERE
+    clause — letting a non-super-admin scrape any community's analytics by
+    setting ?discord_tag=X manually. Endpoints also had no admin tier gate
+    beyond "session exists", so a tier-5 member with a cookie could hit
+    them at all.
+
+    Post-fix:
+        - Members (tier 4/5) and unauthenticated: 403
+        - Super admin: returns requested_tag verbatim (None = all)
+        - Partner/sub-admin: clamps to one of their own civ_tags. Requesting
+          an out-of-scope civ → 403. No tag provided → defaults to legacy
+          discord_tag, falls back to first civ_tag, else 403.
+    """
+    if not session_data:
+        raise HTTPException(status_code=401, detail='Authentication required')
+
+    user_type = session_data.get('user_type')
+    if user_type not in ('super_admin', 'partner', 'sub_admin'):
+        raise HTTPException(status_code=403, detail='Admin access required')
+
+    if user_type == 'super_admin':
+        return requested_tag
+
+    # Build allowed-tag set from civ_tags (new model) + legacy discord_tag
+    user_tags = list(session_data.get('civ_tags') or [])
+    legacy_tag = session_data.get('discord_tag')
+    if legacy_tag and legacy_tag not in user_tags:
+        user_tags.append(legacy_tag)
+
+    if not user_tags:
+        raise HTTPException(status_code=403, detail='No civilization access')
+
+    if requested_tag:
+        if requested_tag not in user_tags:
+            raise HTTPException(
+                status_code=403,
+                detail='You do not have access to that civilization',
+            )
+        return requested_tag
+
+    return legacy_tag or user_tags[0]
+
+
 # ============================================================================
 # Analytics Endpoints (System Submissions)
 # Partner-scoped: partners are auto-filtered to their community's data.
@@ -49,11 +103,10 @@ async def get_submission_leaderboard(
         raise HTTPException(status_code=401, detail='Authentication required')
 
     is_super = session_data.get('user_type') == 'super_admin'
-    user_discord_tag = session_data.get('discord_tag')
-
-    # Partners can only see their own community
-    if not is_super and user_discord_tag:
-        discord_tag = user_discord_tag
+    # Scope to caller's civ. Helper raises 403 for members / out-of-scope tags
+    # and ensures caller-supplied discord_tag cannot leak across civs when
+    # the session's default civ tag is null.
+    discord_tag = _scope_analytics_discord_tag(session_data, discord_tag)
 
     conn = None
     try:
@@ -372,11 +425,10 @@ async def get_submissions_timeline(
         raise HTTPException(status_code=401, detail='Authentication required')
 
     is_super = session_data.get('user_type') == 'super_admin'
-    user_discord_tag = session_data.get('discord_tag')
-
-    # Partners can only see their own community
-    if not is_super and user_discord_tag:
-        discord_tag = user_discord_tag
+    # Scope to caller's civ. Helper raises 403 for members / out-of-scope tags
+    # and ensures caller-supplied discord_tag cannot leak across civs when
+    # the session's default civ tag is null.
+    discord_tag = _scope_analytics_discord_tag(session_data, discord_tag)
 
     conn = None
     try:
@@ -454,10 +506,7 @@ async def get_source_breakdown(
         raise HTTPException(status_code=401, detail='Authentication required')
 
     is_super = session_data.get('user_type') == 'super_admin'
-    user_discord_tag = session_data.get('discord_tag')
-
-    if not is_super and user_discord_tag:
-        discord_tag = user_discord_tag
+    discord_tag = _scope_analytics_discord_tag(session_data, discord_tag)
 
     conn = None
     try:
@@ -527,10 +576,7 @@ async def get_extractor_summary(
         raise HTTPException(status_code=401, detail='Authentication required')
 
     is_super = session_data.get('user_type') == 'super_admin'
-    user_discord_tag = session_data.get('discord_tag')
-
-    if not is_super and user_discord_tag:
-        discord_tag = user_discord_tag
+    discord_tag = _scope_analytics_discord_tag(session_data, discord_tag)
 
     conn = None
     try:
@@ -664,11 +710,10 @@ async def get_discovery_leaderboard(
         raise HTTPException(status_code=401, detail='Authentication required')
 
     is_super = session_data.get('user_type') == 'super_admin'
-    user_discord_tag = session_data.get('discord_tag')
-
-    # Partners can only see their own community
-    if not is_super and user_discord_tag:
-        discord_tag = user_discord_tag
+    # Scope to caller's civ. Helper raises 403 for members / out-of-scope tags
+    # and ensures caller-supplied discord_tag cannot leak across civs when
+    # the session's default civ tag is null.
+    discord_tag = _scope_analytics_discord_tag(session_data, discord_tag)
 
     conn = None
     try:
@@ -777,10 +822,7 @@ async def get_discovery_timeline(
         raise HTTPException(status_code=401, detail='Authentication required')
 
     is_super = session_data.get('user_type') == 'super_admin'
-    user_discord_tag = session_data.get('discord_tag')
-
-    if not is_super and user_discord_tag:
-        discord_tag = user_discord_tag
+    discord_tag = _scope_analytics_discord_tag(session_data, discord_tag)
 
     conn = None
     try:
@@ -848,10 +890,7 @@ async def get_discovery_type_breakdown(
         raise HTTPException(status_code=401, detail='Authentication required')
 
     is_super = session_data.get('user_type') == 'super_admin'
-    user_discord_tag = session_data.get('discord_tag')
-
-    if not is_super and user_discord_tag:
-        discord_tag = user_discord_tag
+    discord_tag = _scope_analytics_discord_tag(session_data, discord_tag)
 
     conn = None
     try:
@@ -931,10 +970,7 @@ async def get_partner_overview(
         raise HTTPException(status_code=401, detail='Authentication required')
 
     is_super = session_data.get('user_type') == 'super_admin'
-    user_discord_tag = session_data.get('discord_tag')
-
-    if not is_super and user_discord_tag:
-        discord_tag = user_discord_tag
+    discord_tag = _scope_analytics_discord_tag(session_data, discord_tag)
 
     conn = None
     try:

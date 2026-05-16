@@ -49,9 +49,13 @@ const darkThemeStyles = {
     border: '1px solid rgba(255, 255, 255, 0.2)',
     borderRadius: '0.25rem',
     zIndex: 9999,
-    minWidth: '280px',
+    // 280px was breaking phone layouts where the parent column collapsed to
+    // <200px (CelestialBodyEditor's auto-fit grid, narrow form rows).
+    // `min(280px, ...)` keeps the desktop preference but caps to the
+    // viewport with a 32px gutter on mobile.
+    minWidth: 'min(280px, calc(100vw - 32px))',
     width: 'max-content',
-    maxWidth: '400px'
+    maxWidth: 'min(400px, calc(100vw - 32px))'
   }),
   menuList: (base) => ({
     ...base,

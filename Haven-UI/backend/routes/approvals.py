@@ -54,7 +54,7 @@ from services.completeness import (
     calculate_completeness_score,
     update_completeness_score,
 )
-from services.civilizations import civ_scope_filter
+from services.civilizations import civ_scope_filter, user_can_act_for_civ
 from services.dispatch import fire_and_forget
 
 logger = logging.getLogger('control.room')
@@ -609,13 +609,36 @@ async def submit_system(
         except (TypeError, ValueError):
             wizard_expedition_id = None
 
+        # Game mode from payload (per-difficulty: Normal/Permadeath/Survival/etc).
+        # Previously stored only in system_data JSON which meant the approval
+        # review UI and any column-level filter couldn't see it without
+        # parsing the blob. Extraction handler already persists this column;
+        # bringing submit_system to parity.
+        wizard_game_mode = payload.get('game_mode') or 'Normal'
+
+        # Coordinate columns — previously only stored inside the system_data
+        # JSON blob, leaving `glyph_code_suffix` NULL on every Wizard pending
+        # row (trigger requires NEW.glyph_code IS NOT NULL). That broke
+        # find_matching_pending_system dedup — two concurrent Wizard submits
+        # for the same system both went pending instead of merging. Mirrors
+        # the extraction handler's INSERT shape.
+        region_x = payload.get('region_x')
+        region_y = payload.get('region_y')
+        region_z = payload.get('region_z')
+
         # Insert submission with source tracking, discord_tag, personal_discord_username,
         # edit tracking, submitter identity, wizard v1 fields, and (v1.64.0)
         # the co-submitted discoveries draft column.
         cursor.execute('''
             INSERT INTO pending_systems
-            (submitted_by, submitted_by_ip, submission_date, system_data, status, system_name, system_region, galaxy, source, api_key_name, discord_tag, personal_discord_username, edit_system_id, submitter_account_id, submitter_account_type, submitter_profile_id, username_normalized, game_version, submitter_notes, expedition_id, discoveries_draft)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (submitted_by, submitted_by_ip, submission_date, system_data, status,
+             system_name, system_region, galaxy, reality,
+             glyph_code, x, y, z, region_x, region_y, region_z, game_mode,
+             source, api_key_name, discord_tag, personal_discord_username,
+             edit_system_id, submitter_account_id, submitter_account_type,
+             submitter_profile_id, username_normalized,
+             game_version, submitter_notes, expedition_id, discoveries_draft)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             submitter_identity['username'] if submitter_identity['username'] else submitted_by,
             client_ip,
@@ -623,8 +646,17 @@ async def submit_system(
             json.dumps(payload),
             'pending',
             system_name,
+            system_galaxy,  # legacy system_region column (still gets galaxy — clean up in Phase 7)
             system_galaxy,
-            system_galaxy,
+            system_reality,
+            glyph_code,
+            x,
+            y,
+            z,
+            region_x,
+            region_y,
+            region_z,
+            wizard_game_mode,
             source,
             api_key_name,
             discord_tag,
@@ -976,15 +1008,27 @@ async def get_pending_count(session: Optional[str] = Cookie(None)):
 @router.get('/api/pending_systems/{submission_id}')
 async def get_pending_system_details(submission_id: int, session: Optional[str] = Cookie(None)):
     """
-    Get full details of a pending submission including system_data (admin only).
+    Get full details of a pending submission (admin only).
+
+    Community-scoped: a partner/sub-admin from civ A cannot fetch civ B's
+    submissions. Returns 404 (not 403) when out of scope so callers cannot
+    use this endpoint to enumerate IDs across the table. The list endpoint
+    scoped correctly via civ_scope_filter; the detail endpoint was previously
+    open to any admin tier and let an attacker iterate IDs to read full
+    payloads from competing communities.
     """
     # Verify admin session
     if not verify_session(session):
         raise HTTPException(status_code=401, detail="Admin authentication required")
 
-    # Check if Haven sub-admin (need to hide personal_discord_username)
     session_data = get_session(session)
+    is_super = session_data.get('user_type') == 'super_admin' if session_data else False
     is_haven_sub_admin = session_data.get('is_haven_sub_admin', False) if session_data else False
+    enabled_features = session_data.get('enabled_features') or [] if session_data else []
+    can_approve_personal = (
+        session_data.get('can_approve_personal_uploads', False)
+        or 'approve_personal_uploads' in enabled_features
+    )
 
     conn = None
     try:
@@ -999,12 +1043,30 @@ async def get_pending_system_details(submission_id: int, session: Optional[str] 
             raise HTTPException(status_code=404, detail="Submission not found")
 
         submission = dict(row)
+
+        # Community scoping (skip for super admin)
+        if not is_super:
+            sub_tag = submission.get('discord_tag')
+            # 'personal' tag visible only to viewers with approve-personal-uploads
+            if sub_tag == 'personal':
+                if not can_approve_personal:
+                    raise HTTPException(status_code=404, detail="Submission not found")
+            else:
+                # Check that the viewer can act for this civ. Returns 404 (not
+                # 403) to avoid leaking existence to fishing requests.
+                if not user_can_act_for_civ(session_data, sub_tag):
+                    raise HTTPException(status_code=404, detail="Submission not found")
+
         # Parse JSON system_data
         if submission.get('system_data'):
             submission['system_data'] = json.loads(submission['system_data'])
 
-        # Hide personal_discord_username for Haven sub-admins (only super admin sees contact info)
-        if is_haven_sub_admin:
+        # Hide personal_discord_username for sub-admin-tier viewers
+        viewer_is_sub_admin_only = (
+            session_data.get('user_type') == 'sub_admin'
+            or is_haven_sub_admin
+        )
+        if viewer_is_sub_admin_only:
             submission['personal_discord_username'] = None
 
         return submission
@@ -1394,7 +1456,11 @@ async def approve_system(
                 or system_data.get('expedition_id')
             )
 
-            # UPDATE existing system - PRESERVE discovered_by/discovered_at, UPDATE last_updated_by/last_updated_at
+            # UPDATE existing system - PRESERVE discovered_by/discovered_at, UPDATE last_updated_by/last_updated_at.
+            # game_mode added — was previously frozen on edit forever, so a
+            # player who switched difficulty mid-run kept the original mode
+            # on every subsequent edit. COALESCE preserves on missing payload.
+            new_game_mode = submission.get('game_mode') or system_data.get('game_mode')
             cursor.execute('''
                 UPDATE systems
                 SET name = ?, galaxy = ?, x = ?, y = ?, z = ?,
@@ -1408,7 +1474,8 @@ async def approve_system(
                     stellar_classification = ?,
                     last_updated_by = ?, last_updated_at = ?, contributors = ?,
                     game_version = COALESCE(?, game_version),
-                    expedition_id = COALESCE(?, expedition_id)
+                    expedition_id = COALESCE(?, expedition_id),
+                    game_mode = COALESCE(?, game_mode)
                 WHERE id = ?
             ''', (
                 system_data.get('name'),
@@ -1439,6 +1506,7 @@ async def approve_system(
                 json.dumps(contributors_list),
                 wizard_game_version,
                 wizard_expedition_id,
+                new_game_mode,
                 system_id
             ))
             logger.info(f"Updated system {system_id}, preserving discovered_by='{original_discovered_by}', added contributor '{updater_username}'")
@@ -1815,9 +1883,14 @@ async def approve_system(
                     moon.get('nutrient_source'),
                 ))
 
-        # Insert space station if present
+        # Insert space station if present.
+        # On edit, DELETE existing station first — pre-fix this would INSERT
+        # a duplicate row on every re-approval (batch_approve had the DELETE
+        # since v1.50.1 Bug-005 but approve_system did not).
         if system_data.get('space_station'):
             station = system_data['space_station']
+            if is_edit:
+                cursor.execute('DELETE FROM space_stations WHERE system_id = ?', (system_id,))
             # Convert trade_goods list to JSON string
             trade_goods_json = json.dumps(station.get('trade_goods', []))
             cursor.execute('''
@@ -2543,6 +2616,13 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                     existing_contributors = json.loads(contrib_row[0]) if contrib_row and contrib_row[0] else []
                     existing_contributors.append({"name": updater_username, "action": "edit", "date": now_iso})
 
+                    # Batch UPDATE — parity with single approve_system path.
+                    # game_version / expedition_id / game_mode added with
+                    # COALESCE so a batch-approved edit doesn't strip wizard-v1
+                    # fields that a prior single-approve would have preserved.
+                    batch_game_version = submission.get('game_version') or system_data.get('game_version')
+                    batch_expedition_id = submission.get('expedition_id') or system_data.get('expedition_id')
+                    batch_game_mode = submission.get('game_mode') or system_data.get('game_mode')
                     cursor.execute('''
                         UPDATE systems
                         SET name = ?, galaxy = ?, x = ?, y = ?, z = ?,
@@ -2555,7 +2635,10 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                             discord_tag = ?, personal_discord_username = ?,
                             stellar_classification = ?,
                             last_updated_by = ?, last_updated_at = ?,
-                            contributors = ?
+                            contributors = ?,
+                            game_version = COALESCE(?, game_version),
+                            expedition_id = COALESCE(?, expedition_id),
+                            game_mode = COALESCE(?, game_mode)
                         WHERE id = ?
                     ''', (
                         system_data.get('name'),
@@ -2582,6 +2665,9 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                         updater_username,
                         now_iso,
                         json.dumps(existing_contributors),
+                        batch_game_version,
+                        batch_expedition_id,
+                        batch_game_mode,
                         system_id
                     ))
 
@@ -2599,13 +2685,24 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                     discoverer_username = submission.get('personal_discord_username') or submission.get('submitted_by') or 'Unknown'
                     now_iso = datetime.now(timezone.utc).isoformat()
 
+                    # Batch new-system INSERT — parity with single approve INSERT.
+                    # game_version + expedition_id added so batch-approved new
+                    # systems carry the wizard-v1 metadata that single-approve
+                    # has been preserving since v1.50.0.
+                    batch_new_game_version = submission.get('game_version') or system_data.get('game_version')
+                    batch_new_expedition_id = submission.get('expedition_id') or system_data.get('expedition_id')
+                    try:
+                        batch_new_expedition_id = int(batch_new_expedition_id) if batch_new_expedition_id else None
+                    except (TypeError, ValueError):
+                        batch_new_expedition_id = None
                     cursor.execute('''
                         INSERT INTO systems (id, name, galaxy, reality, x, y, z, star_x, star_y, star_z, description,
                             glyph_code, glyph_planet, glyph_solar_system, region_x, region_y, region_z,
                             star_type, economy_type, economy_level, conflict_level, dominant_lifeform,
                             discovered_by, discovered_at, discord_tag, personal_discord_username, stellar_classification,
-                            contributors, created_at, game_mode, profile_id, source)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            contributors, created_at, game_mode, profile_id, source,
+                            game_version, expedition_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         system_id,
                         system_data.get('name'),
@@ -2637,6 +2734,8 @@ def _process_batch_approvals_sync(job_id: str, submission_ids: list, session_sna
                         system_data.get('game_mode') or submission.get('game_mode', 'Normal'),
                         submission.get('submitter_profile_id'),
                         submission.get('source', 'manual'),
+                        batch_new_game_version,
+                        batch_new_expedition_id,
                     ))
 
                 # Insert planets
@@ -3484,6 +3583,36 @@ async def receive_extraction(
             'exotic_trophy': planet_data.get('exotic_trophy'),
             'is_bubble': planet_data.get('is_bubble'),
             'is_floating_islands': planet_data.get('is_floating_islands'),
+            # Additional fields the extractor sends that approval persists but
+            # planet_entry was previously dropping silently. Falls through to
+            # None when the extractor doesn't send them so legacy submissions
+            # don't change behavior.
+            'planet_index': planet_data.get('planet_index'),
+            'fauna_count': planet_data.get('fauna_count'),
+            'flora_count': planet_data.get('flora_count'),
+            'has_water': planet_data.get('has_water'),
+            'description': planet_data.get('description'),
+            'storm_frequency': planet_data.get('storm_frequency'),
+            'weather_intensity': planet_data.get('weather_intensity'),
+            'building_density': planet_data.get('building_density'),
+            'hazard_temperature': planet_data.get('hazard_temperature'),
+            'hazard_radiation': planet_data.get('hazard_radiation'),
+            'hazard_toxicity': planet_data.get('hazard_toxicity'),
+            'weather_text': planet_data.get('weather_text'),
+            'sentinels_text': planet_data.get('sentinels_text'),
+            'flora_text': planet_data.get('flora_text'),
+            'fauna_text': planet_data.get('fauna_text'),
+            'base_location': planet_data.get('base_location'),
+            'photo': planet_data.get('photo'),
+            'notes': planet_data.get('notes'),
+            'plant_resource': planet_data.get('plant_resource'),
+            # Wonders Page Notes (migration 1.76.0) — extractor doesn't send
+            # these today but adding now so when it does they aren't dropped
+            'estimated_age': planet_data.get('estimated_age'),
+            'core_element': planet_data.get('core_element'),
+            'lore_notes': planet_data.get('lore_notes'),
+            'root_structure': planet_data.get('root_structure'),
+            'nutrient_source': planet_data.get('nutrient_source'),
         }
 
         if planet_data.get('is_moon', False):

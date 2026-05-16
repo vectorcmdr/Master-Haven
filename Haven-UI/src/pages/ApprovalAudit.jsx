@@ -357,7 +357,11 @@ export default function ApprovalAudit() {
                 <option value="">All</option>
                 <option value="manual">Manual</option>
                 <option value="haven_extractor">Extractor</option>
-                <option value="companion_app">Companion App</option>
+                <option value="keeper_bot">Keeper Bot</option>
+                {/* "Companion App" was folded into haven_extractor in v1.49.0;
+                    migration 1.69.0 backfilled the existing rows. The
+                    dropdown still listed it as if it were a current source,
+                    which always returned zero rows. */}
               </select>
             </div>
 

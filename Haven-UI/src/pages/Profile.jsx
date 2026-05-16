@@ -40,7 +40,14 @@ export default function Profile() {
     }
     fetchProfile()
     fetchSubmissions()
-    axios.get('/api/communities').then(r => setCommunities(r.data.communities || [])).catch(() => {})
+    // Use /api/discord_tags (canonical since v1.61) — it returns the same
+    // shape as /api/communities but also includes the synthetic "Personal"
+    // entry at the top, so the hardcoded `<option value="personal">` further
+    // down doesn't need to fight a case mismatch with the v1.63.0 normalizer
+    // ('personal'/'Personal'/NULL/empty all collapsed to one bucket).
+    axios.get('/api/discord_tags')
+      .then(r => setCommunities((r.data.tags || []).map(t => ({ tag: t.tag, name: t.name }))))
+      .catch(() => {})
   }, [user])
 
   useEffect(() => {
@@ -187,11 +194,13 @@ export default function Profile() {
                   onChange={e => setForm({ ...form, default_civ_tag: e.target.value })}
                   className="w-full p-2 bg-gray-700 rounded text-white"
                 >
+                  {/* "Personal" comes from /api/discord_tags as the first
+                      entry — no need for a hardcoded option (which had a
+                      case mismatch with the v1.63 normalizer). */}
                   <option value="">None</option>
                   {communities.map(c => (
                     <option key={c.tag} value={c.tag}>{c.name || c.tag}</option>
                   ))}
-                  <option value="personal">Personal</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">

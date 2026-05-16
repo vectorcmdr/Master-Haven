@@ -77,8 +77,12 @@ export default function AdminTools() {
   }
 
   return (
-    <div className="-mx-6 -mt-6">
-      {/* Hub header — same shape as AnalyticsHub / AccessControl */}
+    <div className="-mx-3 sm:-mx-6 -mt-3 sm:-mt-6">
+      {/* Hub header — same shape as AnalyticsHub / AccessControl.
+          Negative margin clamped to match container padding on phones
+          (container has px-3 on mobile, px-6 on sm+); pre-fix the -mx-6
+          over-pulled past the container's mobile padding and triggered
+          horizontal page scroll. */}
       <div
         className="px-6 pt-4 pb-3 border-b"
         style={{

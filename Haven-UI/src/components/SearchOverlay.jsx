@@ -1,25 +1,29 @@
 /**
- * SearchOverlay — unified search input + scope chips + live results popover.
+ * SearchOverlay — Systems Tab v2.0 unified search.
  *
- * Phase 3 wires the input + scope chips + popover shell. The result list is
- * intentionally minimal (top 8 + "View all" link); Phase 4's filter engine
- * is what scopes results across the four levels. The input is debounced
- * 300ms before hitting /api/systems/search, mirroring the legacy Systems
- * page behavior.
+ * v1.66.0 rebuild: hits the new /api/search categorized endpoint and renders
+ * four sections (Communities, Regions, Contributors, Systems) instead of a
+ * flat systems-only popover. Active filters from SystemsContext are passed
+ * through so filter+search compose (AND) — searching "indium" inside a
+ * biome=Lush filter only surfaces Lush+indium results.
  *
- * Keyboard shortcuts:
- *   - `/` anywhere on the page focuses the input
- *   - Esc closes the popover (delegated through SystemsContext.openDropdown)
+ * The query string is URL-synced via `SystemsContext.q`, so refresh / share
+ * / Back button all work. Local `input` state is debounced 300ms before being
+ * committed to the URL to avoid spamming history entries during typing.
  *
- * Out of scope for Phase 3: keyboard arrow nav inside the result list, full
- * "View all results" page. Both land in Phase 4.
+ * Keyboard:
+ *   - `/` anywhere focuses the input
+ *   - `↑` / `↓` walk through results across all categories
+ *   - `Enter` activates the highlighted row (or first row if none)
+ *   - `Esc` closes the popover
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import useDebounce from '../hooks/useDebounce'
 import { useSystems } from '../contexts/SystemsContext'
+import useFilters from '../hooks/useFilters'
 
 const SCOPE_LABELS = {
   all: 'All Realities',
@@ -27,19 +31,37 @@ const SCOPE_LABELS = {
   region: 'This Region',
 }
 
+const POPOVER_PER_CATEGORY = 6
+
 export default function SearchOverlay() {
   const navigate = useNavigate()
-  const { scope, setScope, reality, galaxy, region, openDropdown, toggleDropdown, closeDropdowns, pushRecentlyViewed } = useSystems()
-  const [q, setQ] = useState('')
-  const debouncedQ = useDebounce(q, 300)
-  const [results, setResults] = useState([])
-  const [total, setTotal] = useState(0)
+  const {
+    scope, setScope, reality, galaxy, region,
+    q, setQ,
+    openDropdown, toggleDropdown, closeDropdowns,
+    pushRecentlyViewed, selectGalaxy, selectRegion, selectReality,
+  } = useSystems()
+  const { apiParams } = useFilters()
+
+  // Local input mirrors URL `q`; user typing updates local immediately, then
+  // a 300ms debounce commits back to URL state. Reading URL → local on mount
+  // means a shared/refreshed link with ?q=... pre-fills the input.
+  const [input, setInput] = useState(q)
+  useEffect(() => { setInput(q) }, [q])
+  const debouncedInput = useDebounce(input, 300)
+  useEffect(() => {
+    if (debouncedInput !== q) setQ(debouncedInput)
+  }, [debouncedInput, q, setQ])
+
+  const [data, setData] = useState(null)
   const [isSearching, setIsSearching] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef(null)
+  const popoverRef = useRef(null)
 
   const isOpen = openDropdown === 'search'
 
-  // Focus the input on `/`
+  // Focus input on `/`
   useEffect(() => {
     function onKey(e) {
       if (e.key !== '/') return
@@ -52,17 +74,17 @@ export default function SearchOverlay() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Run search whenever the debounced query changes. Scope is applied as the
-  // appropriate filter param so the backend can narrow without us paginating.
+  // Fire the categorized search whenever the debounced query, scope, or
+  // active filters change. Filters compose via ...apiParams so the popover
+  // results always respect the same constraints the level grid is showing.
   useEffect(() => {
-    const trimmed = debouncedQ.trim()
+    const trimmed = (input || '').trim()
     if (trimmed.length < 2) {
-      setResults([])
-      setTotal(0)
+      setData(null)
       return
     }
     setIsSearching(true)
-    const params = { q: trimmed, page: 1, limit: 8 }
+    const params = { q: trimmed, limit: POPOVER_PER_CATEGORY }
     if (scope === 'galaxy' && galaxy) params.galaxy = galaxy
     if (scope === 'region' && region) {
       params.rx = region.region_x
@@ -70,43 +92,107 @@ export default function SearchOverlay() {
       params.rz = region.region_z
     }
     if (reality) params.reality = reality
-    axios.get('/api/systems/search', { params })
-      .then((r) => {
-        setResults(r.data.results || [])
-        setTotal(r.data.total || 0)
-      })
-      .catch(() => {
-        setResults([])
-        setTotal(0)
-      })
+    // Compose filters into the search request
+    Object.assign(params, apiParams)
+    axios.get('/api/search', { params })
+      .then((r) => setData(r.data || null))
+      .catch(() => setData(null))
       .finally(() => setIsSearching(false))
-  }, [debouncedQ, scope, reality, galaxy, region])
+  }, [input, scope, reality, galaxy, region, JSON.stringify(apiParams)])
 
-  const showPopover = isOpen && q.trim().length >= 2
+  const showPopover = isOpen && (input || '').trim().length >= 2
+
+  // Flatten results across categories into a single ordered list for
+  // keyboard nav. Order matches visual order in the popover.
+  const flatRows = useMemo(() => {
+    if (!data) return []
+    const out = []
+    for (const c of data.communities || []) out.push({ kind: 'community', row: c })
+    for (const r of data.regions || []) out.push({ kind: 'region', row: r })
+    for (const c of data.contributors || []) out.push({ kind: 'contributor', row: c })
+    for (const s of data.systems || []) out.push({ kind: 'system', row: s })
+    return out
+  }, [data])
+
+  useEffect(() => { setActiveIndex(0) }, [input, data])
+
+  function activateRow(entry) {
+    if (!entry) return
+    const { kind, row } = entry
+    closeDropdowns()
+    if (kind === 'community') {
+      pushRecentlyViewed({ type: 'community', name: row.display_name, href: `/community-stats/${encodeURIComponent(row.tag)}` })
+      navigate(`/community-stats/${encodeURIComponent(row.tag)}`)
+      return
+    }
+    if (kind === 'region') {
+      // Switching reality/galaxy here keeps the breadcrumb truthful; otherwise
+      // a region in Hilbert clicked from Euclid scope would look mis-placed.
+      if (row.reality && row.reality !== reality) selectReality(row.reality)
+      if (row.galaxy && row.galaxy !== galaxy) selectGalaxy(row.galaxy)
+      selectRegion({
+        region_x: row.region_x,
+        region_y: row.region_y,
+        region_z: row.region_z,
+        display_name: row.custom_name,
+      })
+      pushRecentlyViewed({ type: 'region', name: row.custom_name, href: window.location.pathname + window.location.search })
+      return
+    }
+    if (kind === 'contributor') {
+      // No dedicated /profile/<username> route exists for arbitrary users
+      // (only /profile for the logged-in user) — route to the contributor
+      // search-results page filtered to their username.
+      const name = row.username || ''
+      pushRecentlyViewed({ type: 'contributor', name, href: `/search?q=${encodeURIComponent(name)}` })
+      navigate(`/search?q=${encodeURIComponent(name)}`)
+      return
+    }
+    if (kind === 'system') {
+      pushRecentlyViewed({ type: 'system', name: row.name, href: `/systems/${row.id}` })
+      navigate(`/systems/${encodeURIComponent(row.id)}`)
+    }
+  }
 
   function handleFocus() {
-    if (q.trim().length >= 2 && openDropdown !== 'search') toggleDropdown('search')
+    if ((input || '').trim().length >= 2 && openDropdown !== 'search') toggleDropdown('search')
   }
 
   function handleChange(e) {
-    setQ(e.target.value)
-    if (e.target.value.trim().length >= 2 && openDropdown !== 'search') toggleDropdown('search')
-    else if (e.target.value.trim().length < 2 && openDropdown === 'search') closeDropdowns()
+    const v = e.target.value
+    setInput(v)
+    if (v.trim().length >= 2 && openDropdown !== 'search') toggleDropdown('search')
+    else if (v.trim().length < 2 && openDropdown === 'search') closeDropdowns()
   }
 
-  function handleResultClick(system) {
-    pushRecentlyViewed({
-      type: 'system',
-      name: system.name,
-      href: `/systems/${system.id}`,
-    })
-    closeDropdowns()
+  function handleClear() {
+    setInput('')
     setQ('')
-    navigate(`/systems/${encodeURIComponent(system.id)}`)
+    closeDropdowns()
+    inputRef.current?.focus()
+  }
+
+  function handleKeyDown(e) {
+    if (!showPopover) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.min(flatRows.length - 1, i + 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex((i) => Math.max(0, i - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      activateRow(flatRows[activeIndex] || flatRows[0])
+    } else if (e.key === 'Escape') {
+      closeDropdowns()
+    }
   }
 
   const galaxyScopeDisabled = !galaxy
   const regionScopeDisabled = !region
+  const totals = data?.totals || {}
+  const grandTotal = (totals.communities || 0) + (totals.regions || 0) + (totals.contributors || 0) + (totals.systems || 0)
+  const parsedKind = data?.parsed_kind
 
   return (
     <div className="space-y-3">
@@ -125,12 +211,26 @@ export default function SearchOverlay() {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search by name, glyph code, contributor, or community..."
-            className="haven-input w-full pl-9 pr-9 py-2.5 text-sm"
-            value={q}
+            placeholder="Search systems, communities, members, regions, or paste a glyph code..."
+            className="haven-input w-full pl-9 pr-16 py-2.5 text-sm"
+            value={input}
             onChange={handleChange}
             onFocus={handleFocus}
+            onKeyDown={handleKeyDown}
           />
+          {input && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="absolute right-9 top-1/2 -translate-y-1/2 opacity-60 hover:opacity-100"
+              title="Clear search"
+              aria-label="Clear search"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
           <kbd
             className="hidden lg:block absolute right-3 top-1/2 -translate-y-1/2 mono text-[10px] px-1.5 py-0.5 rounded"
             style={{ border: '1px solid var(--border-soft)', color: 'var(--muted)' }}
@@ -140,6 +240,7 @@ export default function SearchOverlay() {
 
           {showPopover && (
             <div
+              ref={popoverRef}
               className="absolute left-0 right-0 top-full mt-2 haven-card overflow-hidden z-30 p-0"
               role="listbox"
             >
@@ -148,51 +249,47 @@ export default function SearchOverlay() {
                 style={{ borderBottom: '1px solid var(--border-soft)' }}
               >
                 <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--muted)' }}>
-                  {total} results · scope: <span style={{ color: 'var(--app-primary)' }}>{SCOPE_LABELS[scope]}</span>
+                  {grandTotal} results · scope: <span style={{ color: 'var(--app-primary)' }}>{SCOPE_LABELS[scope]}</span>
+                  {parsedKind && parsedKind !== 'free' && (
+                    <span className="ml-1.5 mono text-[9px] px-1 py-0.5 rounded" style={{ color: 'var(--app-accent-2)', border: '1px solid var(--border-soft)' }}>
+                      {parsedKind === 'nmsportal' ? 'NMSPortals link' : parsedKind === 'glyph_full' ? 'glyph' : 'glyph suffix'}
+                    </span>
+                  )}
                 </span>
                 <button onClick={closeDropdowns} className="text-[10px]" style={{ color: 'var(--muted)' }}>Esc</button>
               </div>
-              <div className="max-h-80 overflow-y-auto scrollbar-thin">
-                {isSearching && results.length === 0 ? (
+              <div className="max-h-[480px] overflow-y-auto scrollbar-thin">
+                {isSearching && !data ? (
                   <div className="px-3 py-6 text-center text-xs" style={{ color: 'var(--muted)' }}>Searching…</div>
-                ) : results.length === 0 ? (
+                ) : grandTotal === 0 ? (
                   <div className="px-3 py-6 text-center text-xs" style={{ color: 'var(--muted)' }}>
                     No matches in scope
                   </div>
                 ) : (
-                  results.map((sys) => (
-                    <button
-                      key={sys.id}
-                      onClick={() => handleResultClick(sys)}
-                      className="w-full text-left px-3 py-2 saved-row flex items-center justify-between gap-3"
-                      style={{ borderBottom: '1px solid var(--border-soft)' }}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm truncate">{sys.name}</div>
-                        <div className="text-[11px] mono truncate" style={{ color: 'var(--muted)' }}>
-                          {sys.glyph_code ? sys.glyph_code : `(${sys.region_x}, ${sys.region_y}, ${sys.region_z})`}
-                          {sys.galaxy ? ` · ${sys.galaxy}` : ''}
-                        </div>
-                      </div>
-                      {sys.star_type && (
-                        <span className={`pill pill-star-${(sys.star_type || '').toLowerCase()} text-[10px] shrink-0`}>
-                          {sys.star_type}
-                        </span>
-                      )}
-                    </button>
-                  ))
+                  <CategorizedResults
+                    data={data}
+                    flatRows={flatRows}
+                    activeIndex={activeIndex}
+                    onActivate={activateRow}
+                    onHoverIndex={setActiveIndex}
+                  />
                 )}
               </div>
               <div
                 className="px-3 py-2 text-[10px] flex items-center justify-between"
                 style={{ color: 'var(--muted)', borderTop: '1px solid var(--border-soft)', background: 'rgba(0,0,0,0.2)' }}
               >
-                <span>↵ open · Esc close</span>
-                {total > results.length && (
-                  <span className="font-medium" style={{ color: 'var(--app-primary)' }}>
-                    {total - results.length} more — refine search
-                  </span>
-                )}
+                <span>↑↓ navigate · ↵ open · Esc close</span>
+                {grandTotal > flatRows.length || (totals.systems || 0) > POPOVER_PER_CATEGORY ? (
+                  <button
+                    type="button"
+                    onClick={() => { closeDropdowns(); navigate(`/search?q=${encodeURIComponent(input.trim())}`) }}
+                    className="font-medium"
+                    style={{ color: 'var(--app-primary)' }}
+                  >
+                    View all results →
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
@@ -219,6 +316,127 @@ export default function SearchOverlay() {
         />
       </div>
     </div>
+  )
+}
+
+function CategorizedResults({ data, flatRows, activeIndex, onActivate, onHoverIndex }) {
+  // Walks the same ordering used in flatRows so activeIndex aligns with what
+  // gets highlighted. Each section header is non-interactive — only result
+  // rows participate in keyboard nav.
+  let cursor = 0
+  const sections = []
+
+  function pushSection(kind, label, rows, renderRow) {
+    if (!rows || rows.length === 0) return
+    const startIdx = cursor
+    cursor += rows.length
+    sections.push(
+      <Section key={kind} label={label} count={rows.length}>
+        {rows.map((row, i) => {
+          const idx = startIdx + i
+          return (
+            <SearchRow
+              key={`${kind}-${i}`}
+              active={idx === activeIndex}
+              onClick={() => onActivate({ kind, row })}
+              onMouseEnter={() => onHoverIndex(idx)}
+            >
+              {renderRow(row)}
+            </SearchRow>
+          )
+        })}
+      </Section>
+    )
+  }
+
+  pushSection('community', '🌐 Communities', data.communities, (c) => (
+    <>
+      <div className="min-w-0">
+        <div className="text-sm truncate">{c.display_name}</div>
+        <div className="text-[11px] mono truncate" style={{ color: 'var(--muted)' }}>
+          {c.tag}{c.unregistered ? ' · unregistered' : ''}
+        </div>
+      </div>
+      <span className="text-[11px] mono shrink-0" style={{ color: 'var(--muted)' }}>{c.system_count || 0} systems</span>
+    </>
+  ))
+  pushSection('region', '🗺️ Regions', data.regions, (r) => (
+    <>
+      <div className="min-w-0">
+        <div className="text-sm truncate">{r.custom_name || `(${r.region_x}, ${r.region_y}, ${r.region_z})`}</div>
+        <div className="text-[11px] mono truncate" style={{ color: 'var(--muted)' }}>
+          {r.galaxy || 'Euclid'} · {r.region_x},{r.region_y},{r.region_z}
+        </div>
+      </div>
+      <span className="text-[11px] mono shrink-0" style={{ color: 'var(--muted)' }}>{r.system_count || 0} systems</span>
+    </>
+  ))
+  pushSection('contributor', '👤 Contributors', data.contributors, (c) => (
+    <>
+      <div className="min-w-0">
+        <div className="text-sm truncate">{c.username || '—'}</div>
+        <div className="text-[11px] mono truncate" style={{ color: 'var(--muted)' }}>
+          {c.source === 'anonymous' ? 'unregistered' : 'registered profile'}
+        </div>
+      </div>
+      <span className="text-[11px] mono shrink-0" style={{ color: 'var(--muted)' }}>{c.system_count || 0} systems</span>
+    </>
+  ))
+  pushSection('system', '⭐ Systems', data.systems, (s) => (
+    <>
+      <div className="min-w-0">
+        <div className="text-sm truncate">{s.name}</div>
+        <div className="text-[11px] mono truncate" style={{ color: 'var(--muted)' }}>
+          {s.glyph_code || `(${s.region_x}, ${s.region_y}, ${s.region_z})`}
+          {s.galaxy ? ` · ${s.galaxy}` : ''}
+          {s.region_name ? ` · ${s.region_name}` : ''}
+          {s.match_reason && s.match_reason.kind !== 'glyph' && (
+            <span className="ml-1.5" style={{ color: 'var(--app-accent-2)' }}>
+              · {s.match_reason.kind}: {s.match_reason.snippet}
+            </span>
+          )}
+        </div>
+      </div>
+      {s.star_type && (
+        <span className={`pill pill-star-${(s.star_type || '').toLowerCase()} text-[10px] shrink-0`}>
+          {s.star_type}
+        </span>
+      )}
+    </>
+  ))
+
+  return <div>{sections}</div>
+}
+
+function Section({ label, count, children }) {
+  return (
+    <div>
+      <div
+        className="px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold flex items-center justify-between"
+        style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-soft)', color: 'var(--muted)' }}
+      >
+        <span>{label}</span>
+        <span className="mono text-[10px]" style={{ color: 'var(--app-primary)' }}>{count}</span>
+      </div>
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function SearchRow({ active, onClick, onMouseEnter, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      className={`w-full text-left px-3 py-2 flex items-center justify-between gap-3 ${active ? '' : 'saved-row'}`}
+      style={{
+        borderBottom: '1px solid var(--border-soft)',
+        background: active ? 'var(--app-primary-dim)' : undefined,
+      }}
+    >
+      {children}
+    </button>
   )
 }
 

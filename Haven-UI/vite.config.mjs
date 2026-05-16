@@ -25,6 +25,17 @@ export default defineConfig({
       '/haven-ui-photos': {
         target: 'http://127.0.0.1:8005',
         changeOrigin: true
+      },
+      // 3D galaxy map pages (`/map/latest`, `/map/region`, `/map/system/:id`,
+      // `/map/planet/:id`) are server-rendered HTML, not React routes. The
+      // backend also mounts `/map/static` and `/map/assets` for the map's
+      // bundled JS/CSS. In production these all live on :8005 alongside the
+      // SPA; in dev without this proxy Vite serves the SPA's index.html as a
+      // fallback and the map page comes up blank. Catches everything under
+      // /map/* via Vite's prefix-match semantics.
+      '/map': {
+        target: 'http://127.0.0.1:8005',
+        changeOrigin: true
       }
     }
   },

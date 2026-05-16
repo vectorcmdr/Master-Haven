@@ -285,7 +285,11 @@ export default function Navbar() {
         {/* Mobile Navigation — rendered from same NAV_LINKS + NAV_GROUPS    */}
         {/* ================================================================ */}
         {mobileMenuOpen && (
-          <nav className="lg:hidden mt-4 flex flex-col space-y-1 pb-4" aria-label="Mobile">
+          // max-h + overflow-y-auto keeps the menu from extending past the
+          // viewport. Super admins have 14+ rows in the chain; without a
+          // scroll container the menu pushed content off-screen and the user
+          // had to use page-scroll to reach the bottom items.
+          <nav className="lg:hidden mt-4 flex flex-col space-y-1 pb-4 max-h-[80vh] overflow-y-auto" aria-label="Mobile">
             {/* Top-level links */}
             {NAV_LINKS.filter(l => l.visible).map(link => (
               link.href ? (

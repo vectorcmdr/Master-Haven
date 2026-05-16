@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import Button from '../components/Button'
 import DiscoverySubmitModal from '../components/DiscoverySubmitModal'
@@ -26,6 +26,7 @@ const TYPE_ORDER = [
 ]
 
 export default function Discoveries() {
+  const navigate = useNavigate()
   const [stats, setStats] = useState(null)
   const [recentDiscoveries, setRecentDiscoveries] = useState([])
   const [loading, setLoading] = useState(true)
@@ -61,12 +62,15 @@ export default function Discoveries() {
     fetchData()
   }, [])
 
-  // Handle search (navigate to search results)
+  // Handle search — navigate to the "all" sub-page with the query. Previously
+  // this hard-routed to /discoveries/other (the wrong type, so the search
+  // matched nothing for fauna/flora/etc names) AND used a full page reload.
+  // Now uses SPA navigation. DiscoveryType handles 'all' as a no-type-filter
+  // sentinel (renders 'All Discoveries').
   function handleSearch(e) {
     e.preventDefault()
     if (searchQuery.trim()) {
-      // Navigate to a search view - for now just show in other type
-      window.location.href = `/discoveries/other?q=${encodeURIComponent(searchQuery.trim())}`
+      navigate(`/discoveries/all?q=${encodeURIComponent(searchQuery.trim())}`)
     }
   }
 

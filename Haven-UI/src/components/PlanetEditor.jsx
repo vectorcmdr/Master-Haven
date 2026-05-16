@@ -24,6 +24,10 @@ export default function PlanetEditor({ planet, index, onChange, onRemove, onSave
       fauna: 'N/A', flora: 'N/A', materials: '', notes: '', photo: null,
       has_rings: 0, is_dissonant: 0, is_infested: 0,
       extreme_weather: 0, water_world: 0, vile_brood: 0, exotic_trophy: '',
+      // v1.65.0 audit promoted these from planet-only to shared. Initialize
+      // so the moon's edit state has the keys the toggles expect.
+      ancient_bones: 0, salvageable_scrap: 0, storm_crystals: 0, gravitino_balls: 0,
+      is_bubble: 0, is_floating_islands: 0,
       // Wonders Page Notes (migration 1.76.0)
       estimated_age: '', core_element: '', lore_notes: '',
       root_structure: '', nutrient_source: ''

@@ -48,8 +48,11 @@ export default function AnalyticsHub() {
   }
 
   return (
-    <div className="-mx-6 -mt-6">
-      {/* Hub header — sits above the embedded page's own header */}
+    <div className="-mx-3 sm:-mx-6 -mt-3 sm:-mt-6">
+      {/* Hub header — sits above the embedded page's own header.
+          Negative margin scoped per breakpoint (container has px-3 on
+          phones, px-6 on sm+); pre-fix this over-pulled and caused
+          horizontal scroll on mobile. */}
       <div
         className="px-6 pt-4 pb-3 border-b"
         style={{

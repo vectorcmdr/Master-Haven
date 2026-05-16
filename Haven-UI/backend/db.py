@@ -73,6 +73,10 @@ def get_db_connection():
     conn.execute('PRAGMA cache_size=-64000')
     conn.execute('PRAGMA mmap_size=268435456')
     conn.execute('PRAGMA temp_store=MEMORY')
+    # ON DELETE CASCADE clauses on moons/discoveries/etc. were dead code without
+    # this PRAGMA — SQLite defaults FKs to OFF per-connection. Enables FK
+    # enforcement for every new statement on this conn.
+    conn.execute('PRAGMA foreign_keys=ON')
     conn.row_factory = sqlite3.Row
     return conn
 

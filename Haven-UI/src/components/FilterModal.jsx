@@ -1,25 +1,34 @@
 /**
  * FilterModal — centered modal for Systems Tab v2.0 filter editing.
  *
- * Sections (per spec section 3.2):
- *   - Quick Presets at top — single-click apply
+ * Sections:
+ *   - Quick Presets at top
  *   - Star Properties (color OR-multi, stellar class single)
  *   - Economy & Politics (type single, tier OR-multi, conflict OR-multi, lifeform single)
- *   - Planet Properties (has_moons tri-state, planet count range, biome single, sentinel single)
+ *   - Planet Properties (has_moons tri-state, planet count range, biome single, weather single, sentinel single)
  *   - Data Quality (grade OR-multi)
- *   - Resources (substring text)
+ *   - Resources (single dropdown picked from real options)
  *
- * Auto-applies on close — filter state is bound directly to SystemsContext
- * via useFilters, so changes propagate live to the level grids behind the
- * modal. The Apply button is mostly UX reassurance.
+ * Auto-applies on close — filter state is URL-synced via SystemsContext, so
+ * changes propagate live to the level grids behind the modal AND survive
+ * page refresh / sharing.
  *
- * Filter options for the single-select dropdowns are fetched lazily from
- * /api/systems/filter-options when the modal first opens.
+ * All dropdown options come from /api/systems/filter-options scoped by the
+ * current reality + galaxy. We do NOT keep hardcoded fallback lists — if the
+ * endpoint returns nothing, the dropdown shows "(no options)" so users don't
+ * pick a stale value that returns zero results.
+ *
+ * Sentinel/lifeform key fix (2026-05-15): pre-fix the modal read
+ * `options.lifeforms` / `options.sentinels`, but the backend returns
+ * `dominant_lifeforms` / `sentinel_levels`. Every dropdown silently fell back
+ * to a hardcoded list that included values like "Low" sentinel — which the
+ * NMS extractor never writes, so picking it returned zero systems.
  */
 
 import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import useFilters from '../hooks/useFilters'
+import { useSystems } from '../contexts/SystemsContext'
 
 const STAR_SWATCHES = [
   { value: 'Yellow', color: '#facc15' },
@@ -42,10 +51,6 @@ const PRESETS = {
     label: '💎 Wealthy + safe',
     filters: { economy_level: ['T3'], conflict_level: ['Low'] },
   },
-  lowsentinel: {
-    label: '🛡️ Low sentinel',
-    filters: { sentinel_level: 'Low' },
-  },
   stubcleanup: {
     label: '🌑 Stub cleanup',
     filters: { is_complete: ['C'] },
@@ -54,14 +59,20 @@ const PRESETS = {
 
 export default function FilterModal({ open, onClose }) {
   const { filters, setFilters, toggleMulti, setSingle, clearFilters } = useFilters()
+  const { reality, galaxy } = useSystems()
   const [options, setOptions] = useState({})
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    axios.get('/api/systems/filter-options').then((r) => { if (!cancelled) setOptions(r.data || {}) }).catch(() => {})
+    const params = new URLSearchParams()
+    if (reality) params.append('reality', reality)
+    if (galaxy) params.append('galaxy', galaxy)
+    axios.get(`/api/systems/filter-options?${params.toString()}`)
+      .then((r) => { if (!cancelled) setOptions(r.data || {}) })
+      .catch(() => { if (!cancelled) setOptions({}) })
     return () => { cancelled = true }
-  }, [open])
+  }, [open, reality, galaxy])
 
   // Esc to close
   useEffect(() => {
@@ -116,12 +127,22 @@ export default function FilterModal({ open, onClose }) {
               />
             </Section>
 
+            <Section title="★ Star Class" defaultOpen={false}>
+              <SelectField
+                label="Stellar Classification"
+                value={filters.stellar_classification || ''}
+                onChange={(v) => setSingle('stellar_classification', v)}
+                options={options.stellar_classifications || []}
+                placeholder="Any stellar class"
+              />
+            </Section>
+
             <Section title="⚖ Economy & Politics" defaultOpen>
               <SelectField
                 label="Economy Type"
                 value={filters.economy_type || ''}
                 onChange={(v) => setSingle('economy_type', v)}
-                options={options.economy_types || ['Wealthy', 'Trading', 'Scientific', 'Manufacturing', 'High Tech', 'Power Generation', 'Mining', 'Medical', 'Advertising', 'Agriculture', 'Fishing', 'Tourism', 'Pirate', 'Abandoned']}
+                options={options.economy_types || []}
                 placeholder="Any economy"
               />
               <PillToggleGroup
@@ -144,7 +165,7 @@ export default function FilterModal({ open, onClose }) {
                 label="Dominant Lifeform"
                 value={filters.dominant_lifeform || ''}
                 onChange={(v) => setSingle('dominant_lifeform', v)}
-                options={options.lifeforms || ['Gek', "Vy'keen", 'Korvax', 'Uninhabited', 'Robots', 'Atlas', 'Diplomats']}
+                options={options.dominant_lifeforms || []}
                 placeholder="Any lifeform"
               />
             </Section>
@@ -178,14 +199,21 @@ export default function FilterModal({ open, onClose }) {
                 label="Biome"
                 value={filters.biome || ''}
                 onChange={(v) => setSingle('biome', v)}
-                options={options.biomes || ['Lush', 'Barren', 'Exotic', 'Scorched', 'Frozen', 'Toxic', 'Radioactive', 'Dead', 'Marsh', 'Volcanic', 'Infested', 'Desolate', 'Airless', 'Gas Giant']}
+                options={options.biomes || []}
                 placeholder="Any biome"
+              />
+              <SelectField
+                label="Weather"
+                value={filters.weather || ''}
+                onChange={(v) => setSingle('weather', v)}
+                options={options.weather_types || []}
+                placeholder="Any weather"
               />
               <SelectField
                 label="Sentinel Level"
                 value={filters.sentinel_level || ''}
                 onChange={(v) => setSingle('sentinel_level', v)}
-                options={options.sentinels || ['Low', 'Standard', 'High', 'Aggressive', 'Frenzied', 'None']}
+                options={options.sentinel_levels || []}
                 placeholder="Any sentinel level"
               />
             </Section>
@@ -202,16 +230,13 @@ export default function FilterModal({ open, onClose }) {
             </Section>
 
             <Section title="⛏ Resources">
-              <div>
-                <label className="text-[11px] block mb-1" style={{ color: 'var(--muted)' }}>Specific resource present</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Indium, Activated Indium…"
-                  value={filters.resource || ''}
-                  onChange={(e) => setSingle('resource', e.target.value)}
-                  className="haven-input w-full px-3 py-2 text-sm"
-                />
-              </div>
+              <SelectField
+                label="Specific resource present"
+                value={filters.resource || ''}
+                onChange={(v) => setSingle('resource', v)}
+                options={options.resources || []}
+                placeholder="Any resource"
+              />
             </Section>
           </div>
 
@@ -336,6 +361,12 @@ function PillToggleGroup({ label, hint, items, selected, onToggle, colorClass })
 }
 
 function SelectField({ label, value, onChange, options, placeholder }) {
+  // When the current reality+galaxy scope has zero values for this field,
+  // surface "(no options)" instead of the optimistic "Any X" placeholder
+  // so users don't waste a click expanding an empty dropdown. Per the
+  // v1.66.0 spec — was only wired for the Resources field; now universal.
+  const isEmpty = !options || options.length === 0
+  const effectivePlaceholder = isEmpty ? '(no options)' : placeholder
   return (
     <div>
       <label className="text-[11px] block mb-1" style={{ color: 'var(--muted)' }}>{label}</label>
@@ -343,9 +374,10 @@ function SelectField({ label, value, onChange, options, placeholder }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="haven-input w-full px-3 py-2 text-sm"
+        disabled={isEmpty}
       >
-        <option value="">{placeholder}</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        <option value="">{effectivePlaceholder}</option>
+        {(options || []).map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
     </div>
   )

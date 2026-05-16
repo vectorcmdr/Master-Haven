@@ -231,9 +231,17 @@ async def create_civilization(payload: dict, session: Optional[str] = Cookie(Non
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("SELECT id FROM civilizations WHERE tag = ?", (tag,))
-        if cur.fetchone():
-            raise HTTPException(status_code=409, detail=f"A civilization with tag '{tag}' already exists")
+        # Case-insensitive uniqueness — pre-fix this was strict-case, so
+        # `GHUB` and `ghub` could both exist simultaneously and split
+        # submissions across casings. Filter queries are case-sensitive too,
+        # so the split was silent.
+        cur.execute("SELECT id, tag FROM civilizations WHERE LOWER(tag) = LOWER(?)", (tag,))
+        existing = cur.fetchone()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"A civilization with tag '{existing['tag']}' already exists (case-insensitive match)",
+            )
 
         cur.execute("SELECT id, tier FROM user_profiles WHERE id = ? AND is_active = 1", (founder_profile_id,))
         founder = cur.fetchone()

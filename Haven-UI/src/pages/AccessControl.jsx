@@ -57,8 +57,9 @@ export default function AccessControl() {
   if (!isAdmin) return null
 
   return (
-    <div className="-mx-6 -mt-6">
-      {/* Hub header */}
+    <div className="-mx-3 sm:-mx-6 -mt-3 sm:-mt-6">
+      {/* Hub header — negative margin scoped per breakpoint to match
+          container padding on phones (avoids horizontal scroll). */}
       <div
         className="px-6 pt-4 pb-3 border-b"
         style={{

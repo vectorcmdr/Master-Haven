@@ -231,10 +231,16 @@ def check_self_submission(submission: dict, session_data: dict) -> bool:
     """
     Check if a submission was made by the current user (self-approval prevention).
     Returns True if it IS a self-submission (should be blocked).
-    Super admin and partners are always exempt (returns False).
+
+    Only super_admin is exempt. The previous partner exemption was a
+    leaderboard-fraud risk: a partner could approve every submission they
+    made themselves to their own civ, defeating peer review for the entire
+    partner tier. With sub-admins also able to submit (and partner_id !=
+    profile_id sometimes), the safest default is to block all non-super
+    self-approvals — matches check_self_coauthor() above.
     """
     current_user_type = session_data.get('user_type')
-    if current_user_type in ('super_admin', 'partner'):
+    if current_user_type == 'super_admin':
         return False
 
     current_profile_id = session_data.get('profile_id')

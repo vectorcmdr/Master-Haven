@@ -1,16 +1,22 @@
 /**
- * FilterPillsRow — removable active-filter chips + "Clear all" link.
+ * FilterPillsRow — removable active-filter chips + search-query chip + "Clear all" link.
  *
- * Reads from useFilters().pills so the shape stays decoupled from the modal
- * implementation. Pill order matches insertion order from Object.entries on
- * SystemsContext.filters.
+ * v1.66.0: now also surfaces the URL-synced search query `q` as its own pill
+ * so users have one consistent place to see + remove every active constraint
+ * (filters AND the search term). The search pill is amber-tinted to set it
+ * apart from filter pills (teal) without inventing a new pattern.
  */
 
 import React from 'react'
 import useFilters from '../hooks/useFilters'
+import { useSystems } from '../contexts/SystemsContext'
 
 export default function FilterPillsRow() {
   const { pills, removeFilter, clearFilters, activeFilterCount } = useFilters()
+  const { q, setQ } = useSystems()
+
+  const hasSearch = !!(q || '').trim()
+  const hasAny = hasSearch || pills.length > 0
 
   return (
     <div className="flex items-start gap-x-3 gap-y-2 flex-wrap">
@@ -18,10 +24,33 @@ export default function FilterPillsRow() {
         <span className="text-[10px] uppercase tracking-wider font-semibold mr-0.5" style={{ color: 'var(--muted)' }}>
           Active:
         </span>
-        {pills.length === 0 ? (
+        {!hasAny ? (
           <span className="text-[11px]" style={{ color: 'var(--muted)' }}>No filters applied</span>
         ) : (
           <>
+            {hasSearch && (
+              <span
+                className="pill"
+                style={{
+                  background: 'rgba(255, 180, 76, 0.18)',
+                  color: 'var(--app-accent-amber)',
+                  border: '1px solid rgba(255, 180, 76, 0.4)',
+                }}
+              >
+                <span className="font-medium">Search:</span> {q}
+                <button
+                  type="button"
+                  onClick={() => setQ('')}
+                  className="ml-1 -mr-1 opacity-70 hover:opacity-100"
+                  aria-label="Clear search query"
+                  title="Clear search query"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </span>
+            )}
             {pills.map(({ key, label, value }) => (
               <span key={key} className="pill pill-teal">
                 <span className="font-medium">{label}:</span> {value}
@@ -38,10 +67,10 @@ export default function FilterPillsRow() {
                 </button>
               </span>
             ))}
-            {activeFilterCount > 1 && (
+            {(activeFilterCount + (hasSearch ? 1 : 0)) > 1 && (
               <button
                 type="button"
-                onClick={clearFilters}
+                onClick={() => { clearFilters(); setQ('') }}
                 className="text-[11px] font-medium ml-1"
                 style={{ color: 'var(--app-primary)' }}
               >

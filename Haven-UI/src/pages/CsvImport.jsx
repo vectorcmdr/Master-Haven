@@ -236,16 +236,20 @@ export default function CsvImport() {
                 <p className="text-xs text-gray-500 mb-3">Review and adjust how each CSV column maps to Haven fields.</p>
                 <div className="space-y-1.5">
                   {columnMapping.map((cm) => (
-                    <div key={cm.index} className={`flex items-center gap-3 px-3 py-1.5 rounded text-sm ${cm.mapped_to !== 'ignored' ? 'bg-gray-700/60' : 'bg-gray-800/30'}`}>
+                    // flex-wrap + min-w-0 on the column-name span lets the
+                    // select drop to its own line on phone instead of being
+                    // pushed offscreen. min-w-[160px] reasserts on sm+ so
+                    // desktop layout is unchanged.
+                    <div key={cm.index} className={`flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-1.5 rounded text-sm ${cm.mapped_to !== 'ignored' ? 'bg-gray-700/60' : 'bg-gray-800/30'}`}>
                       <span className="text-gray-400 w-6 text-right text-xs">{cm.index + 1}</span>
-                      <span className={`font-medium min-w-[160px] ${cm.mapped_to !== 'ignored' ? 'text-white' : 'text-gray-500'}`}>
+                      <span className={`font-medium min-w-0 sm:min-w-[160px] truncate ${cm.mapped_to !== 'ignored' ? 'text-white' : 'text-gray-500'}`}>
                         {cm.csv_column}
                       </span>
-                      <span className="text-gray-500">→</span>
+                      <span className="text-gray-500 hidden sm:inline">→</span>
                       <select
                         value={cm.mapped_to}
                         onChange={(e) => updateMapping(cm.index, e.target.value)}
-                        className={`px-2 py-1 bg-gray-700 border rounded text-sm ${
+                        className={`px-2 py-1 bg-gray-700 border rounded text-sm w-full sm:w-auto sm:flex-1 ${
                           cm.mapped_to !== 'ignored' ? 'border-cyan-600 text-cyan-300' : 'border-gray-600 text-gray-400'
                         }`}
                       >

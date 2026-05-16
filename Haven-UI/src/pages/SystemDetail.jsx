@@ -34,12 +34,17 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { AuthContext } from '../utils/AuthContext'
 import { getThumbnailUrl, getPhotoUrl } from '../utils/api'
+import { getFaunaColor, getFloraColor, getSentinelColor } from '../utils/adjectiveColors'
 import Lightbox from '../components/Lightbox'
 import FromMapBanner from '../components/FromMapBanner'
 import ActivityFeed from '../components/ActivityFeed'
 import PlanetSphere from '../components/shared/PlanetSphere'
 
-const STAR_HEX = { Yellow: '#facc15', Blue: '#3b82f6', Red: '#ef4444', Green: '#10b981', Purple: '#a855f7' }
+const STAR_HEX = {
+  Yellow: '#facc15', Blue: '#3b82f6', Red: '#ef4444', Green: '#10b981', Purple: '#a855f7',
+  // Legacy / fallback colors so old rows with Unknown / White / NULL don't all coerce to yellow
+  White: '#e5e7eb', Unknown: '#94a3b8',
+}
 const STAR_TEXT = { Yellow: '#422006' } // contrast on Yellow only; others use white
 const GRADE_STYLE = {
   S: { background: 'var(--app-accent-amber)', color: '#422006' },
@@ -47,6 +52,23 @@ const GRADE_STYLE = {
   B: { background: '#60a5fa', color: '#082f49' },
   C: { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)' },
 }
+const GAME_MODE_COLOR = {
+  Normal: { bg: 'rgba(148,163,184,0.2)', text: '#cbd5e1' },
+  Survival: { bg: 'rgba(249,115,22,0.2)', text: '#fb923c' },
+  Permadeath: { bg: 'rgba(239,68,68,0.2)', text: '#f87171' },
+  Creative: { bg: 'rgba(6,182,212,0.2)', text: '#22d3ee' },
+  Relaxed: { bg: 'rgba(34,197,94,0.2)', text: '#4ade80' },
+  Custom: { bg: 'rgba(168,85,247,0.2)', text: '#c084fc' },
+}
+const COMPLETENESS_CATEGORIES = [
+  ['system_core', 'System Core'],
+  ['system_extra', 'System Extra'],
+  ['planet_coverage', 'Planet Coverage'],
+  ['planet_environment', 'Planet Environment'],
+  ['planet_life', 'Planet Life'],
+  ['planet_detail', 'Planet Detail'],
+  ['space_station', 'Space Station'],
+]
 const BIOME_TINT = {
   Lush: '#10b981', Frozen: '#60a5fa', Scorched: '#f97316',
   Barren: '#a8a29e', Toxic: '#84cc16', Exotic: '#a855f7',
@@ -213,6 +235,26 @@ export default function SystemDetail() {
     <div className="space-y-4">
       {fromMap && <FromMapBanner subject={system.name} />}
 
+      {/* Stub banner — yellow notice when system was created as a placeholder
+          for a discovery and still needs full data filled in. */}
+      {system.is_stub && (
+        <div
+          className="flex items-start gap-3 px-4 py-3 rounded-lg"
+          style={{
+            background: 'rgba(250,204,21,0.10)',
+            border: '1px solid rgba(250,204,21,0.45)',
+          }}
+        >
+          <span className="text-lg" aria-hidden="true">⚠️</span>
+          <div className="text-sm" style={{ color: 'rgba(255,255,255,0.9)' }}>
+            <div className="font-semibold" style={{ color: '#facc15' }}>Stub System — Needs Update</div>
+            <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+              This system was created as a placeholder so a discovery could link to it. Please use the Wizard to fill in the full system data.
+            </div>
+          </div>
+        </div>
+      )}
+
       {editMode && (
         <div
           className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg"
@@ -255,7 +297,7 @@ export default function SystemDetail() {
                 style={{ background: starHex, boxShadow: `0 0 40px ${starHex}` }}
               />
             </div>
-            <div className="absolute top-3 left-3 flex items-center gap-1.5">
+            <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
               {system.star_type && (
                 <span className="pill" style={{ background: starHex, color: starTextColor, fontWeight: 700 }}>
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6" /></svg>
@@ -267,8 +309,29 @@ export default function SystemDetail() {
                   {system.economy_type}{system.economy_level ? ` ${system.economy_level}` : ''}
                 </span>
               )}
+              {system.game_mode && system.game_mode !== 'Normal' && (
+                <span
+                  className="pill backdrop-blur font-semibold"
+                  style={{
+                    background: (GAME_MODE_COLOR[system.game_mode] || GAME_MODE_COLOR.Normal).bg,
+                    color: (GAME_MODE_COLOR[system.game_mode] || GAME_MODE_COLOR.Normal).text,
+                  }}
+                  title={`Game mode: ${system.game_mode}`}
+                >
+                  {system.game_mode}
+                </span>
+              )}
             </div>
-            <div className="absolute top-3 right-3">
+            <div className="absolute top-3 right-3 flex items-center gap-1.5">
+              {system.is_stub && (
+                <span
+                  className="pill text-[10px] font-bold"
+                  style={{ background: 'rgba(250,204,21,0.25)', color: '#facc15', border: '1px solid rgba(250,204,21,0.5)' }}
+                  title="Placeholder system created for a discovery — needs full data"
+                >
+                  STUB
+                </span>
+              )}
               {grade && (
                 <span className="w-8 h-8 rounded-md flex items-center justify-center text-sm font-bold mono" style={GRADE_STYLE[grade] || GRADE_STYLE.C}>
                   {grade}
@@ -336,7 +399,12 @@ export default function SystemDetail() {
               <Stat
                 label="Complete"
                 value={system.completeness_score != null ? `${system.completeness_score}%` : '—'}
-                secondary={system.completeness_score === 100 ? 'verified' : 'WIP'}
+                secondary={
+                  system.completeness_score == null ? null
+                  : system.completeness_score >= 85 ? 'grade S'
+                  : system.completeness_score >= 65 ? 'grade A'
+                  : system.completeness_score >= 40 ? 'grade B' : 'grade C'
+                }
                 valueClass={
                   system.completeness_score >= 85 ? 'grade-s'
                   : system.completeness_score >= 65 ? 'grade-a'
@@ -429,6 +497,23 @@ export default function SystemDetail() {
         </div>
       )}
 
+      {/* SPACE STATION */}
+      {system.space_station && <SpaceStationCard station={system.space_station} />}
+
+      {/* DISCOVERIES (linked to this system) */}
+      {(system.discoveries || []).length > 0 && (
+        <SystemDiscoveriesList discoveries={system.discoveries} />
+      )}
+
+      {/* COMPLETENESS BREAKDOWN */}
+      {system.completeness_breakdown && (
+        <CompletenessBreakdown
+          breakdown={system.completeness_breakdown}
+          score={system.completeness_score}
+          grade={grade}
+        />
+      )}
+
       {/* PHOTOS */}
       {photos.length > 0 && (
         <div className="haven-card p-5">
@@ -519,7 +604,9 @@ function PencilIcon() {
 }
 
 function ShowOnMapButton({ system, variant = 'ghost' }) {
-  const href = `/map?focus=system:${encodeURIComponent(system.id)}`
+  // Was `/map?focus=...` which didn't match any SPA route — the actual 3D map
+  // is mounted at `/map/latest` (matches navbar). Pre-fix this 404'd.
+  const href = `/map/latest?focus=system:${encodeURIComponent(system.id)}`
   const common = (
     <>
       <svg className="w-3.5 h-3.5" style={{ color: 'var(--app-primary)' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -664,9 +751,9 @@ function PlanetCard({ p, index }) {
               {p.biome || '—'}{p.weather ? ` · ${p.weather}` : ''}
             </div>
             <div className="grid grid-cols-3 gap-1 text-[11px] mt-2">
-              <div><div style={{ color: 'var(--muted)' }}>Fauna</div><div className="font-bold truncate">{p.fauna || '—'}</div></div>
-              <div><div style={{ color: 'var(--muted)' }}>Flora</div><div className="font-bold truncate">{p.flora || '—'}</div></div>
-              <div><div style={{ color: 'var(--muted)' }}>Sent.</div><div className="font-bold truncate" title={p.sentinel || ''}>{p.sentinel || '—'}</div></div>
+              <div><div style={{ color: 'var(--muted)' }}>Fauna</div><div className={`font-bold truncate ${getFaunaColor(p.fauna)}`}>{p.fauna || '—'}</div></div>
+              <div><div style={{ color: 'var(--muted)' }}>Flora</div><div className={`font-bold truncate ${getFloraColor(p.flora)}`}>{p.flora || '—'}</div></div>
+              <div><div style={{ color: 'var(--muted)' }}>Sent.</div><div className={`font-bold truncate ${getSentinelColor(p.sentinel)}`} title={p.sentinel || ''}>{p.sentinel || '—'}</div></div>
             </div>
           </div>
         </div>
@@ -803,9 +890,9 @@ function MoonCard({ m, index }) {
       {expanded && (
         <div className="px-2 pb-2 pt-1 space-y-1.5 text-[11px]" style={{ borderTop: '1px solid var(--border-soft)' }}>
           <div className="grid grid-cols-3 gap-1 pt-2">
-            <div><div style={{ color: 'var(--muted)' }}>Fauna</div><div className="font-bold truncate">{m.fauna || '—'}</div></div>
-            <div><div style={{ color: 'var(--muted)' }}>Flora</div><div className="font-bold truncate">{m.flora || '—'}</div></div>
-            <div><div style={{ color: 'var(--muted)' }}>Sent.</div><div className="font-bold truncate" title={m.sentinel || ''}>{m.sentinel || '—'}</div></div>
+            <div><div style={{ color: 'var(--muted)' }}>Fauna</div><div className={`font-bold truncate ${getFaunaColor(m.fauna)}`}>{m.fauna || '—'}</div></div>
+            <div><div style={{ color: 'var(--muted)' }}>Flora</div><div className={`font-bold truncate ${getFloraColor(m.flora)}`}>{m.flora || '—'}</div></div>
+            <div><div style={{ color: 'var(--muted)' }}>Sent.</div><div className={`font-bold truncate ${getSentinelColor(m.sentinel)}`} title={m.sentinel || ''}>{m.sentinel || '—'}</div></div>
           </div>
           {features.length > 0 && (
             <div className="flex flex-wrap gap-1">
@@ -848,6 +935,220 @@ function DetailRow({ label, children }) {
     <div className="flex items-start gap-2 text-[11px]">
       <span className="shrink-0 mono uppercase tracking-wider" style={{ color: 'var(--muted)', minWidth: 70 }}>{label}</span>
       <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  )
+}
+
+// Completeness breakdown panel — per-category progress bars. Backend has
+// returned this since v1.34.0 but the frontend never rendered it; only the
+// rolled-up % shown in the stat tile.
+function CompletenessBreakdown({ breakdown, score, grade }) {
+  if (!breakdown) return null
+  return (
+    <div className="haven-card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-base font-semibold">Completeness</h3>
+        <span className="text-xs" style={{ color: 'var(--muted)' }}>
+          Total {score != null ? `${score}%` : '—'}{grade ? ` · grade ${grade}` : ''}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {COMPLETENESS_CATEGORIES.map(([key, label]) => {
+          const cat = breakdown[key]
+          if (!cat) return null
+          const pct = cat.max ? Math.round((cat.score / cat.max) * 100) : 0
+          const barColor = pct >= 85 ? '#34d399' : pct >= 65 ? '#60a5fa' : pct >= 40 ? '#fbbf24' : '#f87171'
+          return (
+            <div key={key} className="p-2 rounded" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid var(--border-soft)' }}>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span style={{ color: 'var(--muted)' }}>{label}</span>
+                <span className="mono" style={{ color: barColor }}>{cat.score}/{cat.max}</span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${pct}%`, background: barColor }}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// Space station card — backend has returned `space_station` (with trade goods)
+// since the v1.0 schema but SystemDetail never rendered it.
+const RACE_COLOR = {
+  Gek: '#10b981', "Vy'keen": '#f97316', Korvax: '#3b82f6',
+  Pirate: '#a855f7', Mixed: '#94a3b8',
+}
+function SpaceStationCard({ station }) {
+  if (!station) return null
+  const race = station.race || 'Mixed'
+  const raceColor = RACE_COLOR[race] || '#94a3b8'
+  const tradeGoods = Array.isArray(station.trade_goods) ? station.trade_goods : []
+  return (
+    <div className="haven-card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-base font-semibold">Space Station</h3>
+        <span className="pill" style={{ background: `${raceColor}30`, color: raceColor, fontWeight: 600 }}>
+          {race}
+        </span>
+      </div>
+      <div className="space-y-2">
+        {station.name && (
+          <div className="text-sm font-semibold">{station.name}</div>
+        )}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {station.sell_percent != null && (
+            <Stat label="Sell %" value={`${station.sell_percent}%`} />
+          )}
+          {station.buy_percent != null && (
+            <Stat label="Buy %" value={`${station.buy_percent}%`} />
+          )}
+          {station.x != null && (
+            <Stat label="Position" value={`${station.x.toFixed?.(1) ?? station.x},${station.y?.toFixed?.(1) ?? station.y}`} secondary={station.z != null ? `z ${station.z.toFixed?.(1) ?? station.z}` : null} />
+          )}
+        </div>
+        {tradeGoods.length > 0 && (
+          <div>
+            <div className="text-[10px] uppercase tracking-wider mb-1.5 font-semibold" style={{ color: 'var(--muted)' }}>
+              Trade Goods ({tradeGoods.length})
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {tradeGoods.map((g, i) => (
+                <span key={i} className="pill pill-muted text-[10px]">
+                  {typeof g === 'string' ? g : (g?.name || JSON.stringify(g))}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// System discoveries list — discoveries linked to this system via
+// planet_id / moon_id / space (no link = system-wide). Backend now returns
+// these on the system detail response; previously SystemDetail had no
+// awareness of linked discoveries at all even though v1.33 added the link.
+function SystemDiscoveriesList({ discoveries }) {
+  const grouped = useMemo(() => {
+    const byTarget = { planet: {}, moon: {}, space: [], orphan: [] }
+    for (const d of discoveries) {
+      // An "orphan" is a discovery whose intent was to be on a planet or
+      // moon (location_type says so) but whose FK link is NULL — the
+      // submitter's body name didn't resolve at approval time and the
+      // backend inserted with a warning. Surface these separately so they
+      // don't quietly masquerade as intentional "in space" discoveries.
+      const intendsBody = d.location_type === 'planet' || d.location_type === 'moon'
+      const hasLink = !!(d.planet_id || d.moon_id)
+      if (intendsBody && !hasLink) {
+        byTarget.orphan.push(d)
+      } else if (d.planet_name && !d.moon_name) {
+        byTarget.planet[d.planet_name] = byTarget.planet[d.planet_name] || []
+        byTarget.planet[d.planet_name].push(d)
+      } else if (d.moon_name) {
+        const key = `${d.planet_name || '?'}::${d.moon_name}`
+        byTarget.moon[key] = byTarget.moon[key] || []
+        byTarget.moon[key].push(d)
+      } else {
+        byTarget.space.push(d)
+      }
+    }
+    return byTarget
+  }, [discoveries])
+
+  return (
+    <div className="haven-card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-base font-semibold">Discoveries ({discoveries.length})</h3>
+        <Link to="/discoveries" className="text-xs haven-link">Browse all →</Link>
+      </div>
+      <div className="space-y-3">
+        {Object.entries(grouped.planet).map(([planet, list]) => (
+          <DiscoveryGroup key={`p-${planet}`} label={planet} icon="🌍" items={list} />
+        ))}
+        {Object.entries(grouped.moon).map(([key, list]) => {
+          const [planet, moon] = key.split('::')
+          return (
+            <DiscoveryGroup
+              key={`m-${key}`}
+              label={moon}
+              sublabel={`moon of ${planet}`}
+              icon="🌑"
+              items={list}
+            />
+          )
+        })}
+        {grouped.space.length > 0 && (
+          <DiscoveryGroup label="In space" icon="✨" items={grouped.space} />
+        )}
+        {grouped.orphan.length > 0 && (
+          <div
+            className="p-3 rounded"
+            style={{ background: 'rgba(255,180,76,0.08)', border: '1px solid var(--app-accent-amber, #ffb44c)' }}
+          >
+            <div className="flex items-baseline gap-2 mb-2">
+              <span aria-hidden="true">⚠</span>
+              <span className="text-sm font-semibold" style={{ color: 'var(--app-accent-amber, #ffb44c)' }}>
+                Unlinked ({grouped.orphan.length})
+              </span>
+              <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                discovery intended for a planet/moon but the body name didn't resolve at approval time
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {grouped.orphan.map((d) => (
+                <Link
+                  key={d.id}
+                  to={`/discoveries/${d.type_slug || 'other'}`}
+                  className="px-2 py-1 rounded text-xs hover:bg-white/5 transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.05)' }}
+                  title={d.description || d.discovery_name}
+                >
+                  <span className="font-medium">{d.discovery_name}</span>
+                  {d.discovery_type && (
+                    <span className="ml-1.5 text-[10px]" style={{ color: 'var(--muted)' }}>· {d.discovery_type}</span>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DiscoveryGroup({ label, sublabel, icon, items }) {
+  return (
+    <div className="p-3 rounded" style={{ background: 'rgba(0,0,0,0.20)', border: '1px solid var(--border-soft)' }}>
+      <div className="flex items-baseline gap-2 mb-2">
+        <span aria-hidden="true">{icon}</span>
+        <span className="text-sm font-semibold">{label}</span>
+        {sublabel && <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{sublabel}</span>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((d) => (
+          <Link
+            key={d.id}
+            to={`/discoveries/${d.type_slug || 'other'}`}
+            className="px-2 py-1 rounded text-xs hover:bg-white/5 transition-colors"
+            style={{ background: 'rgba(255,255,255,0.05)' }}
+            title={d.description || d.discovery_name}
+          >
+            <span className="font-medium">{d.discovery_name}</span>
+            {d.discovery_type && (
+              <span className="ml-1.5 text-[10px]" style={{ color: 'var(--muted)' }}>· {d.discovery_type}</span>
+            )}
+            {d.featured && <span className="ml-1.5">★</span>}
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

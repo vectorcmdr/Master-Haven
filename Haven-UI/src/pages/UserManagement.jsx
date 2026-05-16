@@ -282,16 +282,22 @@ export default function UserManagement({ embedded = false }) {
                               Edit
                             </button>
                           )}
-                          {/* Elevate - super admin only, for users with passwords */}
-                          {isSuperAdmin && p.tier > 2 && p.has_password && (
+                          {/* Change Tier - super admin only, for users with passwords.
+                              Only handles non-membership-derived tiers (super_admin,
+                              member, read-only). Partner / sub-admin are managed via
+                              Civilizations page → Add Member. */}
+                          {isSuperAdmin && p.has_password && (
                             <button
                               onClick={() => {
                                 setElevateProfile(p)
-                                setElevateForm({ tier: p.tier <= 3 ? p.tier : 3, partner_discord_tag: '', enabled_features: [], parent_profile_id: null, additional_discord_tags: [], can_approve_personal_uploads: false })
+                                const allowed = [1, 4, 5]
+                                const startTier = allowed.includes(p.tier) ? p.tier : 4
+                                setElevateForm({ tier: startTier, partner_discord_tag: '', enabled_features: [], parent_profile_id: null, additional_discord_tags: [], can_approve_personal_uploads: false })
                               }}
                               className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded"
+                              title="Change non-membership tier (Super Admin / Member / Read-Only). Partner / Sub-Admin are managed via Civilizations."
                             >
-                              Elevate
+                              Change Tier
                             </button>
                           )}
                           {/* Demote - super admin only, for partners/sub-admins */}
@@ -454,83 +460,64 @@ export default function UserManagement({ embedded = false }) {
         </div>
       )}
 
-      {/* ========== ELEVATE MODAL ========== */}
+      {/* ========== ELEVATE MODAL ==========
+          v1.55.0: civ-membership-derived tiers (Partner / Sub-Admin) were
+          removed from this flow. The backend `_recompute_profile_tier` in
+          routes/civilizations.py auto-syncs user_profiles.tier from the
+          civilization_members table on every add/update/remove, so any
+          tier=2/tier=3 set here without a matching membership row would be
+          silently wiped on the next civ change. To make someone a Partner
+          or Sub-Admin, use Civilizations page → Add Member with the
+          appropriate role. This modal now only handles non-civ tier
+          changes: promote to Super Admin, or demote to Member / Read-Only. */}
       {elevateProfile && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto" onClick={() => setElevateProfile(null)}>
           <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 my-8" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-4">Elevate {elevateProfile.username}</h2>
+            <h2 className="text-lg font-semibold mb-4">Change Tier — {elevateProfile.username}</h2>
             <div className="space-y-4">
+              <div className="rounded border border-cyan-500/30 bg-cyan-500/5 p-3 text-xs text-cyan-300">
+                <strong className="block mb-1">Partner / Sub-Admin tiers are now membership-derived.</strong>
+                To make this user a leader or moderator of a community, open the{' '}
+                <a href="/haven-ui/admin/civilizations" className="underline">Civilizations</a> page,
+                pick a civ, and add them with role <code>leader</code>, <code>co_leader</code>, or <code>sub_admin</code>.
+                Their tier syncs automatically. Use this modal only for promoting to Super Admin or
+                demoting to Member / Read-Only.
+              </div>
+
               <div>
                 <label className="block text-sm text-gray-400 mb-1">New Tier</label>
                 <select
                   value={elevateForm.tier}
-                  onChange={e => setElevateForm({ ...elevateForm, tier: parseInt(e.target.value), enabled_features: [] })}
+                  onChange={e => setElevateForm({ ...elevateForm, tier: parseInt(e.target.value), enabled_features: [], partner_discord_tag: '', parent_profile_id: null })}
                   className="w-full p-2 bg-gray-700 rounded text-white"
                 >
-                  <option value={2}>Partner (Community Leader)</option>
-                  <option value={3}>Sub-Admin (Community Moderator)</option>
+                  <option value={1}>Super Admin</option>
                   <option value={4}>Member</option>
-                  <option value={5}>Read-Only</option>
+                  <option value={5}>Read-Only Member</option>
                 </select>
               </div>
 
-              {/* Partner: discord tag */}
-              {elevateForm.tier === 2 && (
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Community Tag (required)</label>
-                  <input
-                    value={elevateForm.partner_discord_tag}
-                    onChange={e => setElevateForm({ ...elevateForm, partner_discord_tag: e.target.value })}
-                    className="w-full p-2 bg-gray-700 rounded text-white"
-                    placeholder="e.g., Haven, IEA, B.E.S"
-                  />
+              {elevateForm.tier === 1 && (
+                <div className="rounded border border-yellow-500/30 bg-yellow-500/5 p-3 text-xs text-yellow-300">
+                  ⚠ Super Admin has unrestricted access to all communities, settings, and destructive operations. Confirm intent.
                 </div>
               )}
 
-              {/* Sub-admin: parent partner */}
-              {elevateForm.tier === 3 && (
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Parent Partner (optional - leave blank for Haven sub-admin)</label>
-                  <select
-                    value={elevateForm.parent_profile_id || ''}
-                    onChange={e => setElevateForm({ ...elevateForm, parent_profile_id: e.target.value ? parseInt(e.target.value) : null })}
-                    className="w-full p-2 bg-gray-700 rounded text-white"
-                  >
-                    <option value="">Haven (no parent)</option>
-                    {partners.map(p => (
-                      <option key={p.id} value={p.id}>{p.username} ({p.partner_discord_tag})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Feature permissions for Partner/Sub-Admin */}
-              {(elevateForm.tier === 2 || elevateForm.tier === 3) && (
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">Permissions</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(elevateForm.tier === 2 ? PARTNER_FEATURES : SUB_ADMIN_FEATURES).map(f => (
-                      <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-700/50 p-1 rounded">
-                        <input
-                          type="checkbox"
-                          checked={elevateForm.enabled_features.includes(f.key)}
-                          onChange={() => toggleElevateFeature(f.key)}
-                          className="rounded"
-                        />
-                        <span>{f.label}</span>
-                      </label>
-                    ))}
-                  </div>
+              {(elevateForm.tier === 4 || elevateForm.tier === 5) && (
+                <div className="rounded border border-gray-500/30 bg-gray-500/5 p-3 text-xs text-gray-400">
+                  If this user is currently a leader of any civilization, demoting their tier here
+                  will be overridden the next time their civ membership changes. To fully step them
+                  down, remove their <code>civilization_members</code> row first.
                 </div>
               )}
 
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={handleElevate}
-                  disabled={elevating || (elevateForm.tier === 2 && !elevateForm.partner_discord_tag.trim())}
+                  disabled={elevating}
                   className="btn flex-1"
                 >
-                  {elevating ? 'Saving...' : 'Confirm Elevation'}
+                  {elevating ? 'Saving...' : 'Confirm'}
                 </button>
                 <button onClick={() => setElevateProfile(null)} className="btn bg-gray-600">Cancel</button>
               </div>

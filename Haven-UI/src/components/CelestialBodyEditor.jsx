@@ -23,7 +23,11 @@ const faunaOptions = toSelectOptions(faunaAdjectives)
 const resourcesOptions = toSelectOptions(resourcesList)
 const exoticTrophyOptions = toSelectOptions(exoticTrophyList)
 
-// Special attributes shared by planets and moons
+// Special attributes shared by planets and moons. v1.65.0 audit added
+// ancient_bones / salvageable_scrap / storm_crystals / gravitino_balls
+// columns to the moons table to match planets, but the UI never exposed
+// them on moons — only planets — so users couldn't tag them. Promoted
+// here so both body types accept the full set.
 const SHARED_ATTRIBUTES = [
   { key: 'has_rings', label: 'Has Rings', icon: '\u{1FA90}' },
   { key: 'is_dissonant', label: 'Dissonant', icon: '\u{1F50A}' },
@@ -31,6 +35,10 @@ const SHARED_ATTRIBUTES = [
   { key: 'extreme_weather', label: 'Extreme Weather', icon: '\u{26A1}' },
   { key: 'water_world', label: 'Water World', icon: '\u{1F30A}' },
   { key: 'vile_brood', label: 'Vile Brood', icon: '\u{1F480}' },
+  { key: 'ancient_bones', label: 'Ancient Bones', icon: '\u{1F9B4}' },
+  { key: 'salvageable_scrap', label: 'Salvageable Scrap', icon: '\u{1F527}' },
+  { key: 'storm_crystals', label: 'Storm Crystals', icon: '\u{1F300}' },
+  { key: 'gravitino_balls', label: 'Gravitino Balls', icon: '\u{1F7E3}' },
   { key: 'is_bubble', label: 'Bubble Planet', icon: '\u{1FAE7}' },
   { key: 'is_floating_islands', label: 'Floating Islands', icon: '\u{1F3DD}' },
 ]

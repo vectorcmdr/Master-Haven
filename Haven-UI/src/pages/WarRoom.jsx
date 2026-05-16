@@ -799,8 +799,8 @@ function DeclareWarModal({ open, onClose, onSuccess, claims, isSuperAdmin, enrol
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-      <div className="bg-gray-900 border border-red-500/30 rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-gray-900 border border-red-500/30 rounded-lg p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold text-red-500 mb-4">⚔️ DECLARE WAR</h2>
         {error && <p className="text-red-400 text-sm mb-4 p-2 bg-red-950/30 rounded">{error}</p>}
 
@@ -824,7 +824,9 @@ function DeclareWarModal({ open, onClose, onSuccess, claims, isSuperAdmin, enrol
         {/* War Goal Selection */}
         <div className="mb-4">
           <label className="block text-sm text-gray-400 mb-2">War Goal (Casus Belli)</label>
-          <div className="grid grid-cols-5 gap-1">
+          {/* grid-cols-5 was unreadable on phone (~70px per cell, text-[10px]
+              truncated). Now 2-col phone / 3-col tablet / 5-col desktop. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1">
             {WAR_GOALS.map(goal => (
               <button
                 key={goal.id}
@@ -3260,8 +3262,12 @@ export default function WarRoom() {
 
       {/* Header */}
       <div className="border-b border-red-500/30 bg-gray-900/90 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        {/* Header — was `flex items-center justify-between` with no wrap, so
+            6 right-side action buttons pushed offscreen on phone. Stacks
+            vertically on <sm; horizontal on sm+. Inner clusters also wrap so
+            they collapse onto multiple rows when needed. */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             <h1 className="text-2xl font-bold text-red-500 tracking-wider">WAR ROOM</h1>
             {auth.isCorrespondent && (
               <div className="flex items-center gap-2 px-3 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded">
@@ -3304,7 +3310,9 @@ export default function WarRoom() {
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          {/* flex-wrap so the 4-6 action buttons collapse onto multiple rows
+              on phone instead of getting pushed offscreen. */}
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Action Buttons - only show if enrolled */}
             {enrollmentStatus?.enrolled && !enrollmentStatus?.is_super_admin && !auth.isCorrespondent && (
               <>

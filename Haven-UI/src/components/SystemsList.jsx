@@ -42,7 +42,7 @@ const GRADE_OVERLAY_STYLE = {
 }
 
 export default function SystemsList() {
-  const { reality, galaxy, region, pushRecentlyViewed, clearFilters, compareMode, pinsByLevel, togglePin } = useSystems()
+  const { reality, galaxy, region, q, pushRecentlyViewed, clearFilters, compareMode, pinsByLevel, togglePin } = useSystems()
   const { apiParams, activeFilterCount } = useFilters()
   const pinning = compareMode === 'system'
   const pinnedIds = new Set((pinsByLevel.system || []).map((p) => p.id))
@@ -62,36 +62,62 @@ export default function SystemsList() {
   // a truncation banner using `serverTotal` so users know there's more.
   const FETCH_CAP = 2000
 
+  // When q is set, the grid uses /api/systems/search (which OR-spans name +
+  // glyph + region + community + contributor + co-authors AND ANDs the
+  // active filters) so filter+search compose. When q is empty, the grid
+  // uses the regular paginated /api/systems endpoint as before.
+  const trimmedQ = (q || '').trim()
+  const useSearchMode = trimmedQ.length >= 2
+
   useEffect(() => {
     if (!region) return
     let cancelled = false
     setLoading(true)
     setServerTotal(null)
-    axios.get('/api/systems', {
-      params: {
-        reality, galaxy,
-        // Backend wants the full field names — short `rx/ry/rz` are only the
-        // URL query convention for this app.
-        region_x: region.region_x, region_y: region.region_y, region_z: region.region_z,
-        ...apiParams,
-        limit: FETCH_CAP,
-      },
-    })
-      .then((r) => {
-        if (cancelled) return
-        const data = r.data || {}
-        setRows(data.systems || data || [])
-        // pagination.total when present is the canonical count; bare array
-        // responses fall back to the list length.
-        const t = data?.pagination?.total
-        setServerTotal(typeof t === 'number' ? t : null)
-      })
-      .catch(() => { if (!cancelled) { setRows([]); setServerTotal(null) } })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [reality, galaxy, region?.region_x, region?.region_y, region?.region_z, JSON.stringify(apiParams)])
 
-  useEffect(() => { setPage(1) }, [region, sort, view, JSON.stringify(apiParams)])
+    if (useSearchMode) {
+      // /api/systems/search response is `{results, total, ...}`. The grid
+      // expects a `systems` field, so we normalize the shape on read.
+      const params = {
+        q: trimmedQ,
+        reality, galaxy,
+        rx: region.region_x, ry: region.region_y, rz: region.region_z,
+        ...apiParams,
+        limit: 50,
+        page,
+      }
+      axios.get('/api/systems/search', { params })
+        .then((r) => {
+          if (cancelled) return
+          const data = r.data || {}
+          setRows(data.results || [])
+          setServerTotal(typeof data.total === 'number' ? data.total : null)
+        })
+        .catch(() => { if (!cancelled) { setRows([]); setServerTotal(null) } })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    } else {
+      axios.get('/api/systems', {
+        params: {
+          reality, galaxy,
+          region_x: region.region_x, region_y: region.region_y, region_z: region.region_z,
+          ...apiParams,
+          limit: FETCH_CAP,
+        },
+      })
+        .then((r) => {
+          if (cancelled) return
+          const data = r.data || {}
+          setRows(data.systems || data || [])
+          const t = data?.pagination?.total
+          setServerTotal(typeof t === 'number' ? t : null)
+        })
+        .catch(() => { if (!cancelled) { setRows([]); setServerTotal(null) } })
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }
+    return () => { cancelled = true }
+  }, [reality, galaxy, region?.region_x, region?.region_y, region?.region_z, useSearchMode, trimmedQ, page, JSON.stringify(apiParams)])
+
+  useEffect(() => { setPage(1) }, [region, sort, view, trimmedQ, JSON.stringify(apiParams)])
 
   const sorted = useMemo(() => {
     const list = [...rows]
@@ -202,11 +228,18 @@ export default function SystemsList() {
   )
 }
 
+// Whitelist of star type values that have a corresponding `.pill-star-*` CSS
+// class. Legacy DB rows have `Unknown(N)` / `White` / NULL etc. which would
+// generate invalid CSS class names like `pill-star-unknown(7)`; map those to
+// a neutral fallback.
+const KNOWN_STAR_PILLS = new Set(['yellow', 'red', 'green', 'blue', 'purple'])
+
 function SystemCard({ s, onClick, pinned, pinning }) {
   const stateCls = cardStateClass(s)
   const badge = stateBadge(s)
   const gradeStyle = GRADE_OVERLAY_STYLE[s.completeness_grade] || GRADE_OVERLAY_STYLE.C
-  const starCls = `pill-star-${(s.star_type || 'yellow').toLowerCase()}`
+  const rawStar = (s.star_type || 'yellow').toLowerCase()
+  const starCls = KNOWN_STAR_PILLS.has(rawStar) ? `pill-star-${rawStar}` : 'pill-muted'
   const planetCount = s.planet_count ?? 0
   const moonCount = s.moon_count ?? 0
 
@@ -245,13 +278,22 @@ function SystemCard({ s, onClick, pinned, pinning }) {
             </span>
           )}
         </div>
-        {s.completeness_grade && (
-          <div className="absolute top-3 right-3 z-10">
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+          {s.is_stub && (
+            <span
+              className="pill text-[10px] font-bold"
+              style={{ background: 'rgba(250,204,21,0.25)', color: '#facc15', border: '1px solid rgba(250,204,21,0.5)' }}
+              title="Placeholder system — needs full data"
+            >
+              STUB
+            </span>
+          )}
+          {s.completeness_grade && (
             <span className="w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold mono" style={gradeStyle}>
               {s.completeness_grade}
             </span>
-          </div>
-        )}
+          )}
+        </div>
         {s.glyph_code && (
           <div className="absolute bottom-3 left-3 right-3 z-10">
             <span className="mono text-[10px] px-2 py-1 rounded backdrop-blur" style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.85)' }}>

@@ -12,7 +12,10 @@ import Button from '../components/Button'
  * Provides role-dependent settings sections:
  *   - All admins: change password, logout
  *   - Partners: change username, per-session theme, region color for 3D map
- *   - Super admin: global theme, personal submission badge color, DB backup/restore, data migrations
+ *   - Super admin: global theme, personal submission badge color
+ *
+ * DB backup/restore + data migration tools were moved to /admin/tools in
+ * v1.53.0 — see [AdminTools.jsx](AdminTools.jsx).
  *
  * Key APIs:
  *   GET/POST /api/settings              (global settings + personal color)
@@ -20,8 +23,6 @@ import Button from '../components/Button'
  *   GET/PUT  /api/partner/region_color   (3D map region color)
  *   POST     /api/change_password
  *   POST     /api/change_username
- *   POST     /api/backup
- *   POST     /api/migrate_hub_tags
  */
 export default function Settings() {
   const auth = useContext(AuthContext)

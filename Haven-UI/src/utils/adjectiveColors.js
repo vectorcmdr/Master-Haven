@@ -15,6 +15,9 @@
 const HIGH = new Set([
   'Rich', 'Abundant', 'High', 'Ample', 'Frequent', 'Full',
   'Generous', 'Numerous', 'Copious', 'Thriving', 'Flourishing',
+  // Extended per audit — these are live NMS values that previously fell
+  // through to the gray default tier.
+  'Plentiful', 'Vibrant', 'Bountiful', 'Lavish', 'Prolific', 'Teeming',
 ]);
 
 const MID = new Set([
@@ -25,6 +28,7 @@ const MID = new Set([
 const LOW = new Set([
   'Sparse', 'Rare', 'Scarce', 'Uncommon', 'Infrequent', 'Limited',
   'Few', 'Low', 'Minimal', 'Sporadic', 'Occasional', 'Intermittent',
+  'Negligible', 'Periodic',
 ]);
 
 const NONE = new Set([
@@ -57,11 +61,15 @@ const SENTINEL_DEFAULT = new Set([
   'Attentive', 'Enforcing', 'Frequent', 'Require Orthodoxy',
   'Require Obedience', 'Regular Patrols', 'Unwavering',
   'Observant', 'Ever-present',
+  // Extended per audit — values observed live but missing from set
+  'Standard', 'Patrolling', 'Vigilant', 'Watchful',
 ]);
 
 const SENTINEL_AGGRESSIVE = new Set([
   'Aggressive', 'Frenzied', 'High Security', 'Hostile Patrols',
   'Threatening', 'Hateful', 'Zealous', 'Malicious', 'Inescapable',
+  // Extended per audit
+  'Brutal', 'Relentless',
 ]);
 
 const SENTINEL_CORRUPT = new Set([

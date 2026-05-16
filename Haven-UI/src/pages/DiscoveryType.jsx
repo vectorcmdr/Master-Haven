@@ -39,8 +39,12 @@ export default function DiscoveryType() {
   // Debounced search
   const debouncedSearch = useDebounce(searchQuery, 300)
 
-  // Type info
-  const typeInfo = TYPE_INFO[type] || TYPE_INFO.other
+  // Type info. 'all' is a sentinel meaning "no type filter" — used by the
+  // Discoveries hub search-all box so users can search across every type.
+  const isAllTypes = type === 'all'
+  const typeInfo = isAllTypes
+    ? { emoji: '🔭', label: 'All Discoveries', description: 'Search across every discovery type', color: 'gray' }
+    : (TYPE_INFO[type] || TYPE_INFO.other)
   const isValidType = type in TYPE_INFO
 
   // Update URL params when filters change

@@ -992,11 +992,38 @@ async def pending_edits_count(session: Optional[str] = Cookie(None)):
         if conn:
             conn.close()
 
+# System-level columns that approve_edit_request will apply from edit_data.
+# Excludes id, glyph_code, coordinates (those should not be edited via the
+# partner-edit flow — they identify the system). Planet/moon edits aren't
+# applied here; partners requesting a planet structural change should go
+# through the normal save_system path which routes back through pending if
+# they lack the feature.
+_EDITABLE_SYSTEM_FIELDS = (
+    'name', 'star_type', 'star_color', 'economy_type', 'economy_level',
+    'conflict_level', 'dominant_lifeform', 'stellar_classification',
+    'description', 'game_mode',
+)
+
+
 @router.post('/api/pending_edits/{request_id}/approve')
 async def approve_edit_request(request_id: int, session: Optional[str] = Cookie(None)):
-    """Approve a pending edit request and apply the changes (super admin only)"""
+    """Approve a pending edit request and apply the changes (super admin only).
+
+    Pre-fix: marked status='approved' but never applied the edit, never
+    audit-logged the action, and recorded reviewed_by='super_admin' as a
+    literal string. Partners saw "approved" in the UI but nothing changed
+    in the live system row.
+
+    Post-fix: applies the editable system-level fields from edit_data via
+    UPDATE inside the same transaction as the status change, writes an
+    approval_audit_log entry, and records the actual session username.
+    """
     if not is_super_admin(session):
         raise HTTPException(status_code=403, detail='Super admin access required')
+
+    session_data = get_session(session)
+    approver_username = (session_data or {}).get('username', 'super_admin')
+    approver_profile_id = (session_data or {}).get('profile_id')
 
     conn = None
     try:
@@ -1010,31 +1037,99 @@ async def approve_edit_request(request_id: int, session: Optional[str] = Cookie(
         if request['status'] != 'pending':
             raise HTTPException(status_code=400, detail='Request already processed')
 
-        # Mark as approved
+        system_id = request['system_id']
+        try:
+            edit_data = json.loads(request['edit_data']) if request['edit_data'] else {}
+        except (json.JSONDecodeError, TypeError):
+            edit_data = {}
+
+        # Apply system-level fields. Only fields present in the payload AND
+        # in the whitelist are applied — unknown keys are ignored.
+        updates = {}
+        for field in _EDITABLE_SYSTEM_FIELDS:
+            if field in edit_data:
+                updates[field] = edit_data[field]
+
+        applied_fields = []
+        if updates:
+            set_clause = ', '.join(f"{k} = ?" for k in updates.keys())
+            values = list(updates.values()) + [system_id]
+            cursor.execute(f"UPDATE systems SET {set_clause} WHERE id = ?", values)
+            applied_fields = list(updates.keys())
+
+        # Mark as approved with the real reviewer username
         cursor.execute('''
             UPDATE pending_edit_requests
-            SET status = 'approved', reviewed_by = 'super_admin', review_date = ?
+            SET status = 'approved', reviewed_by = ?, review_date = ?
             WHERE id = ?
-        ''', (datetime.now(timezone.utc).isoformat(), request_id))
+        ''', (approver_username, datetime.now(timezone.utc).isoformat(), request_id))
+
+        # Resolve system name for the audit row
+        cursor.execute('SELECT name FROM systems WHERE id = ?', (system_id,))
+        sys_row = cursor.fetchone()
+        system_name = sys_row['name'] if sys_row else f'system_{system_id}'
+
+        # Audit log
+        try:
+            cursor.execute('''
+                INSERT INTO approval_audit_log
+                (timestamp, action, submission_type, submission_id, submission_name,
+                 approver_username, approver_type, approver_account_id, approver_discord_tag,
+                 submitter_username, notes, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                datetime.now(timezone.utc).isoformat(),
+                'edit_approved',
+                'edit_request',
+                request_id,
+                system_name,
+                approver_username,
+                'super_admin',
+                approver_profile_id,
+                (session_data or {}).get('discord_tag'),
+                None,
+                f"Applied fields: {', '.join(applied_fields)}" if applied_fields else 'No editable fields applied',
+                'manual',
+            ))
+        except Exception as audit_err:
+            logger.warning(f"Failed to audit-log edit approval: {audit_err}")
 
         conn.commit()
 
-        # Note: The actual edit application would require calling save_system logic
-        # For now, we just mark as approved - super admin can manually apply if needed
-        # or we could expand this to actually apply the edit_data
+        add_activity_log(
+            'edit_approved',
+            f"Edit request #{request_id} approved for system '{system_name}'",
+            details=f"Applied {len(applied_fields)} fields: {', '.join(applied_fields) or 'none'}",
+            user_name=approver_username,
+        )
 
-        return {'status': 'ok', 'message': 'Edit request approved'}
+        return {
+            'status': 'ok',
+            'message': 'Edit request approved',
+            'applied_fields': applied_fields,
+        }
     finally:
         if conn:
             conn.close()
 
 @router.post('/api/pending_edits/{request_id}/reject')
 async def reject_edit_request(request_id: int, payload: dict = None, session: Optional[str] = Cookie(None)):
-    """Reject a pending edit request (super admin only)"""
+    """Reject a pending edit request (super admin only).
+
+    Pre-fix: recorded reviewed_by='super_admin' as literal string and never
+    audit-logged. Post-fix: real session username + audit + activity log.
+    Rejection reason is now required (non-empty) to give the partner context.
+    """
     if not is_super_admin(session):
         raise HTTPException(status_code=403, detail='Super admin access required')
 
-    review_notes = (payload or {}).get('notes', '')
+    review_notes = ((payload or {}).get('notes', '') or '').strip()
+    if not review_notes:
+        raise HTTPException(status_code=400, detail='Rejection reason is required')
+
+    session_data = get_session(session)
+    approver_username = (session_data or {}).get('username', 'super_admin')
+    approver_profile_id = (session_data or {}).get('profile_id')
 
     conn = None
     try:
@@ -1048,13 +1143,51 @@ async def reject_edit_request(request_id: int, payload: dict = None, session: Op
         if request['status'] != 'pending':
             raise HTTPException(status_code=400, detail='Request already processed')
 
+        system_id = request['system_id']
+        cursor.execute('SELECT name FROM systems WHERE id = ?', (system_id,))
+        sys_row = cursor.fetchone()
+        system_name = sys_row['name'] if sys_row else f'system_{system_id}'
+
         cursor.execute('''
             UPDATE pending_edit_requests
-            SET status = 'rejected', reviewed_by = 'super_admin', review_date = ?, review_notes = ?
+            SET status = 'rejected', reviewed_by = ?, review_date = ?, review_notes = ?
             WHERE id = ?
-        ''', (datetime.now(timezone.utc).isoformat(), review_notes, request_id))
+        ''', (approver_username, datetime.now(timezone.utc).isoformat(), review_notes, request_id))
+
+        # Audit log
+        try:
+            cursor.execute('''
+                INSERT INTO approval_audit_log
+                (timestamp, action, submission_type, submission_id, submission_name,
+                 approver_username, approver_type, approver_account_id, approver_discord_tag,
+                 submitter_username, notes, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                datetime.now(timezone.utc).isoformat(),
+                'edit_rejected',
+                'edit_request',
+                request_id,
+                system_name,
+                approver_username,
+                'super_admin',
+                approver_profile_id,
+                (session_data or {}).get('discord_tag'),
+                None,
+                review_notes,
+                'manual',
+            ))
+        except Exception as audit_err:
+            logger.warning(f"Failed to audit-log edit rejection: {audit_err}")
 
         conn.commit()
+
+        add_activity_log(
+            'edit_rejected',
+            f"Edit request #{request_id} rejected for system '{system_name}'",
+            details=f"Reason: {review_notes}",
+            user_name=approver_username,
+        )
+
         return {'status': 'ok', 'message': 'Edit request rejected'}
     finally:
         if conn:
@@ -1132,17 +1265,25 @@ async def update_partner_theme(payload: dict, session: Optional[str] = Cookie(No
 
 @router.put('/api/partner/region_color')
 async def update_partner_region_color(payload: dict, session: Optional[str] = Cookie(None)):
-    """Update the current partner's region color for the 3D map"""
+    """Update the current partner's region color for the 3D map.
+
+    Writes to BOTH civilizations.region_color (canonical since v1.80.0) and
+    partner_accounts.region_color (legacy fallback for callers that haven't
+    migrated yet). The /api/discord_tag_colors endpoint reads from
+    civilizations first; the dual write keeps the legacy table in sync so
+    /api/partner/region_color GET still works against partner_accounts.
+    """
     session_data = get_session(session)
     if not session_data:
         raise HTTPException(status_code=401, detail='Not authenticated')
 
-    # Only partners can set region colors (not super admin or sub-admin)
     if session_data.get('user_type') != 'partner':
         raise HTTPException(status_code=403, detail='Only partners can set region colors')
 
     partner_id = session_data.get('partner_id')
-    if not partner_id:
+    partner_tag = session_data.get('discord_tag')
+
+    if not partner_id and not partner_tag:
         raise HTTPException(status_code=403, detail='Partner access required')
 
     color = payload.get('color', '#00C2B3')
@@ -1155,15 +1296,29 @@ async def update_partner_region_color(payload: dict, session: Optional[str] = Co
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        now_iso = datetime.now(timezone.utc).isoformat()
 
-        cursor.execute('''
-            UPDATE partner_accounts
-            SET region_color = ?, updated_at = ?
-            WHERE id = ?
-        ''', (color, datetime.now(timezone.utc).isoformat(), partner_id))
+        # Canonical write: civilizations table (matches what /api/discord_tag_colors,
+        # the 3D map overlay, OG posters, and ThemeProvider read from).
+        if partner_tag:
+            cursor.execute('''
+                UPDATE civilizations
+                SET region_color = ?, updated_at = ?
+                WHERE tag = ?
+            ''', (color, now_iso, partner_tag))
+
+        # Legacy write: partner_accounts still backs /api/partner/region_color GET
+        # and was the source for /api/discord_tag_colors pre-Phase 1. Kept in
+        # sync until the legacy GET is migrated too.
+        if partner_id:
+            cursor.execute('''
+                UPDATE partner_accounts
+                SET region_color = ?, updated_at = ?
+                WHERE id = ?
+            ''', (color, now_iso, partner_id))
 
         conn.commit()
-        logger.info(f"Partner {session_data.get('username')} updated region color to {color}")
+        logger.info(f"Partner {session_data.get('username')} updated region color to {color} (tag={partner_tag})")
         return {'status': 'ok', 'color': color}
     finally:
         if conn:
@@ -1172,29 +1327,41 @@ async def update_partner_region_color(payload: dict, session: Optional[str] = Co
 
 @router.get('/api/partner/region_color')
 async def get_partner_region_color(session: Optional[str] = Cookie(None)):
-    """Get the current partner's region color"""
+    """Get the current partner's region color.
+
+    Reads civilizations.region_color first (canonical), falls back to
+    partner_accounts.region_color for partners without a civ row.
+    """
     session_data = get_session(session)
     if not session_data:
         raise HTTPException(status_code=401, detail='Not authenticated')
 
-    # Only partners have region colors
     if session_data.get('user_type') != 'partner':
         return {'color': '#00C2B3'}  # Return default for non-partners
 
     partner_id = session_data.get('partner_id')
-    if not partner_id:
-        return {'color': '#00C2B3'}
+    partner_tag = session_data.get('discord_tag')
 
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        cursor.execute('SELECT region_color FROM partner_accounts WHERE id = ?', (partner_id,))
-        row = cursor.fetchone()
+        # Canonical source: civilizations.region_color by tag
+        if partner_tag:
+            cursor.execute('SELECT region_color FROM civilizations WHERE tag = ?', (partner_tag,))
+            row = cursor.fetchone()
+            if row and row['region_color']:
+                return {'color': row['region_color']}
 
-        color = row['region_color'] if row and row['region_color'] else '#00C2B3'
-        return {'color': color}
+        # Fallback to legacy partner_accounts
+        if partner_id:
+            cursor.execute('SELECT region_color FROM partner_accounts WHERE id = ?', (partner_id,))
+            row = cursor.fetchone()
+            if row and row['region_color']:
+                return {'color': row['region_color']}
+
+        return {'color': '#00C2B3'}
     finally:
         if conn:
             conn.close()
@@ -1202,32 +1369,41 @@ async def get_partner_region_color(session: Optional[str] = Cookie(None)):
 
 @router.get('/api/discord_tag_colors')
 async def get_discord_tag_colors():
-    """Get all discord tag colors for the 3D map - PUBLIC endpoint"""
+    """Get all discord tag colors for the 3D map - PUBLIC endpoint.
+
+    Sourced from `civilizations` table (canonical since v1.80.0). Pre-v1.61
+    this read from partner_accounts, which silently excluded any civ created
+    via CivilizationManagement — see project memory entry. Falls back to a
+    LEFT JOIN against partner_accounts.region_color so civs without a custom
+    color on the civilizations row inherit the legacy color if one exists.
+    """
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Get all active partners with their discord tags and region colors
+        # Canonical source: civilizations table. LEFT JOIN partner_accounts
+        # by tag to inherit any color set via the legacy /api/partner/region_color
+        # endpoint (still wired through the Settings page UI as of Phase 1).
         cursor.execute('''
-            SELECT discord_tag, display_name, region_color
-            FROM partner_accounts
-            WHERE is_active = 1 AND discord_tag IS NOT NULL
+            SELECT c.tag, c.display_name,
+                   COALESCE(c.region_color, pa.region_color) AS region_color
+            FROM civilizations c
+            LEFT JOIN partner_accounts pa
+                ON pa.discord_tag = c.tag AND pa.is_active = 1
+            WHERE c.is_active = 1
         ''')
 
         colors = {}
         for row in cursor.fetchall():
-            tag = row['discord_tag']
+            tag = row['tag']
             color = row['region_color'] if row['region_color'] else '#00C2B3'
             colors[tag] = {
                 'color': color,
                 'name': row['display_name'] or tag
             }
 
-        # Add default Haven color (super admin's systems)
-        colors['Haven'] = {'color': '#00C2B3', 'name': 'Haven'}
-
-        # Add personal submission color from settings
+        # Personal submission color from settings (non-civ bucket)
         personal_color = get_personal_color()
         colors['personal'] = {'color': personal_color, 'name': 'Personal'}
 

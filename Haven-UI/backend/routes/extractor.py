@@ -11,6 +11,7 @@ from db import get_db_connection
 from services.auth_service import (
     get_session,
     verify_session,
+    is_super_admin,
     generate_api_key,
     hash_api_key,
     get_or_create_profile,
@@ -41,11 +42,11 @@ def _normalize_discord_username(username: str) -> str:
 @router.post('/api/keys')
 async def create_api_key(payload: dict, session: Optional[str] = Cookie(None)):
     """
-    Create a new API key (admin only).
+    Create a new API key (super admin only).
     Returns the key only once - it cannot be retrieved later.
     """
-    if not verify_session(session):
-        raise HTTPException(status_code=401, detail="Admin authentication required")
+    if not is_super_admin(session):
+        raise HTTPException(status_code=403, detail="Super admin access required")
 
     name = payload.get('name', '').strip()
     if not name:
@@ -115,11 +116,11 @@ async def create_api_key(payload: dict, session: Optional[str] = Cookie(None)):
 @router.get('/api/keys')
 async def list_api_keys(session: Optional[str] = Cookie(None)):
     """
-    List all API keys (admin only).
+    List all API keys (super admin only).
     Does not return the actual key values, only metadata.
     """
-    if not verify_session(session):
-        raise HTTPException(status_code=401, detail="Admin authentication required")
+    if not is_super_admin(session):
+        raise HTTPException(status_code=403, detail="Super admin access required")
 
     conn = None
     try:
@@ -165,11 +166,11 @@ async def list_api_keys(session: Optional[str] = Cookie(None)):
 @router.delete('/api/keys/{key_id}')
 async def revoke_api_key(key_id: int, session: Optional[str] = Cookie(None)):
     """
-    Revoke (deactivate) an API key (admin only).
+    Revoke (deactivate) an API key (super admin only).
     The key remains in the database for audit purposes but is no longer valid.
     """
-    if not verify_session(session):
-        raise HTTPException(status_code=401, detail="Admin authentication required")
+    if not is_super_admin(session):
+        raise HTTPException(status_code=403, detail="Super admin access required")
 
     conn = None
     try:
@@ -202,11 +203,11 @@ async def revoke_api_key(key_id: int, session: Optional[str] = Cookie(None)):
 @router.put('/api/keys/{key_id}')
 async def update_api_key(key_id: int, payload: dict, session: Optional[str] = Cookie(None)):
     """
-    Update an API key's settings (admin only).
+    Update an API key's settings (super admin only).
     Can update: name, rate_limit, permissions, is_active, discord_tag
     """
-    if not verify_session(session):
-        raise HTTPException(status_code=401, detail="Admin authentication required")
+    if not is_super_admin(session):
+        raise HTTPException(status_code=403, detail="Super admin access required")
 
     conn = None
     try:

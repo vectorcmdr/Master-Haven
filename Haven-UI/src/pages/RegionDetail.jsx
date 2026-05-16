@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext, useMemo } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import Card from '../components/Card'
 import Button from '../components/Button'
@@ -119,8 +119,17 @@ function SystemCard({ system, isSelected, onSelect, showCheckbox, onClick }) {
 
 export default function RegionDetail() {
   const { rx, ry, rz } = useParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const auth = useContext(AuthContext)
+
+  // Reality + galaxy scope (per migration v1.49.0, regions are 5-keyed:
+  // reality, galaxy, region_x, region_y, region_z). Without these the same
+  // coord triple in different galaxies silently collapses to whichever the
+  // backend defaults to (Euclid/Normal) — wrong name + wrong system list.
+  // Defaults match the backend defaults so legacy deep links still work.
+  const reality = searchParams.get('reality') || 'Normal'
+  const galaxy = searchParams.get('galaxy') || 'Euclid'
 
   // Data state
   const [region, setRegion] = useState(null)
@@ -182,12 +191,12 @@ export default function RegionDetail() {
   useEffect(() => {
     setCurrentPage(1)
     loadRegion()
-  }, [rx, ry, rz])
+  }, [rx, ry, rz, reality, galaxy])
 
   // Load systems when page changes
   useEffect(() => {
     loadSystems()
-  }, [rx, ry, rz, currentPage])
+  }, [rx, ry, rz, currentPage, reality, galaxy])
 
   useEffect(() => {
     axios.get('/api/discord_tags').then(r => {
@@ -199,7 +208,9 @@ export default function RegionDetail() {
     setLoading(true)
     setError(null)
     try {
-      const regionRes = await axios.get(`/api/regions/${rx}/${ry}/${rz}`)
+      const regionRes = await axios.get(`/api/regions/${rx}/${ry}/${rz}`, {
+        params: { reality, galaxy },
+      })
       setRegion(regionRes.data)
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to load region data')
@@ -211,7 +222,8 @@ export default function RegionDetail() {
   async function loadSystems() {
     try {
       const systemsRes = await axios.get(
-        `/api/regions/${rx}/${ry}/${rz}/systems?include_planets=true&limit=${systemsPerPage}&page=${currentPage}`
+        `/api/regions/${rx}/${ry}/${rz}/systems`,
+        { params: { include_planets: true, limit: systemsPerPage, page: currentPage, reality, galaxy } },
       )
       setSystems(systemsRes.data.systems || [])
       setTotalSystems(systemsRes.data.total || 0)
@@ -417,8 +429,14 @@ export default function RegionDetail() {
     setSubmittingName(true)
     try {
       if (auth?.isSuperAdmin) {
-        // Super admin can update directly
-        await axios.put(`/api/regions/${rx}/${ry}/${rz}`, { custom_name: newRegionName.trim() })
+        // Super admin can update directly. Reality/galaxy required since
+        // the regions table is 5-keyed and the backend has no other way
+        // to know which row to update.
+        await axios.put(`/api/regions/${rx}/${ry}/${rz}`, {
+          custom_name: newRegionName.trim(),
+          reality,
+          galaxy,
+        })
       } else {
         // Determine the username to submit
         let usernameToSubmit = effectiveUsername
@@ -429,7 +447,9 @@ export default function RegionDetail() {
         await axios.post(`/api/regions/${rx}/${ry}/${rz}/submit`, {
           proposed_name: newRegionName.trim(),
           discord_tag: newRegionDiscordTag,
-          personal_discord_username: usernameToSubmit
+          personal_discord_username: usernameToSubmit,
+          reality,
+          galaxy,
         })
       }
       setEditNameModalOpen(false)

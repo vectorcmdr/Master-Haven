@@ -1058,6 +1058,63 @@ async def api_systems(
             conn.close()
 
 
+# ============================================================================
+# Search query parsing helpers
+# ============================================================================
+
+# Matches a 12-char glyph (full code) or 11-char suffix (last 11 are the
+# galactic-coords portion — the dedup key). Hex digits 0-9 and A-F.
+_GLYPH_RE = re.compile(r'^[0-9A-Fa-f]{11,12}$')
+# Loose match for NMSPortals share URLs. The live site is
+# `nmsportals.github.io` — the historical `.com` was never registered. Also
+# accepts the older `.com` form just in case. Pulls a 12-char hex glyph
+# from anywhere in the URL (query string, fragment, or path).
+_NMSPORTAL_RE = re.compile(
+    r'nmsportals?\.(?:github\.io|com)[^\s]*?([0-9A-Fa-f]{12})',
+    re.IGNORECASE,
+)
+
+
+def _parse_search_query(raw: str):
+    """Normalize a raw user query into a structured search intent.
+
+    Returns a dict with:
+      - text: normalized query for LIKE matching (uppercased for glyphs)
+      - kind: 'glyph_full' | 'glyph_suffix' | 'nmsportal' | 'free'
+      - glyph: 12-char glyph if kind starts with 'glyph_' or 'nmsportal'
+      - suffix: last-11-char glyph suffix when relevant
+
+    Cases handled:
+      - Bare 12-char hex → exact glyph match
+      - Bare 11-char hex → suffix-index match (the dedup key from migration v1.73.0)
+      - NMSPortals URL → extract embedded glyph and treat as glyph_full
+      - Anything else → free text, falls through to multi-column LIKE
+    """
+    q = (raw or '').strip()
+    if not q:
+        return {'text': '', 'kind': 'free'}
+
+    # NMSPortals URL? Pull the glyph out.
+    m = _NMSPORTAL_RE.search(q)
+    if m:
+        glyph = m.group(1).upper()
+        return {
+            'text': glyph,
+            'kind': 'nmsportal',
+            'glyph': glyph,
+            'suffix': glyph[-11:],
+        }
+
+    # Bare hex string?
+    if _GLYPH_RE.match(q):
+        g = q.upper()
+        if len(g) == 12:
+            return {'text': g, 'kind': 'glyph_full', 'glyph': g, 'suffix': g[-11:]}
+        return {'text': g, 'kind': 'glyph_suffix', 'suffix': g}
+
+    return {'text': q, 'kind': 'free'}
+
+
 # NOTE: This route MUST be defined BEFORE /api/systems/{system_id} to avoid route shadowing
 @router.get('/api/systems/search')
 async def api_search(
@@ -1088,35 +1145,51 @@ async def api_search(
     rz: int = None,
     session: Optional[str] = Cookie(None)
 ):
-    """Search systems by name, glyph code, galaxy, or description with optional advanced filters.
+    """Search systems by name, glyph, region name, community tag, or contributor.
 
-    Uses efficient SQL LIKE queries and returns paginated results with region info.
-    Applies data restrictions based on viewer permissions.
+    v1.66.0 expansion: the placeholder always promised "name, glyph code,
+    contributor, or community" but the backend only searched name + glyph +
+    galaxy + description. This now matches reality. Specifically the WHERE
+    clause OR-spans:
+      - s.name (system name)
+      - s.glyph_code (full or partial)
+      - s.glyph_code_suffix (when the query is a bare 11-char hex string —
+        the indexed dedup key from migration v1.73.0; this is what people
+        actually paste when they copy from NMSPortals minus the planet idx)
+      - s.galaxy (galaxy name)
+      - r.custom_name (named region) — region was already joined for display,
+        just unused as a search column pre-1.66.0
+      - s.discord_tag (community tag, e.g. "Haven", "GHUB")
+      - s.discovered_by + s.personal_discord_username (contributor on the row)
+      - EXISTS on system_coauthors.username_normalized (co-credited members
+        from Wizard v1 multi-author submissions)
+
+    Each returned row gets a `match_reason` field naming which column drove
+    the match, so the UI can render "matched on community" / "matched on
+    contributor" chips without re-checking on the frontend.
 
     Args:
-        q: Search query (matches system name, glyph_code, galaxy, description)
+        q: Search query (free text, hex glyph, or NMSPortals URL)
         page: Page number (1-indexed, default 1)
         limit: Max results per page (default 20, max 50)
-        star_type..is_complete: Advanced filter parameters
+        star_type..is_complete: Advanced filter parameters (compose with q)
         reality, galaxy, rx/ry/rz: scope chip filters from SearchOverlay
         session: Session cookie for permission checking
-
-    Returns:
-        {
-            "results": [...],
-            "total": 42,
-            "page": 1,
-            "total_pages": 3,
-            "query": "search term"
-        }
     """
     session_data = get_session(session)
-    q = q.strip()
+    parsed = _parse_search_query(q)
+    q_norm = parsed['text']
 
-    if not q:
-        return {'results': [], 'total': 0, 'page': 1, 'total_pages': 1, 'query': ''}
+    # 2-char minimum for free-text queries — a single keystroke shouldn't
+    # trigger a 20-row scan of partial matches across name/glyph/galaxy/
+    # region/community/contributor. Glyph-shaped queries (always ≥11 hex
+    # chars) and nmsportal URLs (always carry a 12-char glyph) bypass this
+    # guard since they take the indexed exact-match path. Matches the
+    # /api/search popover guard.
+    if not q_norm or (parsed['kind'] == 'free' and len(q_norm) < 2):
+        return {'results': [], 'total': 0, 'page': 1, 'total_pages': 1, 'query': q_norm}
 
-    limit = max(1, min(limit, 50))  # Clamp between 1 and 50
+    limit = max(1, min(limit, 50))
     page = max(1, page)
     offset = (page - 1) * limit
 
@@ -1129,10 +1202,7 @@ async def api_search(
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Search pattern for LIKE queries
-        search_pattern = f'%{q}%'
-
-        # Build advanced filter clauses
+        # Build advanced filter clauses (composes AND with the search WHERE)
         adv_where_clauses = []
         adv_params = []
         _build_advanced_filter_clauses({
@@ -1152,9 +1222,7 @@ async def api_search(
             'is_complete': is_complete,
         }, adv_where_clauses, adv_params)
 
-        # Scope-chip clauses (SearchOverlay) — apply on top of advanced filters.
-        # All are exact matches (galaxy/reality are NOCASE because galaxy strings
-        # vary in capitalization). rx/ry/rz must all be present or none.
+        # Scope-chip clauses (SearchOverlay).
         if reality:
             adv_where_clauses.append("s.reality = ? COLLATE NOCASE")
             adv_params.append(reality)
@@ -1169,63 +1237,86 @@ async def api_search(
         if adv_where_clauses:
             adv_sql = " AND " + " AND ".join(adv_where_clauses)
 
-        # Count total matches first (for pagination metadata)
-        cursor.execute(f'''
-            SELECT COUNT(*) FROM systems s
-            WHERE (s.name LIKE ? COLLATE NOCASE
-               OR s.glyph_code LIKE ? COLLATE NOCASE
-               OR s.galaxy LIKE ? COLLATE NOCASE
-               OR s.description LIKE ? COLLATE NOCASE)
-            {adv_sql}
-        ''', (search_pattern, search_pattern, search_pattern, search_pattern, *adv_params))
+        # Build the search WHERE based on query shape.
+        # Glyph-shaped queries take the indexed fast path (exact match on
+        # glyph_code or glyph_code_suffix) instead of substring LIKE — this
+        # is both faster and avoids spurious matches in description text.
+        if parsed['kind'] == 'glyph_full':
+            search_where = "(s.glyph_code = ? COLLATE NOCASE OR s.glyph_code_suffix = ?)"
+            search_params = [parsed['glyph'], parsed['suffix']]
+        elif parsed['kind'] in ('glyph_suffix', 'nmsportal'):
+            search_where = "(s.glyph_code_suffix = ? OR s.glyph_code = ? COLLATE NOCASE)"
+            # nmsportal also has a full glyph; glyph_suffix only has suffix.
+            full_for_match = parsed.get('glyph') or parsed['suffix']
+            search_params = [parsed['suffix'], full_for_match]
+        else:
+            pattern = f'%{q_norm}%'
+            search_where = (
+                "(s.name LIKE ? COLLATE NOCASE"
+                " OR s.glyph_code LIKE ? COLLATE NOCASE"
+                " OR s.galaxy LIKE ? COLLATE NOCASE"
+                " OR r.custom_name LIKE ? COLLATE NOCASE"
+                " OR s.discord_tag LIKE ? COLLATE NOCASE"
+                " OR s.discovered_by LIKE ? COLLATE NOCASE"
+                " OR s.personal_discord_username LIKE ? COLLATE NOCASE"
+                " OR EXISTS (SELECT 1 FROM system_coauthors ca"
+                "            WHERE ca.system_id = s.id"
+                "              AND (ca.username LIKE ? COLLATE NOCASE"
+                "                   OR ca.username_normalized LIKE ? COLLATE NOCASE)))"
+            )
+            search_params = [pattern] * 9
+
+        # Count total matches
+        cursor.execute(
+            f"SELECT COUNT(*) FROM systems s "
+            f"LEFT JOIN regions r ON s.region_x = r.region_x "
+            f"  AND s.region_y = r.region_y AND s.region_z = r.region_z "
+            f"WHERE {search_where} {adv_sql}",
+            (*search_params, *adv_params),
+        )
         total = cursor.fetchone()[0]
 
-        # Efficient SQL search across multiple fields with pagination
-        # Include x, y, z for map display positioning
-        cursor.execute(f'''
-            SELECT s.id, s.name, s.region_x, s.region_y, s.region_z,
-                   s.x, s.y, s.z,
-                   s.galaxy, s.glyph_code, s.discord_tag, s.star_type,
-                   s.reality, s.is_complete,
-                   r.custom_name as region_name,
-                   (SELECT COUNT(*) FROM planets WHERE system_id = s.id) as planet_count
-            FROM systems s
-            LEFT JOIN regions r ON s.region_x = r.region_x
-                AND s.region_y = r.region_y AND s.region_z = r.region_z
-            WHERE (s.name LIKE ? COLLATE NOCASE
-               OR s.glyph_code LIKE ? COLLATE NOCASE
-               OR s.galaxy LIKE ? COLLATE NOCASE
-               OR s.description LIKE ? COLLATE NOCASE)
-            {adv_sql}
-            -- NOTE: Priority ordering: exact match first, prefix match second, substring last
-            ORDER BY
-                CASE WHEN LOWER(s.name) = LOWER(?) THEN 0
-                     WHEN LOWER(s.name) LIKE LOWER(?) THEN 1
-                     ELSE 2
-                END,
-                s.name ASC
-            LIMIT ? OFFSET ?
-        ''', (search_pattern, search_pattern, search_pattern, search_pattern,
-              *adv_params, q, f'{q}%', limit, offset))
+        # Free-text path uses LOWER(name) priority ordering for relevance.
+        # Glyph paths order by exact > suffix > anything else.
+        if parsed['kind'] == 'free':
+            order_sql = (
+                "CASE WHEN LOWER(s.name) = LOWER(?) THEN 0"
+                "     WHEN LOWER(s.name) LIKE LOWER(?) THEN 1"
+                "     ELSE 2 END, s.name ASC"
+            )
+            order_params = [q_norm, f'{q_norm}%']
+        else:
+            order_sql = "s.name ASC"
+            order_params = []
 
-        rows = cursor.fetchall()
-        systems = [dict(row) for row in rows]
+        cursor.execute(
+            f"SELECT s.id, s.name, s.region_x, s.region_y, s.region_z, "
+            f"       s.x, s.y, s.z, s.galaxy, s.glyph_code, s.discord_tag, "
+            f"       s.star_type, s.reality, s.is_complete, "
+            f"       s.discovered_by, s.personal_discord_username, "
+            f"       r.custom_name as region_name, "
+            f"       (SELECT COUNT(*) FROM planets WHERE system_id = s.id) as planet_count "
+            f"FROM systems s "
+            f"LEFT JOIN regions r ON s.region_x = r.region_x "
+            f"  AND s.region_y = r.region_y AND s.region_z = r.region_z "
+            f"WHERE {search_where} {adv_sql} "
+            f"ORDER BY {order_sql} "
+            f"LIMIT ? OFFSET ?",
+            (*search_params, *adv_params, *order_params, limit, offset),
+        )
 
-        # Add completeness grade
-        for sys in systems:
+        rows = [dict(r) for r in cursor.fetchall()]
+
+        # Compute match_reason per row so the UI can render "matched by …"
+        # chips without re-checking strings. Order matters: a system can match
+        # several columns at once; we report the most user-meaningful one.
+        for sys in rows:
             score = sys.get('is_complete', 0) or 0
-            if score >= 85:
-                sys['completeness_grade'] = 'S'
-            elif score >= 65:
-                sys['completeness_grade'] = 'A'
-            elif score >= 40:
-                sys['completeness_grade'] = 'B'
-            else:
-                sys['completeness_grade'] = 'C'
+            sys['completeness_grade'] = score_to_grade(score)
             sys['completeness_score'] = score
+            sys['match_reason'] = _compute_match_reason(sys, parsed, q_norm)
 
-        # Apply data restrictions
-        results = apply_data_restrictions(systems, session_data)
+        results = apply_data_restrictions(rows, session_data)
 
         total_pages = max(1, (total + limit - 1) // limit)
 
@@ -1234,12 +1325,368 @@ async def api_search(
             'total': total,
             'page': page,
             'total_pages': total_pages,
-            'query': q
+            'query': q,
+            'parsed_kind': parsed['kind'],
         }
 
     except Exception as e:
         logger.error(f"Error searching systems: {e}")
         return {'results': [], 'total': 0, 'query': q, 'error': str(e)}
+    finally:
+        if conn:
+            conn.close()
+
+
+def _compute_match_reason(sys_row: dict, parsed: dict, q_norm: str) -> Optional[dict]:
+    """Decide which column "won" the match for a system row.
+
+    Returns {'kind': 'name'|'glyph'|'region'|'community'|'contributor', 'snippet': str}
+    or None for free-text matches on the name (the default — nothing to show).
+    """
+    if parsed['kind'] != 'free':
+        # Glyph match: always show the glyph itself
+        return {'kind': 'glyph', 'snippet': sys_row.get('glyph_code') or ''}
+
+    q_low = q_norm.lower()
+    name = (sys_row.get('name') or '').lower()
+    if q_low in name:
+        # Name is the default expectation — no chip needed (saves visual noise)
+        return None
+
+    glyph = (sys_row.get('glyph_code') or '').lower()
+    if q_low in glyph:
+        return {'kind': 'glyph', 'snippet': sys_row.get('glyph_code') or ''}
+
+    region_name = (sys_row.get('region_name') or '').lower()
+    if region_name and q_low in region_name:
+        return {'kind': 'region', 'snippet': sys_row.get('region_name')}
+
+    discord_tag = (sys_row.get('discord_tag') or '').lower()
+    if discord_tag and q_low in discord_tag:
+        return {'kind': 'community', 'snippet': sys_row.get('discord_tag')}
+
+    discoverer = sys_row.get('discovered_by') or sys_row.get('personal_discord_username')
+    if discoverer and q_low in discoverer.lower():
+        return {'kind': 'contributor', 'snippet': discoverer}
+
+    # Match probably came from coauthors EXISTS subquery — we don't have the
+    # name on the row, so report a generic chip.
+    return {'kind': 'contributor', 'snippet': 'co-author'}
+
+
+# ============================================================================
+# Unified Categorized Search (Systems Tab v2.0 popover backend)
+# ============================================================================
+
+@router.get('/api/search')
+async def api_unified_search(
+    q: str = '',
+    limit: int = 6,
+    # Scope chips — same shape as /api/systems/search
+    reality: str = None,
+    galaxy: str = None,
+    rx: int = None,
+    ry: int = None,
+    rz: int = None,
+    # Advanced filters (apply to the systems category only — communities,
+    # regions, contributors aren't subject to per-system filters)
+    star_type: str = None,
+    economy_type: str = None,
+    economy_level: str = None,
+    conflict_level: str = None,
+    dominant_lifeform: str = None,
+    stellar_classification: str = None,
+    biome: str = None,
+    weather: str = None,
+    sentinel_level: str = None,
+    resource: str = None,
+    has_moons: bool = None,
+    min_planets: int = None,
+    max_planets: int = None,
+    is_complete: str = None,
+    session: Optional[str] = Cookie(None),
+):
+    """Categorized search returning communities, regions, contributors, systems.
+
+    Powers the SearchOverlay popover in Systems Tab v2. The popover renders
+    up to `limit` results per category (default 6); a separate "View all"
+    page hits this same endpoint with a higher limit.
+
+    Each category has its own match logic:
+      - Communities: civilizations.tag / display_name LIKE; falls back to
+        DISTINCT systems.discord_tag for unregistered tags
+      - Regions: regions.custom_name LIKE — scoped by reality+galaxy when set
+      - Contributors: user_profiles.username (with normalized variant),
+        plus DISTINCT systems.discovered_by / personal_discord_username for
+        anonymous (no-profile) submitters
+      - Systems: reuses /api/systems/search SQL via parse + same WHERE
+
+    Filters and scope chips apply ONLY to the systems category.
+    """
+    session_data = get_session(session)
+    q_raw = (q or '').strip()
+    if len(q_raw) < 2:
+        return {
+            'query': q_raw,
+            'communities': [],
+            'regions': [],
+            'contributors': [],
+            'systems': [],
+            'totals': {'communities': 0, 'regions': 0, 'contributors': 0, 'systems': 0},
+        }
+
+    parsed = _parse_search_query(q_raw)
+    limit = max(1, min(limit, 20))
+
+    conn = None
+    try:
+        db_path = get_db_path()
+        if not db_path.exists():
+            return {
+                'query': q_raw, 'communities': [], 'regions': [], 'contributors': [],
+                'systems': [], 'totals': {'communities': 0, 'regions': 0, 'contributors': 0, 'systems': 0},
+            }
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        pattern = f'%{q_raw}%'
+
+        # ---- Communities ---------------------------------------------------
+        # Canonical source is civilizations (v1.80.0+); legacy partners had a
+        # discord_tag only on systems, so we LEFT JOIN system counts and also
+        # surface unregistered tags as a secondary pass so nothing is silently
+        # dropped.
+        cursor.execute(
+            "SELECT c.tag, c.display_name, "
+            "       (SELECT COUNT(*) FROM systems s WHERE s.discord_tag = c.tag) AS system_count "
+            "FROM civilizations c "
+            "WHERE c.is_active = 1 "
+            "  AND (c.tag LIKE ? COLLATE NOCASE OR c.display_name LIKE ? COLLATE NOCASE) "
+            "ORDER BY system_count DESC, c.display_name ASC "
+            "LIMIT ?",
+            (pattern, pattern, limit + 1),
+        )
+        community_rows = [dict(r) for r in cursor.fetchall()]
+        known_tags_lower = {(r['tag'] or '').lower() for r in community_rows}
+
+        # Fold in unregistered tags from the systems table only if user query
+        # would match them — and only if room remains in the result list.
+        if len(community_rows) < limit:
+            cursor.execute(
+                "SELECT discord_tag AS tag, discord_tag AS display_name, "
+                "       COUNT(*) AS system_count "
+                "FROM systems "
+                "WHERE discord_tag IS NOT NULL AND discord_tag != '' "
+                "  AND discord_tag LIKE ? COLLATE NOCASE "
+                "GROUP BY discord_tag "
+                "ORDER BY system_count DESC "
+                "LIMIT ?",
+                (pattern, limit + 1),
+            )
+            for r in cursor.fetchall():
+                d = dict(r)
+                if (d['tag'] or '').lower() in known_tags_lower:
+                    continue
+                d['unregistered'] = True
+                community_rows.append(d)
+                if len(community_rows) >= limit + 1:
+                    break
+
+        # ---- Regions -------------------------------------------------------
+        # Region scoping: when reality / galaxy are set, only show regions in
+        # that subspace. Coords get the system_count so the row is useful even
+        # for unnamed-but-matching regions (q could match coords if cast).
+        region_where = ["r.custom_name LIKE ? COLLATE NOCASE"]
+        region_params = [pattern]
+        if reality:
+            region_where.append("COALESCE(r.reality, 'Normal') = ?")
+            region_params.append(reality)
+        if galaxy:
+            region_where.append("COALESCE(r.galaxy, 'Euclid') = ?")
+            region_params.append(galaxy)
+        cursor.execute(
+            f"SELECT r.region_x, r.region_y, r.region_z, r.custom_name, "
+            f"       COALESCE(r.reality, 'Normal') AS reality, "
+            f"       COALESCE(r.galaxy, 'Euclid') AS galaxy, "
+            f"       (SELECT COUNT(*) FROM systems s "
+            f"        WHERE s.region_x = r.region_x AND s.region_y = r.region_y "
+            f"          AND s.region_z = r.region_z) AS system_count "
+            f"FROM regions r "
+            f"WHERE {' AND '.join(region_where)} "
+            f"ORDER BY system_count DESC, r.custom_name ASC "
+            f"LIMIT ?",
+            (*region_params, limit + 1),
+        )
+        region_rows = [dict(r) for r in cursor.fetchall()]
+
+        # ---- Contributors --------------------------------------------------
+        # Two-source merge: registered profiles (canonical) + anonymous
+        # submitter strings on systems. Profile rows include submission count
+        # via a correlated subquery so the popover shows real activity.
+        cursor.execute(
+            "SELECT id, username, username_normalized, "
+            "       (SELECT COUNT(*) FROM systems s "
+            "        WHERE s.profile_id = u.id) AS system_count "
+            "FROM user_profiles u "
+            "WHERE u.is_active = 1 "
+            "  AND (u.username LIKE ? COLLATE NOCASE "
+            "       OR u.username_normalized LIKE ? COLLATE NOCASE) "
+            "ORDER BY system_count DESC, u.username ASC "
+            "LIMIT ?",
+            (pattern, pattern, limit + 1),
+        )
+        contributor_rows = [
+            {**dict(r), 'source': 'profile'} for r in cursor.fetchall()
+        ]
+        seen_norm = {(r.get('username_normalized') or '').lower() for r in contributor_rows}
+
+        if len(contributor_rows) < limit:
+            # Pull DISTINCT anonymous submitter strings from systems for
+            # contributors who never registered a profile. These match against
+            # a normalized form so "ekimo", "Ekimo", "ekimo#1234" all collapse.
+            cursor.execute(
+                "SELECT COALESCE(NULLIF(personal_discord_username, ''), discovered_by) AS username, "
+                "       COUNT(*) AS system_count "
+                "FROM systems "
+                "WHERE profile_id IS NULL "
+                "  AND (discovered_by LIKE ? COLLATE NOCASE "
+                "       OR personal_discord_username LIKE ? COLLATE NOCASE) "
+                "  AND COALESCE(NULLIF(personal_discord_username, ''), discovered_by) IS NOT NULL "
+                "GROUP BY username "
+                "ORDER BY system_count DESC "
+                "LIMIT ?",
+                (pattern, pattern, limit + 1),
+            )
+            for r in cursor.fetchall():
+                d = dict(r)
+                norm = (d.get('username') or '').lower().strip()
+                if not norm or norm in seen_norm:
+                    continue
+                d['source'] = 'anonymous'
+                contributor_rows.append(d)
+                if len(contributor_rows) >= limit + 1:
+                    break
+
+        # ---- Systems -------------------------------------------------------
+        # Reuse the same multi-column WHERE the /api/systems/search endpoint
+        # uses so a system the user expects to see ("matched contributor=ekimo")
+        # appears in BOTH the contributors category AND the systems category.
+        adv_where = []
+        adv_params = []
+        _build_advanced_filter_clauses({
+            'star_type': star_type, 'economy_type': economy_type,
+            'economy_level': economy_level, 'conflict_level': conflict_level,
+            'dominant_lifeform': dominant_lifeform,
+            'stellar_classification': stellar_classification,
+            'biome': biome, 'weather': weather, 'sentinel_level': sentinel_level,
+            'resource': resource, 'has_moons': has_moons,
+            'min_planets': min_planets, 'max_planets': max_planets,
+            'is_complete': is_complete,
+        }, adv_where, adv_params)
+
+        if reality:
+            adv_where.append("s.reality = ? COLLATE NOCASE")
+            adv_params.append(reality)
+        if galaxy:
+            adv_where.append("s.galaxy = ? COLLATE NOCASE")
+            adv_params.append(galaxy)
+        if rx is not None and ry is not None and rz is not None:
+            adv_where.append("s.region_x = ? AND s.region_y = ? AND s.region_z = ?")
+            adv_params.extend([rx, ry, rz])
+        adv_sql = (" AND " + " AND ".join(adv_where)) if adv_where else ""
+
+        if parsed['kind'] == 'glyph_full':
+            sys_where = "(s.glyph_code = ? COLLATE NOCASE OR s.glyph_code_suffix = ?)"
+            sys_params = [parsed['glyph'], parsed['suffix']]
+        elif parsed['kind'] in ('glyph_suffix', 'nmsportal'):
+            sys_where = "(s.glyph_code_suffix = ? OR s.glyph_code = ? COLLATE NOCASE)"
+            full_for_match = parsed.get('glyph') or parsed['suffix']
+            sys_params = [parsed['suffix'], full_for_match]
+        else:
+            sys_where = (
+                "(s.name LIKE ? COLLATE NOCASE"
+                " OR s.glyph_code LIKE ? COLLATE NOCASE"
+                " OR s.galaxy LIKE ? COLLATE NOCASE"
+                " OR r.custom_name LIKE ? COLLATE NOCASE"
+                " OR s.discord_tag LIKE ? COLLATE NOCASE"
+                " OR s.discovered_by LIKE ? COLLATE NOCASE"
+                " OR s.personal_discord_username LIKE ? COLLATE NOCASE"
+                " OR EXISTS (SELECT 1 FROM system_coauthors ca"
+                "            WHERE ca.system_id = s.id"
+                "              AND (ca.username LIKE ? COLLATE NOCASE"
+                "                   OR ca.username_normalized LIKE ? COLLATE NOCASE)))"
+            )
+            sys_params = [pattern] * 9
+
+        # Count + page in one go (cap+1 trick — we ask for limit+1 to know if
+        # the "View all" link should appear, then trim).
+        cursor.execute(
+            f"SELECT COUNT(*) FROM systems s "
+            f"LEFT JOIN regions r ON s.region_x = r.region_x "
+            f"  AND s.region_y = r.region_y AND s.region_z = r.region_z "
+            f"WHERE {sys_where} {adv_sql}",
+            (*sys_params, *adv_params),
+        )
+        system_total = cursor.fetchone()[0]
+
+        if parsed['kind'] == 'free':
+            order_sql = (
+                "CASE WHEN LOWER(s.name) = LOWER(?) THEN 0"
+                "     WHEN LOWER(s.name) LIKE LOWER(?) THEN 1"
+                "     ELSE 2 END, s.name ASC"
+            )
+            order_params = [q_raw, f'{q_raw}%']
+        else:
+            order_sql = "s.name ASC"
+            order_params = []
+
+        cursor.execute(
+            f"SELECT s.id, s.name, s.region_x, s.region_y, s.region_z, "
+            f"       s.galaxy, s.glyph_code, s.discord_tag, s.star_type, "
+            f"       s.reality, s.is_complete, s.discovered_by, "
+            f"       s.personal_discord_username, r.custom_name AS region_name "
+            f"FROM systems s "
+            f"LEFT JOIN regions r ON s.region_x = r.region_x "
+            f"  AND s.region_y = r.region_y AND s.region_z = r.region_z "
+            f"WHERE {sys_where} {adv_sql} "
+            f"ORDER BY {order_sql} "
+            f"LIMIT ?",
+            (*sys_params, *adv_params, *order_params, limit),
+        )
+        system_rows = [dict(r) for r in cursor.fetchall()]
+
+        for s in system_rows:
+            score = s.get('is_complete', 0) or 0
+            s['completeness_grade'] = score_to_grade(score)
+            s['completeness_score'] = score
+            s['match_reason'] = _compute_match_reason(s, parsed, q_raw)
+
+        system_rows = apply_data_restrictions(system_rows, session_data)
+
+        # Trim each category to `limit`; totals carry the full count so the
+        # UI knows when to show "+N more" / "View all".
+        return {
+            'query': q_raw,
+            'parsed_kind': parsed['kind'],
+            'communities': community_rows[:limit],
+            'regions': region_rows[:limit],
+            'contributors': contributor_rows[:limit],
+            'systems': system_rows[:limit],
+            'totals': {
+                'communities': len(community_rows),  # capped, but >limit means "more available"
+                'regions': len(region_rows),
+                'contributors': len(contributor_rows),
+                'systems': system_total,
+            },
+        }
+
+    except Exception as e:
+        logger.exception(f"Unified search failed: {e}")
+        return {
+            'query': q_raw, 'communities': [], 'regions': [], 'contributors': [],
+            'systems': [], 'totals': {'communities': 0, 'regions': 0, 'contributors': 0, 'systems': 0},
+            'error': str(e),
+        }
     finally:
         if conn:
             conn.close()
