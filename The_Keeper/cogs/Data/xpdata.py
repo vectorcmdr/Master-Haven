@@ -223,28 +223,17 @@ def get_cfg(key, default=0):
     return CONFIG.get(section, {}).get(sub, default)
 
 # ---------------- DB HELPERS ----------------
-def get_rank_data(level: int):
-    """
-    Returns the rank config for a given level.
-    """
+def get_rank_name(level: int, role: str):
+    role_id = PRIMARY_ROLE_MAP.get(role.lower())
+    role = role.lower().replace("primary", "").strip()
+    role_name = role.capitalize() if role_id is None else role.capitalize()
 
-    for rank in CONFIG["ranks"]:
-        if rank["min_level"] <= level <= rank["max_level"]:
-            return rank
+    rank = next(
+        r for r in CONFIG["ranks"]
+        if r["min_level"] <= level <= r["max_level"]
+    )
 
-    return CONFIG["ranks"][0]
-
-def get_rank_name(level: int):
-    return get_rank_data(level)["name"]
-
-async def get_xp_requirement(level: int):
-    rank = get_rank_data(level)
-
-    if "xp_required" in rank:
-        return rank["xp_required"]
-
-    return rank.get("xp_per_level", 100)
-
+    return f"{rank['name']} {role_name}"
 
 async def ensure_user(user_id):
     async with aiosqlite.connect(DB_PATH) as db:
@@ -329,7 +318,7 @@ async def get_level(user_id, role):
 
 async def get_rank(user_id, role):
     level = await get_level(user_id, role)
-    return get_rank(level)["name"]
+    return get_rank_name(level, role)
 
 
 async def set_level(user_id, role, level):
