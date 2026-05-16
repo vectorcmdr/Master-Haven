@@ -150,14 +150,14 @@ class FeaturedCog(commands.Cog):
         finally:
             self.PROCESSING.discard(message.id)
 
-async def is_featured(self, message_id: int):
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute(
-            "SELECT 1 FROM featured_messages WHERE message_id = ?",
-            (message_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row is not None
+    async def is_featured(self, message_id: int):
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute(
+                "SELECT 1 FROM featured_messages WHERE message_id = ?",
+                (message_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row is not None
 
 
     async def save_featured(self, message, images, reactions):
