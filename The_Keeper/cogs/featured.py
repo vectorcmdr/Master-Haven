@@ -98,8 +98,9 @@ class FeaturedCog(commands.Cog):
         if message.id in self.FEATURED_MESSAGES or message.id in self.PROCESSING:
             return
 
-        if any(reaction.me for reaction in message.reactions):
+        if message.id in self.FEATURED_MESSAGES:
             return
+            
 
         self.PROCESSING.add(message.id)
         try:
