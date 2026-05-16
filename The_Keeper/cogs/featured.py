@@ -393,7 +393,22 @@ class FeaturedCog(commands.Cog):
     async def sync_featured_db(self, ctx):
         
         await self.init_db()
+
+        target_path = os.path.join("The_Keeper", "cogs", "data", "featured.db")
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
         
+        if os.path.exists(target_path):
+            db_path = target_path
+        else:
+          
+            old_db = find_featured_db(".")
+        
+            if old_db and old_db != target_path:
+                shutil.move(old_db, target_path)
+                self.log("DB_MIGRATE", f"Moved DB from {old_db} → {target_path}")
+        
+        db_path = target_path
+                
         featured_channel = self.bot.get_channel(self.FEATURED_CHANNEL_ID)
         
         if not featured_channel:
