@@ -288,8 +288,8 @@ async def add_xp(user_id, role, amount):
             xp -= needed
             level += 1
 
-        old_rank = get_rank(old_level)
-        new_rank = get_rank(level)
+        old_rank = get_rank(old_level, roles)
+        new_rank = get_rank(level, role)
 
         await db.execute("""
         UPDATE user_roles
@@ -316,7 +316,7 @@ async def get_level(user_id, role):
 
     return row[0] if row else 1
 
-async def get_rank(user_id, role):
+async def get_rank(level, role):
     level = await get_level(user_id, role)
     rank = next(
         r for r in CONFIG["ranks"]
