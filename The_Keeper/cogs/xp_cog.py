@@ -72,7 +72,7 @@ class XpCog(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
-
+        user_id = message.author.id
         msg_id = message.id
         if msg_id in _message_cache:
             return
@@ -82,7 +82,7 @@ class XpCog(commands.Cog):
         if len(_message_cache) > 5000:
             _message_cache.clear()
 
-        gained = await process_message_xp(message)
+        gained = await process_message_xp(message, user_id)
 
         return gained
 
