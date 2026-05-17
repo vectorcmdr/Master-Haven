@@ -96,69 +96,110 @@ class FeaturedCog(commands.Cog):
 
     # -------------------- FEATURE LOGIC --------------------
     async def try_feature_message(self, message: discord.Message):
-        if message.id in self.PROCESSING:
+
+    if message.id in self.PROCESSING:
+        return
+
+    # already featured in memory
+    if message.id in self.FEATURED_MESSAGES:
+        return
+
+    self.PROCESSING.add(message.id)
+
+    try:
+
+        now = datetime.now(timezone.utc)
+
+        created = message.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+
+        # too old
+        if (now - created).total_seconds() > self.FEATURED_TIME_LIMIT:
             return
-    
-        if await self.FEATURED_MESSAGES(message.id):
+
+        # must be in photo channel
+        if message.channel.id != self.PHOTO_CHANNEL_ID:
             return
-    
-        self.PROCESSING.add(message.id)
-        try:
-            now = datetime.now(timezone.utc)
-            created = message.created_at
-            if created.tzinfo is None:
-                created = created.replace(tzinfo=timezone.utc)
-            if (now - created).total_seconds() > self.FEATURED_TIME_LIMIT:
-                return
-    
-            if not message.attachments:
-                return
-    
-            total_reactions = self.count_total_reactions(message)
-            if total_reactions < self.FEATURED_THRESHOLD:
-                return
-    
-            featured_channel = self.bot.get_channel(self.FEATURED_CHANNEL_ID)
-            if not featured_channel:
-                self.log("ERROR", "Featured channel not found")
-                return
-    
-            images = [a for a in message.attachments if is_valid_image(a.filename)]
-            if not images:
-                return
-    
-            for index, image in enumerate(images, start=1):
-                embed = discord.Embed(
-                    title=f"📸 Featured Photo #{index}",
-                    description=f"Featured by {message.author.mention}",
-                    color=0x008080
-                )
-    
-                embed.set_image(url=image.url)
-    
-                embed.add_field(
-                    name="Original Message",
-                    value=f"[Jump to photo]({message.jump_url})",
-                    inline=False
-                )
-    
-                await featured_channel.send(embed=embed)
-    
-            await self.save_featured(message, images, total_reactions)
-    
-            self.FEATURED_MESSAGES.add(message.id)
-    
+
+        # must contain attachments
+        if not message.attachments:
+            return
+
+        # valid images only
+        images = [
+            a for a in message.attachments
+            if is_valid_image(a.filename)
+        ]
+
+        if not images:
+            return
+
+        # total user reactions only
+        total_reactions = self.count_total_reactions(message)
+
+        if total_reactions < self.FEATURED_THRESHOLD:
+            return
+
+        featured_channel = self.bot.get_channel(self.FEATURED_CHANNEL_ID)
+
+        if not featured_channel:
+            self.log("ERROR", "Featured channel not found")
+            return
+
+        # send embeds
+        for index, image in enumerate(images, start=1):
+
+            embed = discord.Embed(
+                title="📸 Featured Photo",
+                description=(
+                    f"{message.author.mention}\n\n"
+                    f"⭐ {total_reactions} reactions\n"
+                    f"[Jump to original photo]({message.jump_url})"
+                ),
+                color=0x008080
+            )
+
+            embed.set_image(url=image.url)
+
+            embed.set_footer(
+                text=f"Photo #{index}"
+            )
+
+            await featured_channel.send(embed=embed)
+
+        # save to db
+        await self.save_featured(
+            message,
+            images,
+            total_reactions
+        )
+
+        # mark featured
+        self.FEATURED_MESSAGES.add(message.id)
+
+        # add star reaction once
+        already_starred = any(
+            str(r.emoji) == "🌟" and r.me
+            for r in message.reactions
+        )
+
+        if not already_starred:
             try:
                 await message.add_reaction("🌟")
             except discord.HTTPException:
                 pass
-    
-            self.log("FEATURE", f"Featured {message.id} ({total_reactions} reactions)")
-    
-        except Exception as e:
-            self.log("ERROR", f"Feature error: {e}")
-        finally:
-            self.PROCESSING.discard(message.id)
+
+        self.log(
+            "FEATURE",
+            f"Featured {message.id} ({total_reactions} reactions)"
+        )
+
+    except Exception as e:
+        self.log("ERROR", f"Feature error: {e}")
+
+    finally:
+        self.PROCESSING.discard(message.id)
 
     # -------------------- EVENT LISTENERS --------------------
     @commands.Cog.listener()
@@ -419,7 +460,7 @@ class FeaturedCog(commands.Cog):
             )
     
            
-            already_in_db = await self.featured_messages(message.id)
+            already_in_db = await self.FEATURED_MESSAGES(message.id)
     
             if not (already_featured or already_in_db):
                 continue
