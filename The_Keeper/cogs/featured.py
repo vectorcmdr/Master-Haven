@@ -99,7 +99,7 @@ class FeaturedCog(commands.Cog):
         if message.id in self.PROCESSING:
             return
     
-        if await self.is_featured(message.id):
+        if await self.featured_messages(message.id):
             return
     
         self.PROCESSING.add(message.id)
