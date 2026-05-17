@@ -77,8 +77,8 @@ class FriendCodes(commands.Cog):
     
             return True
     
-    except aiosqlite.IntegrityError:
-        return False
+        except aiosqlite.IntegrityError:
+            return False
 
     async def get_friend_code(
         self,
