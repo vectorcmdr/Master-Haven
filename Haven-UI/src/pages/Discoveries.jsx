@@ -101,7 +101,7 @@ export default function Discoveries() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg text-gray-400">Loading discoveries...</div>
+        <div className="text-lg" style={{ color: 'var(--muted)' }}>Loading discoveries...</div>
       </div>
     )
   }
@@ -114,12 +114,12 @@ export default function Discoveries() {
       {/* Header */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Discoveries</h1>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--app-text)' }}>Discoveries</h1>
           {stats && (
-            <p className="mt-1 text-gray-400">
+            <p className="mt-1" style={{ color: 'var(--muted)' }}>
               {stats.total.toLocaleString()} discoveries across 12 types
               {stats.this_week > 0 && (
-                <span className="ml-2 text-cyan-400">
+                <span className="ml-2" style={{ color: 'var(--app-primary)' }}>
                   (+{stats.this_week} this week)
                 </span>
               )}
@@ -131,13 +131,13 @@ export default function Discoveries() {
           {/* Quick search */}
           <form onSubmit={handleSearch} className="hidden sm:flex items-center">
             <div className="relative">
-              <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search all..."
-                className="pl-10 pr-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none w-48"
+                className="haven-input pl-10 pr-4 py-2 w-48"
               />
             </div>
           </form>
@@ -170,10 +170,11 @@ export default function Discoveries() {
       {recentDiscoveries.length > 0 && (
         <div className="mt-10">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white">Recent Discoveries</h2>
+            <h2 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>Recent Discoveries</h2>
             <Link
               to="/discoveries/other"
-              className="text-cyan-400 hover:text-cyan-300 text-sm"
+              className="text-sm hover:underline"
+              style={{ color: 'var(--app-primary)' }}
             >
               View all
             </Link>

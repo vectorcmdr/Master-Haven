@@ -28,16 +28,21 @@ import WarMap3D from '../components/WarMap3D'
 // War Room themed card component
 function WarCard({ children, className = '', title, danger = false }) {
   return (
-    <div className={`
-      rounded-lg border backdrop-blur-sm flex flex-col
-      ${danger
-        ? 'bg-red-950/40 border-red-500/30'
-        : 'bg-gray-900/80 border-red-500/20'}
-      ${className}
-    `}>
+    <div
+      className={`war-card backdrop-blur-sm flex flex-col ${className}`}
+      style={danger ? { borderColor: 'var(--war-border-strong)' } : undefined}
+    >
       {title && (
-        <div className="px-4 py-2 border-b border-red-500/20 flex-shrink-0">
-          <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider">{title}</h3>
+        <div
+          className="px-4 py-2 border-b flex-shrink-0"
+          style={{ borderColor: 'var(--war-border)' }}
+        >
+          <h3
+            className="text-sm font-bold uppercase tracking-wider"
+            style={{ color: 'var(--war-accent)' }}
+          >
+            {title}
+          </h3>
         </div>
       )}
       <div className="p-4 flex-1 min-h-0">{children}</div>
@@ -55,20 +60,20 @@ function ConflictCard({ conflict }) {
   }
 
   return (
-    <div className="bg-gray-800/50 rounded border border-red-500/20 p-3 mb-2">
+    <div className="war-card p-3 mb-2">
       <div className="flex items-center justify-between mb-2">
         <span className={`px-2 py-0.5 rounded text-xs font-bold ${statusColors[conflict.status]} text-white`}>
           {conflict.status.toUpperCase()}
         </span>
-        <span className="text-xs text-gray-400">{new Date(conflict.declared_at).toLocaleDateString()}</span>
+        <span className="text-xs" style={{ color: 'var(--war-text-dim)' }}>{new Date(conflict.declared_at).toLocaleDateString()}</span>
       </div>
       <div className="text-sm mb-1">
         <span style={{ color: conflict.attacker_color }} className="font-bold">{conflict.attacker_name}</span>
-        <span className="text-gray-500 mx-2">vs</span>
+        <span className="mx-2" style={{ color: 'var(--war-text-dim)' }}>vs</span>
         <span style={{ color: conflict.defender_color }} className="font-bold">{conflict.defender_name}</span>
       </div>
-      <div className="text-xs text-gray-400">
-        Target: <span className="text-white">{conflict.target_system_name}</span>
+      <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
+        Target: <span style={{ color: 'var(--war-text)' }}>{conflict.target_system_name}</span>
       </div>
     </div>
   )
@@ -79,12 +84,15 @@ function NewsTicker({ news }) {
   if (!news.length) return null
 
   return (
-    <div className="bg-gray-900/90 border-b border-red-500/30 py-2 overflow-hidden">
+    <div
+      className="py-2 overflow-hidden border-b"
+      style={{ background: 'var(--war-card)', borderColor: 'var(--war-border-strong)' }}
+    >
       <div className="flex animate-marquee whitespace-nowrap">
         {news.concat(news).map((item, i) => (
           <span key={i} className="mx-8 text-sm">
-            <span className="text-red-400 font-bold mr-2">BREAKING:</span>
-            <span className="text-gray-300">{item.headline}</span>
+            <span className="font-bold mr-2" style={{ color: 'var(--war-accent)' }}>BREAKING:</span>
+            <span style={{ color: 'var(--war-text-dim)' }}>{item.headline}</span>
           </span>
         ))}
       </div>
@@ -111,7 +119,7 @@ function DebriefPanel({ debrief, onUpdate, canEdit }) {
       {editing ? (
         <div className="space-y-2">
           <textarea
-            className="w-full bg-gray-800 border border-red-500/30 rounded p-2 text-sm text-gray-200"
+            className="war-input w-full rounded p-2 text-sm"
             rows={4}
             value={objectives.join('\n')}
             onChange={(e) => setObjectives(e.target.value.split('\n').filter(Boolean))}
@@ -120,13 +128,13 @@ function DebriefPanel({ debrief, onUpdate, canEdit }) {
           <div className="flex gap-2">
             <button
               onClick={handleSave}
-              className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-sm font-bold"
+              className="war-btn-primary px-3 py-1 rounded text-sm font-bold"
             >
               Save
             </button>
             <button
               onClick={() => setEditing(false)}
-              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+              className="war-btn-ghost px-3 py-1 rounded text-sm"
             >
               Cancel
             </button>
@@ -138,24 +146,25 @@ function DebriefPanel({ debrief, onUpdate, canEdit }) {
             <ul className="space-y-1">
               {objectives.map((obj, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
-                  <span className="text-red-400 font-bold">{i + 1}.</span>
-                  <span className="text-gray-200">{obj}</span>
+                  <span className="font-bold" style={{ color: 'var(--war-accent)' }}>{i + 1}.</span>
+                  <span style={{ color: 'var(--war-text)' }}>{obj}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-gray-500 text-sm italic">No current objectives set.</p>
+            <p className="text-sm italic" style={{ color: 'var(--war-text-dim)' }}>No current objectives set.</p>
           )}
           {canEdit && (
             <button
               onClick={() => setEditing(true)}
-              className="mt-3 text-xs text-red-400 hover:text-red-300"
+              className="mt-3 text-xs hover:opacity-80"
+              style={{ color: 'var(--war-accent)' }}
             >
               Edit Objectives
             </button>
           )}
           {debrief.updated_at && (
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-2 text-xs" style={{ color: 'var(--war-text-dim)' }}>
               Last updated: {new Date(debrief.updated_at).toLocaleString()} by {debrief.updated_by}
             </p>
           )}
@@ -263,15 +272,15 @@ function WarMap({ leaderboard }) {
     return (
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between mb-3 text-xs">
-          <span className="text-gray-400">
-            <span className="text-white font-bold">{enrolled_civs.length}</span> Civilizations
+          <span style={{ color: 'var(--war-text-dim)' }}>
+            <span className="font-bold" style={{ color: 'var(--war-text)' }}>{enrolled_civs.length}</span> Civilizations
           </span>
         </div>
-        <div className="flex-1 flex items-center justify-center bg-gray-950/50 rounded border border-red-500/20">
+        <div className="flex-1 flex items-center justify-center war-card">
           <div className="text-center">
             <div className="text-4xl mb-4 opacity-50">🗺️</div>
-            <p className="text-gray-500">No territory claimed yet.</p>
-            <p className="text-gray-600 text-sm mt-1">Civs need to upload systems or claim territory to appear on the map.</p>
+            <p style={{ color: 'var(--war-text-dim)' }}>No territory claimed yet.</p>
+            <p className="text-sm mt-1" style={{ color: 'var(--war-text-dim)' }}>Civs need to upload systems or claim territory to appear on the map.</p>
           </div>
         </div>
         {/* Civilization legend */}
@@ -279,13 +288,13 @@ function WarMap({ leaderboard }) {
           {enrolled_civs.map(civ => (
             <div
               key={civ.partner_id}
-              className="flex items-center gap-1.5 px-2 py-1 bg-gray-800/50 rounded text-xs"
+              className="war-card flex items-center gap-1.5 px-2 py-1 text-xs"
             >
               <div
                 className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: civ.color || '#666' }}
+                style={{ backgroundColor: civ.color || 'var(--war-text-dim)' }}
               />
-              <span className="text-gray-300">{civ.display_name}</span>
+              <span style={{ color: 'var(--war-text-dim)' }}>{civ.display_name}</span>
             </div>
           ))}
         </div>
@@ -310,14 +319,14 @@ function WarMap({ leaderboard }) {
       {/* Map header with stats */}
       <div className="flex items-center justify-between mb-3 text-xs">
         <div className="flex items-center gap-4">
-          <span className="text-gray-400">
-            <span className="text-white font-bold">{enrolled_civs.length}</span> Civilizations
+          <span style={{ color: 'var(--war-text-dim)' }}>
+            <span className="font-bold" style={{ color: 'var(--war-text)' }}>{enrolled_civs.length}</span> Civilizations
           </span>
-          <span className="text-gray-400">
-            <span className="text-white font-bold">{allRegions.length}</span> Regions
+          <span style={{ color: 'var(--war-text-dim)' }}>
+            <span className="font-bold" style={{ color: 'var(--war-text)' }}>{allRegions.length}</span> Regions
           </span>
           {active_conflict_count > 0 && (
-            <span className="text-red-400 animate-pulse">
+            <span className="animate-pulse" style={{ color: 'var(--war-accent)' }}>
               <span className="font-bold">{active_conflict_count}</span> Active Conflict{active_conflict_count !== 1 ? 's' : ''}
             </span>
           )}
@@ -326,25 +335,25 @@ function WarMap({ leaderboard }) {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded border-2 border-yellow-400 bg-yellow-400/30" />
-            <span className="text-gray-400">HQ</span>
+            <span style={{ color: 'var(--war-text-dim)' }}>HQ</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-cyan-500/50 border border-cyan-400" />
-            <span className="text-gray-400">Owned</span>
+            <span style={{ color: 'var(--war-text-dim)' }}>Owned</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-gray-500" />
-            <span className="text-gray-400">Claimed</span>
+            <span style={{ color: 'var(--war-text-dim)' }}>Claimed</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded bg-red-500 animate-pulse" />
-            <span className="text-gray-400">Contested</span>
+            <span style={{ color: 'var(--war-text-dim)' }}>Contested</span>
           </div>
         </div>
       </div>
 
       {/* Map visualization */}
-      <div className="flex-1 relative bg-gray-950/50 rounded border border-red-500/20 overflow-hidden">
+      <div className="war-card flex-1 relative overflow-hidden">
         {/* Grid background */}
         <div className="absolute inset-0 opacity-20" style={{
           backgroundImage: 'linear-gradient(rgba(239,68,68,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(239,68,68,0.3) 1px, transparent 1px)',
@@ -466,7 +475,7 @@ function WarMap({ leaderboard }) {
 
         {/* Selected region info panel */}
         {selectedRegion && (
-          <div className="absolute bottom-2 left-2 right-2 bg-gray-900/95 border border-red-500/30 rounded p-3">
+          <div className="war-card absolute bottom-2 left-2 right-2 p-3" style={{ borderColor: 'var(--war-border-strong)' }}>
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -474,22 +483,22 @@ function WarMap({ leaderboard }) {
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: selectedRegion.controlling_civ?.color || selectedRegion.ownership?.owner?.color || '#666' }}
                   />
-                  <span className="font-bold text-white">
+                  <span className="font-bold" style={{ color: 'var(--war-text)' }}>
                     {selectedRegion.region_name || `Region (${selectedRegion.region_x}, ${selectedRegion.region_y}, ${selectedRegion.region_z})`}
                   </span>
                   {selectedRegion.is_home_region && (
-                    <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">HQ</span>
+                    <span className="war-pill war-pill-warning">HQ</span>
                   )}
                   {selectedRegion.ownership && selectedRegion.ownership.percentage > 50 && (
-                    <span className="text-xs bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">
+                    <span className="war-pill war-pill-info">
                       OWNED {selectedRegion.ownership.percentage}%
                     </span>
                   )}
                   {selectedRegion.contested && (
-                    <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded animate-pulse">CONTESTED</span>
+                    <span className="war-pill war-pill-red animate-pulse">CONTESTED</span>
                   )}
                 </div>
-                <div className="text-xs text-gray-400">
+                <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
                   {selectedRegion.ownership ? (
                     <>
                       Owned by: <span style={{ color: selectedRegion.ownership.owner?.color }} className="font-medium">{selectedRegion.ownership.owner?.display_name}</span>
@@ -506,14 +515,15 @@ function WarMap({ leaderboard }) {
                   {selectedRegion.galaxy && <span> • {selectedRegion.galaxy}</span>}
                 </div>
                 {selectedRegion.active_conflicts?.length > 0 && (
-                  <div className="mt-1 text-xs text-red-400">
+                  <div className="mt-1 text-xs" style={{ color: 'var(--war-accent)' }}>
                     Under attack by: {selectedRegion.active_conflicts.map(c => c.attacker).join(', ')}
                   </div>
                 )}
               </div>
               <button
                 onClick={() => setSelectedRegion(null)}
-                className="text-gray-400 hover:text-white text-sm"
+                className="text-sm hover:opacity-80"
+                style={{ color: 'var(--war-text-dim)' }}
               >
                 ✕
               </button>
@@ -527,13 +537,13 @@ function WarMap({ leaderboard }) {
         {enrolled_civs.map(civ => (
           <div
             key={civ.partner_id}
-            className="flex items-center gap-1.5 px-2 py-1 bg-gray-800/50 rounded text-xs"
+            className="war-card flex items-center gap-1.5 px-2 py-1 text-xs"
           >
             <div
               className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: civ.color || '#666' }}
+              style={{ backgroundColor: civ.color || 'var(--war-text-dim)' }}
             />
-            <span className="text-gray-300">{civ.display_name}</span>
+            <span style={{ color: 'var(--war-text-dim)' }}>{civ.display_name}</span>
             {civ.home_region && (
               <span className="text-yellow-400 text-[10px]">⌂</span>
             )}
@@ -561,7 +571,7 @@ function CivLeaderboard({ leaderboard, activeConflicts = [] }) {
   return (
     <WarCard title="Civilization Rankings">
       {leaderboard.length === 0 ? (
-        <p className="text-gray-500 text-sm">No enrolled civilizations yet.</p>
+        <p className="text-sm" style={{ color: 'var(--war-text-dim)' }}>No enrolled civilizations yet.</p>
       ) : (
         <div className="space-y-2">
           {leaderboard.map((civ, i) => {
@@ -571,13 +581,12 @@ function CivLeaderboard({ leaderboard, activeConflicts = [] }) {
             return (
               <div
                 key={civ.partner_id}
-                className={`bg-gray-800/50 rounded overflow-hidden transition-all ${
-                  isExpanded ? 'ring-1 ring-red-500/50' : ''
-                }`}
+                className="war-card overflow-hidden transition-all"
+                style={isExpanded ? { boxShadow: '0 0 0 1px var(--war-border-strong)' } : undefined}
               >
                 <div
                   onClick={() => setExpanded(isExpanded ? null : civ.partner_id)}
-                  className="flex items-center justify-between p-2 cursor-pointer hover:bg-gray-800/70"
+                  className="flex items-center justify-between p-2 cursor-pointer hover:bg-white/5"
                 >
                   <div className="flex items-center gap-2">
                     <span className={`text-lg font-bold ${
@@ -589,24 +598,24 @@ function CivLeaderboard({ leaderboard, activeConflicts = [] }) {
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: civ.color }}
                     />
-                    <span className="font-medium text-gray-200">{civ.display_name}</span>
+                    <span className="font-medium" style={{ color: 'var(--war-text)' }}>{civ.display_name}</span>
                     {extraStats.activeWars > 0 && (
-                      <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded animate-pulse">
+                      <span className="war-pill war-pill-red animate-pulse">
                         {extraStats.activeWars} war{extraStats.activeWars > 1 ? 's' : ''}
                       </span>
                     )}
                   </div>
                   <div className="flex gap-3 text-xs">
                     <div className="text-center min-w-[50px]">
-                      <div className="text-gray-500 text-[10px]">Systems</div>
+                      <div className="text-[10px]" style={{ color: 'var(--war-text-dim)' }}>Systems</div>
                       <div className="font-bold text-green-400">{civ.systems_controlled || 0}</div>
                     </div>
                     <div className="text-center min-w-[50px]">
-                      <div className="text-gray-500 text-[10px]">Victories</div>
-                      <div className="font-bold text-red-400">{civ.systems_conquered || 0}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--war-text-dim)' }}>Victories</div>
+                      <div className="font-bold" style={{ color: 'var(--war-accent)' }}>{civ.systems_conquered || 0}</div>
                     </div>
                     <div className="text-center min-w-[50px]">
-                      <div className="text-gray-500 text-[10px]">Win Rate</div>
+                      <div className="text-[10px]" style={{ color: 'var(--war-text-dim)' }}>Win Rate</div>
                       <div className="font-bold text-yellow-400">{civ.win_rate || 0}%</div>
                     </div>
                   </div>
@@ -614,27 +623,27 @@ function CivLeaderboard({ leaderboard, activeConflicts = [] }) {
 
                 {/* Expanded details */}
                 {isExpanded && (
-                  <div className="px-3 pb-3 pt-1 border-t border-gray-700 bg-gray-900/50">
+                  <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: 'var(--war-border)', background: 'rgba(0,0,0,0.2)' }}>
                     <div className="grid grid-cols-4 gap-2 text-center text-xs">
                       <div>
-                        <div className="text-gray-500">Wars Won</div>
+                        <div style={{ color: 'var(--war-text-dim)' }}>Wars Won</div>
                         <div className="font-bold text-green-400">{civ.wars_won || 0}</div>
                       </div>
                       <div>
-                        <div className="text-gray-500">Wars Lost</div>
-                        <div className="font-bold text-red-400">{civ.wars_lost || 0}</div>
+                        <div style={{ color: 'var(--war-text-dim)' }}>Wars Lost</div>
+                        <div className="font-bold" style={{ color: 'var(--war-accent)' }}>{civ.wars_lost || 0}</div>
                       </div>
                       <div>
-                        <div className="text-gray-500">Attacking</div>
+                        <div style={{ color: 'var(--war-text-dim)' }}>Attacking</div>
                         <div className="font-bold text-orange-400">{extraStats.attacking}</div>
                       </div>
                       <div>
-                        <div className="text-gray-500">Defending</div>
+                        <div style={{ color: 'var(--war-text-dim)' }}>Defending</div>
                         <div className="font-bold text-blue-400">{extraStats.defending}</div>
                       </div>
                     </div>
                     {civ.last_war_date && (
-                      <div className="text-xs text-gray-500 mt-2 text-center">
+                      <div className="text-xs mt-2 text-center" style={{ color: 'var(--war-text-dim)' }}>
                         Last conflict: {new Date(civ.last_war_date).toLocaleDateString()}
                       </div>
                     )}
@@ -664,16 +673,16 @@ function WarStats({ stats }) {
         {Object.entries(statLabels).map(([key, { label, icon }]) => {
           const stat = stats[key]
           return (
-            <div key={key} className="bg-gray-800/50 rounded p-2 text-center">
+            <div key={key} className="war-card p-2 text-center">
               <div className="text-lg mb-1">{icon}</div>
-              <div className="text-xs text-gray-400">{label}</div>
+              <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>{label}</div>
               {stat ? (
                 <>
-                  <div className="font-bold text-white">{stat.value} {stat.unit}</div>
-                  <div className="text-xs text-red-400">{stat.holder || 'N/A'}</div>
+                  <div className="font-bold" style={{ color: 'var(--war-text)' }}>{stat.value} {stat.unit}</div>
+                  <div className="text-xs" style={{ color: 'var(--war-accent)' }}>{stat.holder || 'N/A'}</div>
                 </>
               ) : (
-                <div className="text-xs text-gray-500 italic">No record yet</div>
+                <div className="text-xs italic" style={{ color: 'var(--war-text-dim)' }}>No record yet</div>
               )}
             </div>
           )
@@ -1500,7 +1509,7 @@ function ActivityFeedPanel({ maxItems = 15, onConflictClick }) {
   if (loading) {
     return (
       <WarCard title="Live Activity Feed">
-        <div className="text-center py-8 text-gray-400 animate-pulse">Loading activity...</div>
+        <div className="text-center py-8 animate-pulse" style={{ color: 'var(--war-text-dim)' }}>Loading activity...</div>
       </WarCard>
     )
   }
@@ -1508,7 +1517,7 @@ function ActivityFeedPanel({ maxItems = 15, onConflictClick }) {
   return (
     <WarCard title="Live Activity Feed">
       {feed.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">No recent activity</div>
+        <div className="text-center py-8" style={{ color: 'var(--war-text-dim)' }}>No recent activity</div>
       ) : (
         <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
           {feed.map((entry) => (
@@ -1593,7 +1602,7 @@ function NotificationsPanel({ count, onRead }) {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+        className="war-btn-ghost flex items-center gap-1 px-3 py-1 rounded text-sm"
       >
         <span>🔔</span>
         {count > 0 && (
@@ -1606,13 +1615,17 @@ function NotificationsPanel({ count, onRead }) {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-80 bg-gray-900 border border-red-500/30 rounded-lg shadow-xl z-50">
-            <div className="flex items-center justify-between p-3 border-b border-gray-700">
-              <span className="font-bold text-red-400">War Alerts</span>
+          <div
+            className="war-card absolute right-0 top-full mt-2 w-80 shadow-xl z-50"
+            style={{ borderColor: 'var(--war-border-strong)' }}
+          >
+            <div className="flex items-center justify-between p-3 border-b" style={{ borderColor: 'var(--war-border)' }}>
+              <span className="font-bold" style={{ color: 'var(--war-accent)' }}>War Alerts</span>
               {notifications.length > 0 && (
                 <button
                   onClick={handleMarkAllRead}
-                  className="text-xs text-gray-400 hover:text-white"
+                  className="text-xs hover:opacity-80"
+                  style={{ color: 'var(--war-text-dim)' }}
                 >
                   Mark all read
                 </button>
@@ -1621,18 +1634,22 @@ function NotificationsPanel({ count, onRead }) {
 
             <div className="max-h-80 overflow-y-auto">
               {loading ? (
-                <div className="p-4 text-center text-gray-400">Loading...</div>
+                <div className="p-4 text-center" style={{ color: 'var(--war-text-dim)' }}>Loading...</div>
               ) : notifications.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">No notifications</div>
+                <div className="p-4 text-center" style={{ color: 'var(--war-text-dim)' }}>No notifications</div>
               ) : (
                 notifications.map(notif => (
                   <div
                     key={notif.id}
-                    className={`p-3 border-b border-gray-800 ${!notif.read_at ? 'bg-red-950/20' : ''}`}
+                    className="p-3 border-b"
+                    style={{
+                      borderColor: 'var(--war-border)',
+                      background: !notif.read_at ? 'var(--war-accent-soft)' : undefined
+                    }}
                   >
-                    <div className="font-medium text-sm text-white">{notif.title}</div>
-                    <div className="text-xs text-gray-400 mt-1">{notif.message}</div>
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="font-medium text-sm" style={{ color: 'var(--war-text)' }}>{notif.title}</div>
+                    <div className="text-xs mt-1" style={{ color: 'var(--war-text-dim)' }}>{notif.message}</div>
+                    <div className="text-xs mt-1" style={{ color: 'var(--war-text-dim)' }}>
                       {new Date(notif.created_at).toLocaleString()}
                     </div>
                   </div>
@@ -1714,11 +1731,11 @@ function WebhookConfigPanel({ isEnrolled }) {
       {!showConfig ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">
+            <span className="text-sm" style={{ color: 'var(--war-text-dim)' }}>
               {webhookConfig?.configured ? (
                 <span className="text-green-400">✓ Webhook configured</span>
               ) : (
-                <span className="text-gray-500">No webhook configured</span>
+                <span style={{ color: 'var(--war-text-dim)' }}>No webhook configured</span>
               )}
             </span>
             <button
@@ -1728,27 +1745,27 @@ function WebhookConfigPanel({ isEnrolled }) {
               {webhookConfig?.configured ? 'Edit' : 'Setup'}
             </button>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
             Get notified in your Discord when you're attacked or receive peace proposals.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {message && (
-            <div className={`text-xs p-2 rounded ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+            <div className={`war-pill text-xs ${message.type === 'success' ? 'war-pill-success' : 'war-pill-red'}`}>
               {message.text}
             </div>
           )}
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Discord Webhook URL</label>
+            <label className="block text-xs mb-1" style={{ color: 'var(--war-text-dim)' }}>Discord Webhook URL</label>
             <input
               type="text"
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
               placeholder="https://discord.com/api/webhooks/..."
-              className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs"
+              className="war-input w-full rounded px-2 py-1.5 text-xs"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs mt-1" style={{ color: 'var(--war-text-dim)' }}>
               {webhookConfig?.configured
                 ? `Current: ${webhookConfig.webhook_url || 'configured'}`
                 : 'Create a webhook in your Discord server settings'}
@@ -1761,13 +1778,13 @@ function WebhookConfigPanel({ isEnrolled }) {
               onChange={(e) => setIsActive(e.target.checked)}
               className="rounded"
             />
-            <span className="text-gray-300">Notifications enabled</span>
+            <span style={{ color: 'var(--war-text-dim)' }}>Notifications enabled</span>
           </label>
           <div className="flex gap-2">
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-600 rounded text-xs font-bold"
+              className="flex-1 py-1.5 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 rounded text-xs font-bold"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
@@ -1775,14 +1792,14 @@ function WebhookConfigPanel({ isEnrolled }) {
               <button
                 onClick={handleDelete}
                 disabled={saving}
-                className="px-3 py-1.5 bg-red-600/50 hover:bg-red-600 rounded text-xs"
+                className="war-btn-danger px-3 py-1.5 rounded text-xs"
               >
                 Remove
               </button>
             )}
             <button
               onClick={() => { setShowConfig(false); setMessage(null); }}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+              className="war-btn-ghost px-3 py-1.5 rounded text-xs"
             >
               Close
             </button>
@@ -1865,7 +1882,7 @@ function MediaUploadPanel({ onUpload }) {
               {recentMedia.slice(0, 6).map(m => (
                 <div
                   key={m.id}
-                  className="aspect-square bg-gray-800 rounded overflow-hidden"
+                  className="war-card aspect-square overflow-hidden"
                   title={m.caption || 'War screenshot'}
                 >
                   <img
@@ -1878,7 +1895,7 @@ function MediaUploadPanel({ onUpload }) {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-gray-500 text-center py-2">No war media uploaded yet</p>
+            <p className="text-xs text-center py-2" style={{ color: 'var(--war-text-dim)' }}>No war media uploaded yet</p>
           )}
           <button
             onClick={() => setShowUpload(true)}
@@ -1890,7 +1907,7 @@ function MediaUploadPanel({ onUpload }) {
       ) : (
         <div className="space-y-3">
           {message && (
-            <div className={`text-xs p-2 rounded ${message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+            <div className={`war-pill text-xs ${message.type === 'success' ? 'war-pill-success' : 'war-pill-red'}`}>
               {message.text}
             </div>
           )}
@@ -1899,7 +1916,8 @@ function MediaUploadPanel({ onUpload }) {
             type="file"
             accept="image/*"
             onChange={handleFileSelect}
-            className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-gray-700 file:text-gray-300 hover:file:bg-gray-600"
+            className="w-full text-xs file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-gray-700 file:text-gray-300 hover:file:bg-gray-600"
+            style={{ color: 'var(--war-text-dim)' }}
           />
           {selectedFile && (
             <div className="text-xs text-green-400">
@@ -1911,19 +1929,19 @@ function MediaUploadPanel({ onUpload }) {
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             placeholder="Caption (optional)"
-            className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs"
+            className="war-input w-full rounded px-2 py-1.5 text-xs"
           />
           <div className="flex gap-2">
             <button
               onClick={handleUpload}
               disabled={uploading || !selectedFile}
-              className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 rounded text-xs font-bold"
+              className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded text-xs font-bold"
             >
               {uploading ? 'Uploading...' : 'Upload'}
             </button>
             <button
               onClick={() => { setShowUpload(false); setMessage(null); setSelectedFile(null); }}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+              className="war-btn-ghost px-3 py-1.5 rounded text-xs"
             >
               Cancel
             </button>
@@ -1986,11 +2004,11 @@ function MyTerritoryPanel({ partnerId, isSuperAdmin, onReleaseClaim, discordTag 
   return (
     <WarCard title={isSuperAdmin ? "All Territory" : "My Territory"}>
       {/* View Toggle */}
-      <div className="flex gap-1 mb-3 bg-gray-800/50 rounded p-1">
+      <div className="war-card flex gap-1 mb-3 p-1">
         <button
           onClick={() => setViewMode('territory')}
           className={`flex-1 px-2 py-1 text-xs font-medium rounded ${
-            viewMode === 'territory' ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-white'
+            viewMode === 'territory' ? 'war-btn-success' : 'war-btn-ghost'
           }`}
         >
           Systems ({territory.total_systems || 0})
@@ -1998,7 +2016,7 @@ function MyTerritoryPanel({ partnerId, isSuperAdmin, onReleaseClaim, discordTag 
         <button
           onClick={() => setViewMode('claims')}
           className={`flex-1 px-2 py-1 text-xs font-medium rounded ${
-            viewMode === 'claims' ? 'bg-cyan-600 text-white' : 'text-gray-400 hover:text-white'
+            viewMode === 'claims' ? 'bg-cyan-600 text-white' : 'war-btn-ghost'
           }`}
         >
           War Claims ({claims.length})
@@ -2008,17 +2026,17 @@ function MyTerritoryPanel({ partnerId, isSuperAdmin, onReleaseClaim, discordTag 
       {viewMode === 'territory' ? (
         /* Territory from discord_tag */
         territory.total_systems === 0 ? (
-          <div className="text-center py-4 text-gray-500 text-sm">No systems uploaded with your tag</div>
+          <div className="text-center py-4 text-sm" style={{ color: 'var(--war-text-dim)' }}>No systems uploaded with your tag</div>
         ) : (
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {/* Show by region */}
             {Object.entries(territory.regions || {}).map(([key, region]) => (
-              <div key={key} className="bg-gray-800/50 rounded p-2">
+              <div key={key} className="war-card p-2">
                 <div className="flex items-center justify-between">
                   <div className="font-medium text-green-400 text-sm">{region.region_name || `Region (${region.region_x}, ${region.region_y}, ${region.region_z})`}</div>
-                  <span className="text-xs text-gray-400">{region.system_count} systems</span>
+                  <span className="text-xs" style={{ color: 'var(--war-text-dim)' }}>{region.system_count} systems</span>
                 </div>
-                <div className="text-xs text-gray-500">{region.galaxy}</div>
+                <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>{region.galaxy}</div>
               </div>
             ))}
           </div>
@@ -2026,14 +2044,14 @@ function MyTerritoryPanel({ partnerId, isSuperAdmin, onReleaseClaim, discordTag 
       ) : (
         /* War Claims */
         claims.length === 0 ? (
-          <div className="text-center py-4 text-gray-500 text-sm">No war territory claims</div>
+          <div className="text-center py-4 text-sm" style={{ color: 'var(--war-text-dim)' }}>No war territory claims</div>
         ) : (
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {claims.map(claim => (
-              <div key={claim.id} className="flex items-center justify-between bg-gray-800/50 rounded p-2">
+              <div key={claim.id} className="war-card flex items-center justify-between p-2">
                 <div>
-                  <div className="font-medium text-white text-sm">{claim.system_name || claim.system_id}</div>
-                  <div className="text-xs text-gray-400">
+                  <div className="font-medium text-sm" style={{ color: 'var(--war-text)' }}>{claim.system_name || claim.system_id}</div>
+                  <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
                     {claim.galaxy} &bull; ({claim.region_x}, {claim.region_y}, {claim.region_z})
                   </div>
                   {isSuperAdmin && (
@@ -2044,7 +2062,8 @@ function MyTerritoryPanel({ partnerId, isSuperAdmin, onReleaseClaim, discordTag 
                 </div>
                 <button
                   onClick={() => handleRelease(claim.id)}
-                  className="text-xs text-red-400 hover:text-red-300 px-2 py-1"
+                  className="text-xs px-2 py-1 hover:opacity-80"
+                  style={{ color: 'var(--war-accent)' }}
                 >
                   Release
                 </button>
@@ -2934,7 +2953,7 @@ function NewsRoomPanel({ isCorrespondent, isSuperAdmin, onCreateNews }) {
   }
 
   if (loading) {
-    return <div className="text-center py-8 text-gray-400">Loading news...</div>
+    return <div className="text-center py-8" style={{ color: 'var(--war-text-dim)' }}>Loading news...</div>
   }
 
   return (
@@ -2942,26 +2961,27 @@ function NewsRoomPanel({ isCorrespondent, isSuperAdmin, onCreateNews }) {
       {/* News List */}
       <div className="space-y-3">
         {articles.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No news articles yet</div>
+          <div className="text-center py-8" style={{ color: 'var(--war-text-dim)' }}>No news articles yet</div>
         ) : (
           articles.map(article => (
             <div
               key={article.id}
               onClick={() => setSelectedArticle(article)}
-              className="bg-gray-800/50 border border-yellow-500/20 rounded p-4 cursor-pointer hover:border-yellow-500/50 transition-colors"
+              className="war-card war-card-hover p-4 cursor-pointer"
+              style={{ borderColor: 'rgba(234, 179, 8, 0.3)' }}
             >
               <div className="flex items-start gap-3">
                 <span className="text-2xl">{getArticleTypeIcon(article.article_type)}</span>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     {article.is_pinned === 1 && (
-                      <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">PINNED</span>
+                      <span className="war-pill war-pill-warning">PINNED</span>
                     )}
-                    <span className="text-xs text-gray-500 uppercase">{article.article_type || 'news'}</span>
+                    <span className="text-xs uppercase" style={{ color: 'var(--war-text-dim)' }}>{article.article_type || 'news'}</span>
                   </div>
-                  <h3 className="font-bold text-white">{article.headline}</h3>
-                  <p className="text-sm text-gray-400 mt-1 line-clamp-2">{article.body}</p>
-                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                  <h3 className="font-bold" style={{ color: 'var(--war-text)' }}>{article.headline}</h3>
+                  <p className="text-sm mt-1 line-clamp-2" style={{ color: 'var(--war-text-dim)' }}>{article.body}</p>
+                  <div className="flex items-center gap-3 mt-2 text-xs" style={{ color: 'var(--war-text-dim)' }}>
                     <span>By {article.author_name || 'Unknown'}</span>
                     {article.reporting_org_name && (
                       <span className="text-cyan-400">{article.reporting_org_name}</span>
@@ -3220,8 +3240,8 @@ export default function WarRoom() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center"
-           style={{ backgroundColor: '#0a0c10' }}>
-        <div className="text-red-400 text-xl animate-pulse">Loading War Room...</div>
+           style={{ backgroundColor: 'var(--war-bg)' }}>
+        <div className="text-xl animate-pulse" style={{ color: 'var(--war-accent)' }}>Loading War Room...</div>
       </div>
     )
   }
@@ -3229,11 +3249,11 @@ export default function WarRoom() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center"
-           style={{ backgroundColor: '#0a0c10' }}>
+           style={{ backgroundColor: 'var(--war-bg)' }}>
         <div className="text-center">
-          <div className="text-red-500 text-xl mb-4">Access Denied</div>
-          <p className="text-gray-400">{error}</p>
-          <Link to="/" className="text-red-400 hover:underline mt-4 inline-block">
+          <div className="text-xl mb-4" style={{ color: 'var(--war-accent)' }}>Access Denied</div>
+          <p style={{ color: 'var(--war-text-dim)' }}>{error}</p>
+          <Link to="/" className="hover:underline mt-4 inline-block" style={{ color: 'var(--war-accent)' }}>
             Return to Dashboard
           </Link>
         </div>
@@ -3242,7 +3262,7 @@ export default function WarRoom() {
   }
 
   return (
-    <div className="min-h-screen -m-6 -mb-6" style={{ backgroundColor: '#0a0c10' }}>
+    <div className="min-h-screen -m-6 -mb-6" style={{ backgroundColor: 'var(--war-bg)' }}>
       {/* Custom CSS for War Room */}
       <style>{`
         @keyframes marquee {
@@ -3261,39 +3281,42 @@ export default function WarRoom() {
       `}</style>
 
       {/* Header */}
-      <div className="border-b border-red-500/30 bg-gray-900/90 px-6 py-4">
+      <div
+        className="px-6 py-4 border-b"
+        style={{ background: 'var(--war-card)', borderColor: 'var(--war-border-strong)' }}
+      >
         {/* Header — was `flex items-center justify-between` with no wrap, so
             6 right-side action buttons pushed offscreen on phone. Stacks
             vertically on <sm; horizontal on sm+. Inner clusters also wrap so
             they collapse onto multiple rows when needed. */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-            <h1 className="text-2xl font-bold text-red-500 tracking-wider">WAR ROOM</h1>
+            <h1 className="text-2xl font-bold tracking-wider" style={{ color: 'var(--war-accent)' }}>WAR ROOM</h1>
             {auth.isCorrespondent && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-yellow-500/20 border border-yellow-500/30 rounded">
+              <div className="war-pill war-pill-warning flex items-center gap-2 px-3 py-1">
                 <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-                <span className="text-xs text-yellow-400 font-medium">
+                <span className="text-xs font-medium">
                   WAR CORRESPONDENT
                 </span>
               </div>
             )}
             {enrollmentStatus?.enrolled && !auth.isCorrespondent && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-green-500/20 border border-green-500/30 rounded">
+              <div className="war-pill war-pill-success flex items-center gap-2 px-3 py-1">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs text-green-400 font-medium">
+                <span className="text-xs font-medium">
                   {enrollmentStatus.display_name || 'ENROLLED'}
                 </span>
               </div>
             )}
 
             {/* View Tabs */}
-            <div className="flex items-center gap-1 bg-gray-800/50 rounded p-1 ml-4">
+            <div className="war-card flex items-center gap-1 p-1 ml-4">
               <button
                 onClick={() => setActiveTab('command')}
                 className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
                   activeTab === 'command'
-                    ? 'bg-red-600 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    ? 'war-btn-primary'
+                    : 'war-btn-ghost'
                 }`}
               >
                 Command Center
@@ -3303,7 +3326,7 @@ export default function WarRoom() {
                 className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
                   activeTab === 'news'
                     ? 'bg-yellow-600 text-black'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    : 'war-btn-ghost'
                 }`}
               >
                 News Room
@@ -3318,13 +3341,14 @@ export default function WarRoom() {
               <>
                 <button
                   onClick={() => setShowDeclareWar(true)}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-bold border-2 border-red-400 shadow-lg shadow-red-500/20 animate-pulse"
+                  className="war-btn-primary px-4 py-2 rounded text-sm font-bold border-2 shadow-lg animate-pulse"
+                  style={{ borderColor: '#f87171', boxShadow: '0 10px 15px -3px rgba(239, 68, 68, 0.2)' }}
                 >
                   ⚔️ DECLARE WAR
                 </button>
                 <button
                   onClick={() => setShowClaimTerritory(true)}
-                  className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm font-bold"
+                  className="war-btn-success px-3 py-1 rounded text-sm font-bold"
                 >
                   Claim Territory
                 </button>
@@ -3356,7 +3380,8 @@ export default function WarRoom() {
               <>
                 <button
                   onClick={() => setShowDeclareWar(true)}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-bold border-2 border-red-400 shadow-lg shadow-red-500/20"
+                  className="war-btn-primary px-4 py-2 rounded text-sm font-bold border-2 shadow-lg"
+                  style={{ borderColor: '#f87171', boxShadow: '0 10px 15px -3px rgba(239, 68, 68, 0.2)' }}
                 >
                   ⚔️ WAR
                 </button>
@@ -3368,7 +3393,7 @@ export default function WarRoom() {
                 </button>
                 <button
                   onClick={() => setShowClaimTerritory(true)}
-                  className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm font-bold"
+                  className="war-btn-success px-3 py-1 rounded text-sm font-bold"
                 >
                   Claim
                 </button>
@@ -3382,7 +3407,7 @@ export default function WarRoom() {
             {auth.isSuperAdmin && (
               <Link
                 to="/war-room/admin"
-                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm ml-2"
+                className="war-btn-ghost px-3 py-1 rounded text-sm ml-2"
               >
                 Admin
               </Link>
@@ -3409,7 +3434,7 @@ export default function WarRoom() {
               <div className="mt-6">
                 <WarCard title={`Active Conflicts (${activeConflicts.length})`}>
                   {activeConflicts.length === 0 ? (
-                    <p className="text-gray-500 text-sm text-center py-4">
+                    <p className="text-sm text-center py-4" style={{ color: 'var(--war-text-dim)' }}>
                       No active conflicts. The galaxy is at peace... for now.
                     </p>
                   ) : (
@@ -3418,7 +3443,7 @@ export default function WarRoom() {
                         <div
                           key={c.id}
                           onClick={() => setSelectedConflictId(c.id)}
-                          className="cursor-pointer hover:ring-1 hover:ring-red-500/50 rounded transition-all"
+                          className="war-card-hover cursor-pointer rounded transition-all"
                         >
                           <ConflictCard conflict={c} />
                         </div>
@@ -3506,7 +3531,7 @@ export default function WarRoom() {
               {/* Active Conflicts Summary */}
               <WarCard title="Active Conflicts">
                 {activeConflicts.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No active conflicts</p>
+                  <p className="text-sm" style={{ color: 'var(--war-text-dim)' }}>No active conflicts</p>
                 ) : (
                   <div className="space-y-2">
                     {activeConflicts.slice(0, 5).map(c => (
@@ -3516,10 +3541,10 @@ export default function WarRoom() {
                           setSelectedConflictId(c.id)
                           setActiveTab('command')
                         }}
-                        className="cursor-pointer p-2 bg-gray-800/50 rounded hover:bg-gray-800 text-sm"
+                        className="war-card war-card-hover cursor-pointer p-2 text-sm"
                       >
-                        <div className="font-medium text-white">{c.target_system_name}</div>
-                        <div className="text-xs text-gray-400">
+                        <div className="font-medium" style={{ color: 'var(--war-text)' }}>{c.target_system_name}</div>
+                        <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
                           <span style={{ color: c.attacker_color }}>{c.attacker_name}</span>
                           {' vs '}
                           <span style={{ color: c.defender_color }}>{c.defender_name}</span>

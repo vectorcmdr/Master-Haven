@@ -7,6 +7,7 @@ import SubmissionChart from '../components/SubmissionChart'
 import CommunityPieChart from '../components/CommunityPieChart'
 import StatCard from '../components/StatCard'
 import { AuthContext } from '../utils/AuthContext'
+import { CHART_PALETTE } from '../utils/chartPalette'
 
 /**
  * Analytics Dashboard — Route: /analytics
@@ -191,7 +192,7 @@ export default function Analytics({ embedded = false }) {
   if (auth.loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg text-gray-400">Loading...</div>
+        <div className="text-lg" style={{ color: 'var(--muted)' }}>Loading...</div>
       </div>
     )
   }
@@ -215,11 +216,6 @@ export default function Analytics({ embedded = false }) {
       : 0
   }, [totals.total_submissions, totals.total_approved])
 
-  const cardStyle = {
-    background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-    border: '1px solid rgba(255,255,255,0.04)'
-  }
-
   const OuterTag = embedded ? 'div' : 'div'
   const outerClass = embedded ? 'space-y-6' : 'min-h-screen p-6'
   const outerStyle = embedded ? undefined : { background: 'var(--app-bg)' }
@@ -238,7 +234,7 @@ export default function Analytics({ embedded = false }) {
         )}
         <div className="flex flex-wrap items-center gap-3">
           {/* Period quick filters */}
-          <div className="flex items-center rounded-lg overflow-hidden" style={{ background: 'var(--app-card)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div className="haven-card flex items-center rounded-lg overflow-hidden">
             {['week', 'month', 'year', 'all'].map((p) => (
               <button
                 key={p}
@@ -262,12 +258,7 @@ export default function Analytics({ embedded = false }) {
             <select
               value={selectedCommunity}
               onChange={(e) => setSelectedCommunity(e.target.value)}
-              className="px-3 py-2 rounded-lg text-sm"
-              style={{
-                background: 'var(--app-card)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: 'var(--app-text)'
-              }}
+              className="haven-input px-3 py-2 rounded-lg text-sm"
             >
               <option value="">All Communities</option>
               {discordTags.map((tag) => (
@@ -280,10 +271,7 @@ export default function Analytics({ embedded = false }) {
 
       {/* Source Overview Bar */}
       {grandTotal > 0 && (
-        <div
-          className="rounded-xl p-4 mb-6"
-          style={cardStyle}
-        >
+        <div className="haven-card p-4 mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-medium" style={{ color: 'var(--app-text)', opacity: 0.7 }}>
               Submission Sources
@@ -297,14 +285,14 @@ export default function Analytics({ embedded = false }) {
             {manualData.total > 0 && (
               <div
                 className="transition-all duration-500"
-                style={{ width: `${manualPct}%`, background: '#06b6d4' }}
+                style={{ width: `${manualPct}%`, background: 'var(--app-primary)' }}
                 title={`Manual: ${manualData.total}`}
               />
             )}
             {extractorData.total > 0 && (
               <div
                 className="transition-all duration-500"
-                style={{ width: `${extractorPct}%`, background: '#a855f7' }}
+                style={{ width: `${extractorPct}%`, background: 'var(--app-accent-2)' }}
                 title={`Extractor: ${extractorData.total}`}
               />
             )}
@@ -312,14 +300,14 @@ export default function Analytics({ embedded = false }) {
           {/* Legend */}
           <div className="flex items-center gap-6 text-sm">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ background: '#06b6d4' }} />
+              <div className="w-3 h-3 rounded-full" style={{ background: 'var(--app-primary)' }} />
               <span style={{ color: 'var(--app-text)' }}>
                 Manual: <span className="font-semibold">{manualData.total.toLocaleString()}</span>
                 <span style={{ opacity: 0.5 }}> ({manualPct}%)</span>
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ background: '#a855f7' }} />
+              <div className="w-3 h-3 rounded-full" style={{ background: 'var(--app-accent-2)' }} />
               <span style={{ color: 'var(--app-text)' }}>
                 Extractor: <span className="font-semibold">{extractorData.total.toLocaleString()}</span>
                 <span style={{ opacity: 0.5 }}> ({extractorPct}%)</span>
@@ -330,22 +318,19 @@ export default function Analytics({ embedded = false }) {
       )}
 
       {/* Tab Switcher */}
-      <div className="flex border-b mb-6" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+      <div className="flex border-b mb-6" style={{ borderColor: 'var(--border-soft)' }}>
         <button
           className="px-5 py-3 text-sm font-medium border-b-2 transition-colors"
           style={{
-            borderColor: activeTab === 'manual' ? '#06b6d4' : 'transparent',
-            color: activeTab === 'manual' ? '#06b6d4' : 'var(--app-text)',
+            borderColor: activeTab === 'manual' ? 'var(--app-primary)' : 'transparent',
+            color: activeTab === 'manual' ? 'var(--app-primary)' : 'var(--app-text)',
             opacity: activeTab === 'manual' ? 1 : 0.6
           }}
           onClick={() => setActiveTab('manual')}
         >
           Manual Submissions
           {manualData.total > 0 && (
-            <span
-              className="ml-2 px-2 py-0.5 text-xs rounded-full font-semibold"
-              style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' }}
-            >
+            <span className={`ml-2 pill ${activeTab === 'manual' ? 'pill-teal-solid' : 'pill-teal'}`}>
               {manualData.total.toLocaleString()}
             </span>
           )}
@@ -353,18 +338,15 @@ export default function Analytics({ embedded = false }) {
         <button
           className="px-5 py-3 text-sm font-medium border-b-2 transition-colors"
           style={{
-            borderColor: activeTab === 'extractor' ? '#a855f7' : 'transparent',
-            color: activeTab === 'extractor' ? '#a855f7' : 'var(--app-text)',
+            borderColor: activeTab === 'extractor' ? 'var(--app-accent-2)' : 'transparent',
+            color: activeTab === 'extractor' ? 'var(--app-accent-2)' : 'var(--app-text)',
             opacity: activeTab === 'extractor' ? 1 : 0.6
           }}
           onClick={() => setActiveTab('extractor')}
         >
           Haven Extractor
           {extractorData.total > 0 && (
-            <span
-              className="ml-2 px-2 py-0.5 text-xs rounded-full font-semibold"
-              style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}
-            >
+            <span className="ml-2 pill pill-purple">
               {extractorData.total.toLocaleString()}
             </span>
           )}
@@ -400,7 +382,7 @@ export default function Analytics({ embedded = false }) {
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="rounded-xl p-4" style={cardStyle}>
+            <div className="haven-card p-4">
               <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
                 Manual Submissions Over Time
               </h2>
@@ -408,7 +390,7 @@ export default function Analytics({ embedded = false }) {
             </div>
 
             {isSuperAdmin && (
-              <div className="rounded-xl p-4" style={cardStyle}>
+              <div className="haven-card p-4">
                 <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
                   Community Breakdown
                 </h2>
@@ -417,12 +399,12 @@ export default function Analytics({ embedded = false }) {
             )}
 
             {!isSuperAdmin && (
-              <div className="rounded-xl p-4" style={cardStyle}>
+              <div className="haven-card p-4">
                 <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
                   Your Community Stats
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-lg" style={{ background: 'rgba(0, 194, 179, 0.1)' }}>
+                  <div className="haven-card p-3">
                     <div className="text-3xl font-bold" style={{ color: 'var(--app-primary)' }}>
                       {leaderboard.length}
                     </div>
@@ -430,8 +412,8 @@ export default function Analytics({ embedded = false }) {
                       Active Submitters
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg" style={{ background: 'rgba(34, 197, 94, 0.1)' }}>
-                    <div className="text-3xl font-bold" style={{ color: '#22c55e' }}>
+                  <div className="haven-card p-3">
+                    <div className="text-3xl font-bold" style={{ color: CHART_PALETTE.success }}>
                       {approvalRate}%
                     </div>
                     <div className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.7 }}>
@@ -444,7 +426,7 @@ export default function Analytics({ embedded = false }) {
           </div>
 
           {/* Leaderboard */}
-          <div className="rounded-xl p-4" style={cardStyle}>
+          <div className="haven-card p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
                 Manual Submission Leaderboard
@@ -491,7 +473,7 @@ export default function Analytics({ embedded = false }) {
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="rounded-xl p-4" style={cardStyle}>
+            <div className="haven-card p-4">
               <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
                 Extractor Submissions Over Time
               </h2>
@@ -499,7 +481,7 @@ export default function Analytics({ embedded = false }) {
             </div>
 
             {isSuperAdmin && (
-              <div className="rounded-xl p-4" style={cardStyle}>
+              <div className="haven-card p-4">
                 <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
                   Community Breakdown
                 </h2>
@@ -508,21 +490,21 @@ export default function Analytics({ embedded = false }) {
             )}
 
             {!isSuperAdmin && (
-              <div className="rounded-xl p-4" style={cardStyle}>
+              <div className="haven-card p-4">
                 <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
                   Extractor Overview
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-lg" style={{ background: 'rgba(168, 85, 247, 0.1)' }}>
-                    <div className="text-3xl font-bold" style={{ color: '#a855f7' }}>
+                  <div className="haven-card p-3">
+                    <div className="text-3xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
                       {extractorSummary?.registered_users || 0}
                     </div>
                     <div className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.7 }}>
                       Registered Users
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg" style={{ background: 'rgba(168, 85, 247, 0.1)' }}>
-                    <div className="text-3xl font-bold" style={{ color: '#a855f7' }}>
+                  <div className="haven-card p-3">
+                    <div className="text-3xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
                       {extractorSummary?.active_users_7d || 0}
                     </div>
                     <div className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.7 }}>
@@ -535,7 +517,7 @@ export default function Analytics({ embedded = false }) {
           </div>
 
           {/* Leaderboard */}
-          <div className="rounded-xl p-4" style={cardStyle}>
+          <div className="haven-card p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
                 Extractor Submission Leaderboard

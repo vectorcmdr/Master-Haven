@@ -182,8 +182,8 @@ export default function ExtractorUsers({ embedded = false }) {
       {/* Header — hidden when embedded (hub provides the page title) */}
       {!embedded && (
         <div>
-          <h1 className="text-2xl font-bold text-cyan-400">Extractor Users</h1>
-          <p className="text-gray-400 mt-1">
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--app-primary)' }}>Extractor Users</h1>
+          <p className="mt-1" style={{ color: 'var(--muted)' }}>
             {auth.isSuperAdmin
               ? 'Manage Haven Extractor users and their API access'
               : `Haven Extractor users submitting to ${auth.user?.displayName || auth.user?.discordTag || 'your community'}`
@@ -207,135 +207,120 @@ export default function ExtractorUsers({ embedded = false }) {
           placeholder="Search by username or key prefix..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="px-3 py-2 rounded-lg text-sm text-white placeholder-gray-500 flex-1 min-w-[200px]"
-          style={{ background: 'var(--app-card)', border: '1px solid rgba(255,255,255,0.1)' }}
+          className="haven-input px-3 py-2 text-sm flex-1 min-w-[200px]"
         />
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg text-sm text-white"
-          style={{ background: 'var(--app-card)', border: '1px solid rgba(255,255,255,0.1)' }}
+          className="haven-input px-3 py-2 text-sm"
         >
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
         </select>
-        <span className="text-sm text-gray-400">{filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}</span>
+        <span className="text-sm" style={{ color: 'var(--muted)' }}>{filteredUsers.length} user{filteredUsers.length !== 1 ? 's' : ''}</span>
       </div>
 
       {/* User Cards */}
       {filteredUsers.length === 0 ? (
-        <Card className="bg-gray-800/50">
-          <div className="p-8 text-center text-gray-400">
-            <p className="text-lg mb-2">No extractor users found</p>
-            <p className="text-sm">
-              {search || statusFilter !== 'all'
-                ? 'Try adjusting your filters'
-                : 'Users will appear here after they register their Haven Extractor'}
-            </p>
-          </div>
-        </Card>
+        <div className="haven-card p-8 text-center" style={{ color: 'var(--muted)' }}>
+          <p className="text-lg mb-2">No extractor users found</p>
+          <p className="text-sm">
+            {search || statusFilter !== 'all'
+              ? 'Try adjusting your filters'
+              : 'Users will appear here after they register their Haven Extractor'}
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
           {filteredUsers.map(user => (
-            <Card key={user.id} className={`bg-gray-800/50 border ${user.is_active ? 'border-gray-700' : 'border-red-900/50'}`}>
-              <div className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  {/* Left: User info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <h3 className="text-lg font-semibold text-white">{user.discord_username || 'Unknown'}</h3>
-                      {user.is_active ? (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-green-900/50 text-green-400 border border-green-700">
-                          Active
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 text-xs rounded-full bg-red-900/50 text-red-400 border border-red-700">
-                          Suspended
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Stats grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1 text-sm mb-3">
-                      <div>
-                        <span className="text-gray-500">Submissions: </span>
-                        <span className="text-white font-medium">{(user.total_submissions || 0).toLocaleString()}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Rate Limit: </span>
-                        <span className="text-white">{user.rate_limit}/hr</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Registered: </span>
-                        <span className="text-gray-300">{formatDate(user.created_at)}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Last Active: </span>
-                        <span className="text-gray-300">{timeAgo(user.last_submission_at)}</span>
-                      </div>
-                    </div>
-
-                    {/* Key prefix */}
-                    <div className="text-xs text-gray-500 mb-2">
-                      Key: <code className="text-gray-400">{user.key_prefix}...</code>
-                    </div>
-
-                    {/* Communities used */}
-                    {user.communities_used && user.communities_used.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {user.communities_used.map(c => (
-                          <span
-                            key={c.tag}
-                            className="px-2 py-0.5 text-xs rounded-full border"
-                            style={{
-                              background: c.tag === 'personal' ? 'rgba(217, 70, 239, 0.15)' : 'rgba(6, 182, 212, 0.15)',
-                              borderColor: c.tag === 'personal' ? 'rgba(217, 70, 239, 0.3)' : 'rgba(6, 182, 212, 0.3)',
-                              color: c.tag === 'personal' ? '#d946ef' : '#06b6d4'
-                            }}
-                          >
-                            {c.tag || 'personal'} ({c.count})
-                            {c.approved > 0 && <span className="text-green-400 ml-1">{c.approved} approved</span>}
-                          </span>
-                        ))}
-                      </div>
+            <div key={user.id} className="haven-card haven-card-hover p-4">
+              <div className="flex items-start justify-between gap-4">
+                {/* Left: User info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    <h3 className="text-lg font-semibold">{user.discord_username || 'Unknown'}</h3>
+                    {user.is_active ? (
+                      <span className="pill pill-emerald">Active</span>
+                    ) : (
+                      <span className="pill pill-muted">Suspended</span>
                     )}
                   </div>
 
-                  {/* Right: Actions (super admin only) */}
-                  {auth.isSuperAdmin && (
-                    <div className="flex flex-col gap-2 shrink-0">
-                      <Button
-                        onClick={() => openEditModal(user)}
-                        disabled={actionInProgress}
-                        className="text-xs px-3 py-1.5 bg-cyan-700 hover:bg-cyan-600"
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        onClick={() => { setReissueConfirmUser(user); setCopied(false) }}
-                        disabled={actionInProgress}
-                        className="text-xs px-3 py-1.5 bg-amber-700 hover:bg-amber-600"
-                        title="Generate a new API key (invalidates the old one)"
-                      >
-                        Reissue Key
-                      </Button>
-                      <Button
-                        onClick={() => toggleActive(user)}
-                        disabled={actionInProgress}
-                        className={`text-xs px-3 py-1.5 ${
-                          user.is_active
-                            ? 'bg-red-700 hover:bg-red-600'
-                            : 'bg-green-700 hover:bg-green-600'
-                        }`}
-                      >
-                        {user.is_active ? 'Suspend' : 'Reactivate'}
-                      </Button>
+                  {/* Stats grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1 text-sm mb-3">
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Submissions: </span>
+                      <span className="font-medium">{(user.total_submissions || 0).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Rate Limit: </span>
+                      <span>{user.rate_limit}/hr</span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Registered: </span>
+                      <span>{formatDate(user.created_at)}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Last Active: </span>
+                      <span>{timeAgo(user.last_submission_at)}</span>
+                    </div>
+                  </div>
+
+                  {/* Key prefix */}
+                  <div className="text-xs mb-2" style={{ color: 'var(--muted)' }}>
+                    Key: <code>{user.key_prefix}...</code>
+                  </div>
+
+                  {/* Communities used */}
+                  {user.communities_used && user.communities_used.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {user.communities_used.map(c => (
+                        <span
+                          key={c.tag}
+                          className={`pill ${c.tag === 'personal' ? 'pill-purple' : 'pill-teal'}`}
+                        >
+                          {c.tag || 'personal'} ({c.count})
+                          {c.approved > 0 && <span className="text-green-400 ml-1">{c.approved} approved</span>}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
+
+                {/* Right: Actions (super admin only) */}
+                {auth.isSuperAdmin && (
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <Button
+                      onClick={() => openEditModal(user)}
+                      disabled={actionInProgress}
+                      className="haven-btn-primary text-xs px-3 py-1.5"
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      onClick={() => { setReissueConfirmUser(user); setCopied(false) }}
+                      disabled={actionInProgress}
+                      className="text-xs px-3 py-1.5 bg-amber-700 hover:bg-amber-600"
+                      title="Generate a new API key (invalidates the old one)"
+                    >
+                      Reissue Key
+                    </Button>
+                    <Button
+                      onClick={() => toggleActive(user)}
+                      disabled={actionInProgress}
+                      className={`text-xs px-3 py-1.5 ${
+                        user.is_active
+                          ? 'bg-red-700 hover:bg-red-600'
+                          : 'bg-green-700 hover:bg-green-600'
+                      }`}
+                    >
+                      {user.is_active ? 'Suspend' : 'Reactivate'}
+                    </Button>
+                  </div>
+                )}
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}

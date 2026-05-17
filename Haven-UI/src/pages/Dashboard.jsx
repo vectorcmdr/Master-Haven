@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import axios from 'axios'
 import AnimatedCounter from '../components/AnimatedCounter'
+import { CHART_PALETTE } from '../utils/chartPalette'
 import {
   GlobeAltIcon,
   PlusIcon,
@@ -36,18 +37,18 @@ import {
 
 // Event type icons and colors for activity logs
 const EVENT_CONFIG = {
-  system_submitted: { icon: '📤', color: '#00C2B3', label: 'Submitted' },
-  system_approved: { icon: '✅', color: '#4ade80', label: 'Approved' },
-  system_rejected: { icon: '❌', color: '#ef4444', label: 'Rejected' },
-  system_saved: { icon: '💾', color: '#00C2B3', label: 'Saved' },
-  system_deleted: { icon: '🗑️', color: '#ef4444', label: 'Deleted' },
-  system_edited: { icon: '✏️', color: '#f0ad4e', label: 'Edited' },
-  region_submitted: { icon: '🗺️', color: '#9d4edd', label: 'Region' },
-  region_approved: { icon: '✅', color: '#4ade80', label: 'Region' },
-  region_rejected: { icon: '❌', color: '#ef4444', label: 'Region' },
-  discovery_added: { icon: '🔭', color: '#9d4edd', label: 'Discovery' },
-  map_generated: { icon: '🌌', color: '#00C2B3', label: 'Map' },
-  watcher_upload: { icon: '👁️', color: '#f0ad4e', label: 'Watcher' },
+  system_submitted: { icon: '📤', color: 'var(--app-primary)', label: 'Submitted' },
+  system_approved: { icon: '✅', color: CHART_PALETTE.success, label: 'Approved' },
+  system_rejected: { icon: '❌', color: CHART_PALETTE.danger, label: 'Rejected' },
+  system_saved: { icon: '💾', color: 'var(--app-primary)', label: 'Saved' },
+  system_deleted: { icon: '🗑️', color: CHART_PALETTE.danger, label: 'Deleted' },
+  system_edited: { icon: '✏️', color: 'var(--app-accent-amber)', label: 'Edited' },
+  region_submitted: { icon: '🗺️', color: 'var(--app-accent-2)', label: 'Region' },
+  region_approved: { icon: '✅', color: CHART_PALETTE.success, label: 'Region' },
+  region_rejected: { icon: '❌', color: CHART_PALETTE.danger, label: 'Region' },
+  discovery_added: { icon: '🔭', color: 'var(--app-accent-2)', label: 'Discovery' },
+  map_generated: { icon: '🌌', color: 'var(--app-primary)', label: 'Map' },
+  watcher_upload: { icon: '👁️', color: 'var(--app-accent-amber)', label: 'Watcher' },
 }
 
 export default function Dashboard() {
@@ -166,11 +167,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-2xl" style={{
-        background: 'linear-gradient(135deg, rgba(20, 27, 61, 0.95) 0%, rgba(10, 14, 39, 0.98) 100%)',
-        border: '1px solid rgba(0, 194, 179, 0.2)',
-        boxShadow: '0 0 60px rgba(0, 194, 179, 0.1), inset 0 1px 0 rgba(255,255,255,0.05)'
-      }}>
+      <div className="haven-card relative overflow-hidden">
         {/* Background glow effect */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-1/2 -left-1/4 w-1/2 h-full rounded-full opacity-20"
@@ -185,19 +182,15 @@ export default function Dashboard() {
             <h1 className="text-2xl lg:text-3xl font-bold tracking-tight" style={{ color: 'var(--app-text)' }}>
               Haven Control Room
             </h1>
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
-                 style={{
-                   background: isOnline ? 'rgba(0, 194, 179, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                   color: isOnline ? '#00C2B3' : '#ef4444'
-                 }}>
+            <span className={`pill ${isOnline ? 'pill-teal' : 'pill-red'}`}>
               <span className="relative flex h-2 w-2">
                 <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${isOnline ? 'animate-ping' : ''}`}
-                      style={{ background: isOnline ? '#00C2B3' : '#ef4444' }} />
+                      style={{ background: isOnline ? 'var(--app-primary)' : CHART_PALETTE.danger }} />
                 <span className="relative inline-flex rounded-full h-2 w-2"
-                      style={{ background: isOnline ? '#00C2B3' : '#ef4444' }} />
+                      style={{ background: isOnline ? 'var(--app-primary)' : CHART_PALETTE.danger }} />
               </span>
               {isOnline ? 'Systems Online' : 'Connection Lost'}
-            </div>
+            </span>
           </div>
 
           {/* Stats row */}
@@ -209,20 +202,16 @@ export default function Dashboard() {
               { icon: '🗺️', label: 'Regions', value: totalRegions, change: dailyChanges.regions },
               { icon: '🔭', label: 'Discoveries', value: totalDiscoveries, change: dailyChanges.discoveries },
             ].map((stat, i) => (
-              <div key={i} className="text-center p-4 rounded-xl transition-all duration-300 hover:scale-105"
-                   style={{
-                     background: 'rgba(255, 255, 255, 0.03)',
-                     border: '1px solid rgba(255, 255, 255, 0.06)'
-                   }}>
+              <div key={i} className="glass text-center p-4 rounded-xl transition-all duration-300 hover:scale-105">
                 <div className="text-2xl mb-1">{stat.icon}</div>
-                <div className="text-2xl lg:text-3xl font-bold" style={{ color: '#00C2B3' }}>
+                <div className="text-2xl lg:text-3xl font-bold" style={{ color: 'var(--app-primary)' }}>
                   <AnimatedCounter value={stat.value} duration={1200} />
                 </div>
                 <div className="text-xs uppercase tracking-wider mt-1" style={{ color: 'var(--muted)' }}>
                   {stat.label}
                 </div>
                 {stat.change > 0 ? (
-                  <div className="text-xs mt-1" style={{ color: '#4ade80' }}>
+                  <div className="text-xs mt-1" style={{ color: CHART_PALETTE.success }}>
                     ▲ +{stat.change}
                   </div>
                 ) : (
@@ -237,11 +226,7 @@ export default function Dashboard() {
           {/* CTA Button */}
           <div className="flex flex-wrap gap-3 justify-center">
             <Link to="/wizard"
-               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white transition-all duration-300 hover:scale-105"
-               style={{
-                 background: 'linear-gradient(135deg, #00C2B3 0%, #00a89a 100%)',
-                 boxShadow: '0 4px 20px rgba(0, 194, 179, 0.4)'
-               }}>
+               className="haven-btn-primary inline-flex items-center gap-2 px-6 py-3 rounded-xl transition-all duration-300 hover:scale-105">
               <PlusIcon className="w-5 h-5" />
               Add New System
             </Link>
@@ -253,12 +238,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Mini Map Preview */}
-        <div className="lg:col-span-2 rounded-xl overflow-hidden" style={{
-          background: 'var(--app-card)',
-          border: '1px solid rgba(255, 255, 255, 0.06)'
-        }}>
-          <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-            <h2 className="font-semibold flex items-center gap-2" style={{ color: '#00C2B3' }}>
+        <div className="haven-card lg:col-span-2 overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border-soft)' }}>
+            <h2 className="font-semibold flex items-center gap-2" style={{ color: 'var(--app-primary)' }}>
               <GlobeAltIcon className="w-5 h-5" />
               Galaxy Overview
             </h2>
@@ -282,8 +264,7 @@ export default function Dashboard() {
             <a href="/map/latest" target="_blank" rel="noreferrer"
                className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300 cursor-pointer"
                style={{ background: 'rgba(0, 0, 0, 0.5)' }}>
-              <span className="px-6 py-3 rounded-xl font-semibold text-white"
-                    style={{ background: 'rgba(0, 194, 179, 0.9)' }}>
+              <span className="haven-btn-primary px-6 py-3 rounded-xl">
                 Click to Open Full Map
               </span>
             </a>
@@ -291,11 +272,8 @@ export default function Dashboard() {
         </div>
 
         {/* Pending Approvals */}
-        <div className="rounded-xl p-5" style={{
-          background: 'var(--app-card)',
-          border: '1px solid rgba(255, 255, 255, 0.06)'
-        }}>
-          <h2 className="font-semibold mb-4 flex items-center gap-2" style={{ color: '#f0ad4e' }}>
+        <div className="haven-card p-5">
+          <h2 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--app-accent-amber)' }}>
             <ExclamationCircleIcon className="w-5 h-5" />
             Pending Review
           </h2>
@@ -304,54 +282,52 @@ export default function Dashboard() {
             <div className="space-y-3">
               {pending.systems > 0 && (
                 <div className="flex items-center justify-between p-3 rounded-lg"
-                     style={{ background: 'rgba(240, 173, 78, 0.1)', border: '1px solid rgba(240, 173, 78, 0.2)' }}>
+                     style={{ background: 'rgba(255, 180, 76, 0.1)', border: '1px solid rgba(255, 180, 76, 0.2)' }}>
                   <span className="text-sm">Systems awaiting approval</span>
-                  <span className="px-2 py-1 rounded-full text-xs font-bold"
-                        style={{ background: 'rgba(240, 173, 78, 0.2)', color: '#f0ad4e' }}>
+                  <span className="pill pill-amber font-bold">
                     {pending.systems}
                   </span>
                 </div>
               )}
               {pending.regions > 0 && (
                 <div className="flex items-center justify-between p-3 rounded-lg"
-                     style={{ background: 'rgba(240, 173, 78, 0.1)', border: '1px solid rgba(240, 173, 78, 0.2)' }}>
+                     style={{ background: 'rgba(255, 180, 76, 0.1)', border: '1px solid rgba(255, 180, 76, 0.2)' }}>
                   <span className="text-sm">Region names pending</span>
-                  <span className="px-2 py-1 rounded-full text-xs font-bold"
-                        style={{ background: 'rgba(240, 173, 78, 0.2)', color: '#f0ad4e' }}>
+                  <span className="pill pill-amber font-bold">
                     {pending.regions}
                   </span>
                 </div>
               )}
               <Link to="/pending-approvals"
                  className="block w-full text-center py-2 rounded-lg text-sm font-medium transition-colors"
-                 style={{ background: 'rgba(240, 173, 78, 0.15)', color: '#f0ad4e' }}>
+                 style={{ background: 'rgba(255, 180, 76, 0.15)', color: 'var(--app-accent-amber)' }}>
                 Review All →
               </Link>
             </div>
           ) : (
             <div className="text-center py-8">
-              <CheckCircleIcon className="w-12 h-12 mx-auto mb-2" style={{ color: '#4ade80' }} />
+              <CheckCircleIcon className="w-12 h-12 mx-auto mb-2" style={{ color: CHART_PALETTE.success }} />
               <p className="text-sm" style={{ color: 'var(--muted)' }}>All caught up!</p>
               <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>No pending approvals</p>
             </div>
           )}
 
           {/* Quick Stats */}
-          <div className="mt-6 pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+          <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--border-soft)' }}>
             <h3 className="text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--muted)' }}>
               Quick Actions
             </h3>
             <div className="grid grid-cols-2 gap-2">
               <Link to="/systems" className="flex items-center gap-2 p-2 rounded-lg text-xs transition-colors hover:bg-white/5">
-                <ChartBarIcon className="w-4 h-4" style={{ color: '#00C2B3' }} />
+                <ChartBarIcon className="w-4 h-4" style={{ color: 'var(--app-primary)' }} />
                 <span>Systems</span>
               </Link>
               <Link to="/discoveries" className="flex items-center gap-2 p-2 rounded-lg text-xs transition-colors hover:bg-white/5">
-                <MagnifyingGlassIcon className="w-4 h-4" style={{ color: '#9d4edd' }} />
+                <MagnifyingGlassIcon className="w-4 h-4" style={{ color: 'var(--app-accent-2)' }} />
                 <span>Discoveries</span>
               </Link>
               <Link to="/db_stats" className="flex items-center gap-2 p-2 rounded-lg text-xs transition-colors hover:bg-white/5">
-                <ChartBarIcon className="w-4 h-4" style={{ color: '#00C2B3' }} />
+                <ChartBarIcon className="w-4 h-4" style={{ color: 'var(--app-primary)' }} />
                 <span>DB Stats</span>
               </Link>
             </div>
@@ -363,11 +339,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Top Regions */}
-        <div className="rounded-xl p-5" style={{
-          background: 'var(--app-card)',
-          border: '1px solid rgba(255, 255, 255, 0.06)'
-        }}>
-          <h2 className="font-semibold mb-4 flex items-center gap-2" style={{ color: '#00C2B3' }}>
+        <div className="haven-card p-5">
+          <h2 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--app-primary)' }}>
             🌍 Top Regions
           </h2>
           <div className="space-y-2">
@@ -384,11 +357,11 @@ export default function Dashboard() {
                         }}>
                     {i + 1}
                   </span>
-                  <span className="text-sm truncate max-w-[140px]" style={{ color: region.hasCustomName ? '#9d4edd' : 'var(--muted)' }}>
+                  <span className="text-sm truncate max-w-[140px]" style={{ color: region.hasCustomName ? 'var(--app-accent-2)' : 'var(--muted)' }}>
                     {region.name}
                   </span>
                 </div>
-                <span className="text-xs px-2 py-1 rounded" style={{ background: 'rgba(0, 194, 179, 0.1)', color: '#00C2B3' }}>
+                <span className="pill pill-teal">
                   {region.count} sys
                 </span>
               </div>
@@ -399,11 +372,8 @@ export default function Dashboard() {
         </div>
 
         {/* Live Activity Feed */}
-        <div className="rounded-xl p-5" style={{
-          background: 'var(--app-card)',
-          border: '1px solid rgba(255, 255, 255, 0.06)'
-        }}>
-          <h2 className="font-semibold mb-4 flex items-center gap-2" style={{ color: '#9d4edd' }}>
+        <div className="haven-card p-5">
+          <h2 className="font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--app-accent-2)' }}>
             <ClockIcon className="w-5 h-5" />
             Recent Activity
           </h2>
@@ -411,7 +381,7 @@ export default function Dashboard() {
             {recent.length > 0 ? recent.slice(0, 6).map((system, i) => (
               <div key={system.id || i} className="flex items-start gap-2 p-2 rounded-lg"
                    style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
-                <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#00C2B3' }} />
+                <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: 'var(--app-primary)' }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm truncate">{system.name}</p>
                   <p className="text-xs" style={{ color: 'var(--muted)' }}>
@@ -424,29 +394,22 @@ export default function Dashboard() {
             )}
           </div>
           <Link to="/systems" className="block text-center text-sm mt-3 pt-3 border-t"
-             style={{ borderColor: 'rgba(255,255,255,0.06)', color: 'var(--muted)' }}>
+             style={{ borderColor: 'var(--border-soft)', color: 'var(--muted)' }}>
             View All Systems →
           </Link>
         </div>
 
         {/* Activity Log */}
-        <div className="rounded-xl overflow-hidden flex flex-col self-start" style={{
-          background: 'var(--app-card)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          height: '290px'
-        }}>
-          <div className="flex items-center justify-between p-4 border-b flex-shrink-0" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="haven-card overflow-hidden flex flex-col self-start" style={{ height: '290px' }}>
+          <div className="flex items-center justify-between p-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border-soft)' }}>
             <h2 className="font-semibold text-sm flex items-center gap-2">
               📋 Activity Log
-              {!logsPaused && <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#4ade80' }} />}
+              {!logsPaused && <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: CHART_PALETTE.success }} />}
             </h2>
             <div className="flex gap-2">
               <button onClick={() => setLogsPaused(!logsPaused)}
-                      className="px-2 py-1 rounded text-xs transition-colors"
-                      style={{
-                        background: logsPaused ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.05)',
-                        color: logsPaused ? '#ef4444' : 'var(--app-text)'
-                      }}>
+                      className={`pill ${logsPaused ? 'pill-red' : 'pill-muted'}`}
+                      style={{ cursor: 'pointer' }}>
                 {logsPaused ? '⏸ Paused' : '▶ Live'}
               </button>
             </div>

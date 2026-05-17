@@ -126,7 +126,8 @@ export default function DiscoveryType() {
         {/* Back button */}
         <Link
           to="/discoveries"
-          className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors"
+          className="inline-flex items-center gap-2 mb-4 transition-colors hover:underline"
+          style={{ color: 'var(--muted)' }}
         >
           <ArrowLeftIcon className="w-4 h-4" />
           Back to Discoveries
@@ -136,13 +137,13 @@ export default function DiscoveryType() {
           <div className="flex items-center gap-3">
             <span className="text-4xl">{typeInfo.emoji}</span>
             <div>
-              <h1 className="text-3xl font-bold text-white">{typeInfo.label}</h1>
-              <p className="text-gray-400">{typeInfo.description}</p>
+              <h1 className="text-3xl font-bold" style={{ color: 'var(--app-text)' }}>{typeInfo.label}</h1>
+              <p style={{ color: 'var(--muted)' }}>{typeInfo.description}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-gray-400">
+            <span style={{ color: 'var(--muted)' }}>
               {total.toLocaleString()} {total === 1 ? 'discovery' : 'discoveries'}
             </span>
             <Button onClick={() => setShowSubmitModal(true)}>
@@ -164,14 +165,14 @@ export default function DiscoveryType() {
       {/* Loading state */}
       {loading ? (
         <div className="flex items-center justify-center min-h-64">
-          <div className="text-lg text-gray-400">Loading {typeInfo.label.toLowerCase()}...</div>
+          <div className="text-lg" style={{ color: 'var(--muted)' }}>Loading {typeInfo.label.toLowerCase()}...</div>
         </div>
       ) : discoveries.length === 0 ? (
         /* Empty state */
         <div className="flex flex-col items-center justify-center min-h-64 text-center">
           <span className="text-6xl mb-4 opacity-30">{typeInfo.emoji}</span>
-          <h3 className="text-xl font-semibold text-white mb-2">No {typeInfo.label.toLowerCase()} found</h3>
-          <p className="text-gray-400 mb-4">
+          <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--app-text)' }}>No {typeInfo.label.toLowerCase()} found</h3>
+          <p className="mb-4" style={{ color: 'var(--muted)' }}>
             {searchQuery
               ? `No results matching "${searchQuery}"`
               : `Be the first to submit a ${typeInfo.label.toLowerCase()} discovery!`
@@ -200,14 +201,14 @@ export default function DiscoveryType() {
               <button
                 onClick={() => setPage(0)}
                 disabled={page === 0}
-                className="px-3 py-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="haven-btn-ghost px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 First
               </button>
               <button
                 onClick={() => setPage(p => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="px-3 py-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="haven-btn-ghost px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Prev
               </button>
@@ -216,13 +217,7 @@ export default function DiscoveryType() {
                 <button
                   key={p}
                   onClick={() => setPage(p)}
-                  className={`
-                    px-3 py-2 rounded-lg transition-colors
-                    ${p === page
-                      ? 'bg-cyan-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:text-white'
-                    }
-                  `}
+                  className={`px-3 py-2 rounded-lg transition-colors ${p === page ? 'haven-btn-primary' : 'haven-btn-ghost'}`}
                 >
                   {p + 1}
                 </button>
@@ -231,14 +226,14 @@ export default function DiscoveryType() {
               <button
                 onClick={() => setPage(p => Math.min(pages - 1, p + 1))}
                 disabled={page >= pages - 1}
-                className="px-3 py-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="haven-btn-ghost px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next
               </button>
               <button
                 onClick={() => setPage(pages - 1)}
                 disabled={page >= pages - 1}
-                className="px-3 py-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="haven-btn-ghost px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Last
               </button>
@@ -247,7 +242,7 @@ export default function DiscoveryType() {
 
           {/* Page info */}
           {pages > 1 && (
-            <div className="mt-4 text-center text-gray-500 text-sm">
+            <div className="mt-4 text-center text-sm" style={{ color: 'var(--muted)' }}>
               Page {page + 1} of {pages} ({total.toLocaleString()} total)
             </div>
           )}

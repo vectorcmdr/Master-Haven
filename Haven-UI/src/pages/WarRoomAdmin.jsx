@@ -299,21 +299,24 @@ export default function WarRoomAdmin() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#0a0c10' }}>
-        <div className="text-red-400 text-xl animate-pulse">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--war-bg)' }}>
+        <div className="text-xl animate-pulse" style={{ color: 'var(--war-accent)' }}>Loading...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen -m-6" style={{ backgroundColor: '#0a0c10', color: '#e5e7eb' }}>
+    <div className="min-h-screen -m-6" style={{ backgroundColor: 'var(--war-bg)', color: 'var(--war-text)' }}>
       {/* Header */}
-      <div className="border-b border-red-500/30 bg-gray-900/90 px-6 py-4">
+      <div
+        className="px-6 py-4 border-b"
+        style={{ background: 'var(--war-card)', borderColor: 'var(--war-border-strong)' }}
+      >
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-red-500 tracking-wider">WAR ROOM ADMIN</h1>
+          <h1 className="text-2xl font-bold tracking-wider" style={{ color: 'var(--war-accent)' }}>WAR ROOM ADMIN</h1>
           <button
             onClick={() => navigate('/war-room')}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+            className="war-btn-ghost px-4 py-2 rounded text-sm"
           >
             Back to War Room
           </button>
@@ -322,7 +325,7 @@ export default function WarRoomAdmin() {
 
       {/* Message */}
       {message && (
-        <div className={`mx-6 mt-4 p-3 rounded ${message.type === 'success' ? 'bg-green-500/20 border border-green-500/30 text-green-400' : 'bg-red-500/20 border border-red-500/30 text-red-400'}`}>
+        <div className={`mx-6 mt-4 p-3 rounded war-pill ${message.type === 'success' ? 'war-pill-success' : 'war-pill-red'}`}>
           {message.text}
           <button onClick={() => setMessage(null)} className="ml-4 text-xs opacity-60 hover:opacity-100">Dismiss</button>
         </div>
@@ -330,17 +333,17 @@ export default function WarRoomAdmin() {
 
       <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Enrolled Civilizations */}
-        <div className="bg-gray-900/80 border border-red-500/20 rounded-lg">
-          <div className="px-4 py-3 border-b border-red-500/20">
-            <h2 className="text-lg font-bold text-red-400">Enrolled Civilizations ({enrolledCivs.length})</h2>
+        <div className="war-card">
+          <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--war-border)' }}>
+            <h2 className="text-lg font-bold" style={{ color: 'var(--war-accent)' }}>Enrolled Civilizations ({enrolledCivs.length})</h2>
           </div>
           <div className="p-4">
             {enrolledCivs.length === 0 ? (
-              <p className="text-gray-500 text-sm">No civilizations enrolled yet.</p>
+              <p className="text-sm" style={{ color: 'var(--war-text-dim)' }}>No civilizations enrolled yet.</p>
             ) : (
               <div className="space-y-2">
                 {enrolledCivs.map(civ => (
-                  <div key={civ.partner_id} className="bg-gray-800/50 rounded p-3">
+                  <div key={civ.partner_id} className="war-card p-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div
@@ -349,36 +352,37 @@ export default function WarRoomAdmin() {
                         />
                         <div>
                           <div className="font-medium">{civ.display_name}</div>
-                          <div className="text-xs text-gray-500">{civ.discord_tag}</div>
+                          <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>{civ.discord_tag}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => syncTerritory(civ.partner_id)}
-                          className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs"
+                          className="war-btn-success px-2 py-1 rounded text-xs"
                           title="Sync new systems from discord_tag"
                         >
                           Sync
                         </button>
                         <button
                           onClick={() => unenrollPartner(civ.partner_id)}
-                          className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs"
+                          className="war-btn-danger px-2 py-1 rounded text-xs"
                         >
                           Unenroll
                         </button>
                       </div>
                     </div>
                     {/* Home Region */}
-                    <div className="mt-2 pt-2 border-t border-gray-700">
+                    <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--war-border)' }}>
                       {civ.home_region_x !== null ? (
                         <div className="flex items-center justify-between">
-                          <div className="text-xs text-gray-400">
-                            Home: <span className="text-white">{civ.home_region_name || `(${civ.home_region_x}, ${civ.home_region_y}, ${civ.home_region_z})`}</span>
-                            <span className="ml-1 text-gray-500">- {civ.home_galaxy}</span>
+                          <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
+                            Home: <span style={{ color: 'var(--war-text)' }}>{civ.home_region_name || `(${civ.home_region_x}, ${civ.home_region_y}, ${civ.home_region_z})`}</span>
+                            <span className="ml-1">- {civ.home_galaxy}</span>
                           </div>
                           <button
                             onClick={() => openHomeRegionEditor(civ)}
-                            className="text-xs text-cyan-400 hover:text-cyan-300"
+                            className="text-xs hover:opacity-80"
+                            style={{ color: 'var(--war-accent)' }}
                           >
                             Edit
                           </button>
@@ -386,7 +390,8 @@ export default function WarRoomAdmin() {
                       ) : (
                         <button
                           onClick={() => openHomeRegionEditor(civ)}
-                          className="text-xs text-cyan-400 hover:text-cyan-300"
+                          className="text-xs hover:opacity-80"
+                          style={{ color: 'var(--war-accent)' }}
                         >
                           + Set Home Region
                         </button>
@@ -398,13 +403,13 @@ export default function WarRoomAdmin() {
             )}
 
             {/* Enroll new partner */}
-            <div className="mt-4 pt-4 border-t border-gray-700">
-              <label className="block text-sm text-gray-400 mb-2">Enroll New Civilization</label>
+            <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--war-border)' }}>
+              <label className="block text-sm mb-2" style={{ color: 'var(--war-text-dim)' }}>Enroll New Civilization</label>
               <div className="flex gap-2">
                 <select
                   value={selectedPartner}
                   onChange={(e) => setSelectedPartner(e.target.value)}
-                  className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm"
+                  className="war-input flex-1 rounded px-3 py-2 text-sm"
                 >
                   <option value="">Select a partner...</option>
                   {availablePartners.map(p => (
@@ -414,7 +419,7 @@ export default function WarRoomAdmin() {
                 <button
                   onClick={enrollPartner}
                   disabled={!selectedPartner}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed rounded text-sm font-bold"
+                  className="war-btn-success px-4 py-2 rounded text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Enroll
                 </button>
@@ -424,20 +429,20 @@ export default function WarRoomAdmin() {
         </div>
 
         {/* War Correspondents */}
-        <div className="bg-gray-900/80 border border-red-500/20 rounded-lg">
-          <div className="px-4 py-3 border-b border-red-500/20">
-            <h2 className="text-lg font-bold text-red-400">War Correspondents ({correspondents.length})</h2>
+        <div className="war-card">
+          <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--war-border)' }}>
+            <h2 className="text-lg font-bold" style={{ color: 'var(--war-accent)' }}>War Correspondents ({correspondents.length})</h2>
           </div>
           <div className="p-4">
             {correspondents.length > 0 && (
               <div className="space-y-2 mb-4">
                 {correspondents.map(c => (
-                  <div key={c.id} className="flex items-center justify-between bg-gray-800/50 rounded p-3">
+                  <div key={c.id} className="war-card flex items-center justify-between p-3">
                     <div>
                       <div className="font-medium">{c.display_name || c.username}</div>
-                      <div className="text-xs text-gray-500">@{c.username}</div>
+                      <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>@{c.username}</div>
                     </div>
-                    <span className={`px-2 py-1 rounded text-xs ${c.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                    <span className={`war-pill ${c.is_active ? 'war-pill-success' : 'war-pill-muted'}`}>
                       {c.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
@@ -446,32 +451,32 @@ export default function WarRoomAdmin() {
             )}
 
             {/* Create new correspondent */}
-            <div className="space-y-3 pt-4 border-t border-gray-700">
-              <label className="block text-sm text-gray-400">Create New Correspondent</label>
+            <div className="space-y-3 pt-4 border-t" style={{ borderColor: 'var(--war-border)' }}>
+              <label className="block text-sm" style={{ color: 'var(--war-text-dim)' }}>Create New Correspondent</label>
               <input
                 type="text"
                 placeholder="Username"
                 value={newCorrespondent.username}
                 onChange={(e) => setNewCorrespondent(prev => ({ ...prev, username: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm"
+                className="war-input w-full rounded px-3 py-2 text-sm"
               />
               <input
                 type="password"
                 placeholder="Password"
                 value={newCorrespondent.password}
                 onChange={(e) => setNewCorrespondent(prev => ({ ...prev, password: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm"
+                className="war-input w-full rounded px-3 py-2 text-sm"
               />
               <input
                 type="text"
                 placeholder="Display Name (optional)"
                 value={newCorrespondent.display_name}
                 onChange={(e) => setNewCorrespondent(prev => ({ ...prev, display_name: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm"
+                className="war-input w-full rounded px-3 py-2 text-sm"
               />
               <button
                 onClick={createCorrespondent}
-                className="w-full py-2 bg-red-600 hover:bg-red-500 rounded text-sm font-bold"
+                className="war-btn-primary w-full py-2 rounded text-sm font-bold"
               >
                 Create Correspondent
               </button>
@@ -479,9 +484,9 @@ export default function WarRoomAdmin() {
           </div>
         </div>
 
-        {/* Reporting Organizations */}
-        <div className="bg-gray-900/80 border border-yellow-500/20 rounded-lg">
-          <div className="px-4 py-3 border-b border-yellow-500/20">
+        {/* Reporting Organizations — yellow accent retained as semantic "news" channel */}
+        <div className="war-card" style={{ borderColor: 'rgba(234, 179, 8, 0.3)' }}>
+          <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(234, 179, 8, 0.3)' }}>
             <h2 className="text-lg font-bold text-yellow-400">News Organizations ({reportingOrgs.length})</h2>
           </div>
           <div className="p-4">
@@ -494,23 +499,24 @@ export default function WarRoomAdmin() {
                       setSelectedOrg(org)
                       fetchOrgMembers(org.id)
                     }}
-                    className={`p-3 rounded cursor-pointer transition-all ${
+                    className="war-card war-card-hover p-3 cursor-pointer"
+                    style={
                       selectedOrg?.id === org.id
-                        ? 'bg-yellow-500/20 border border-yellow-500/50'
-                        : 'bg-gray-800/50 hover:bg-gray-800'
-                    }`}
+                        ? { borderColor: 'rgba(234, 179, 8, 0.5)', background: 'rgba(234, 179, 8, 0.15)' }
+                        : undefined
+                    }
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="font-medium text-white">{org.name}</div>
+                        <div className="font-medium" style={{ color: 'var(--war-text)' }}>{org.name}</div>
                         {org.discord_server_name && (
-                          <div className="text-xs text-gray-400">{org.discord_server_name}</div>
+                          <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>{org.discord_server_name}</div>
                         )}
                       </div>
-                      <span className="text-xs text-gray-500">{org.member_count} members</span>
+                      <span className="text-xs" style={{ color: 'var(--war-text-dim)' }}>{org.member_count} members</span>
                     </div>
                     {org.description && (
-                      <p className="text-xs text-gray-500 mt-1">{org.description}</p>
+                      <p className="text-xs mt-1" style={{ color: 'var(--war-text-dim)' }}>{org.description}</p>
                     )}
                   </div>
                 ))}
@@ -519,12 +525,13 @@ export default function WarRoomAdmin() {
 
             {/* Selected Org Members */}
             {selectedOrg && (
-              <div className="bg-gray-800/50 rounded p-3 mb-4">
+              <div className="war-card p-3 mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-bold text-yellow-400">{selectedOrg.name} Members</h4>
                   <button
                     onClick={() => setSelectedOrg(null)}
-                    className="text-xs text-gray-400 hover:text-white"
+                    className="text-xs hover:opacity-80"
+                    style={{ color: 'var(--war-text-dim)' }}
                   >
                     Close
                   </button>
@@ -533,37 +540,37 @@ export default function WarRoomAdmin() {
                   <div className="space-y-1 mb-3">
                     {orgMembers.map(m => (
                       <div key={m.id} className="flex items-center justify-between text-sm">
-                        <span className="text-gray-300">{m.display_name || m.username}</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${m.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                        <span style={{ color: 'var(--war-text)' }}>{m.display_name || m.username}</span>
+                        <span className={`war-pill ${m.is_active ? 'war-pill-success' : 'war-pill-muted'}`}>
                           {m.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-500 mb-3">No members yet</p>
+                  <p className="text-xs mb-3" style={{ color: 'var(--war-text-dim)' }}>No members yet</p>
                 )}
-                <div className="space-y-2 border-t border-gray-700 pt-3">
+                <div className="space-y-2 border-t pt-3" style={{ borderColor: 'var(--war-border)' }}>
                   <input
                     type="text"
                     placeholder="Username"
                     value={newOrgMember.username}
                     onChange={(e) => setNewOrgMember(prev => ({ ...prev, username: e.target.value }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs"
+                    className="war-input w-full rounded px-2 py-1 text-xs"
                   />
                   <input
                     type="password"
                     placeholder="Password"
                     value={newOrgMember.password}
                     onChange={(e) => setNewOrgMember(prev => ({ ...prev, password: e.target.value }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs"
+                    className="war-input w-full rounded px-2 py-1 text-xs"
                   />
                   <input
                     type="text"
                     placeholder="Display Name (optional)"
                     value={newOrgMember.display_name}
                     onChange={(e) => setNewOrgMember(prev => ({ ...prev, display_name: e.target.value }))}
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs"
+                    className="war-input w-full rounded px-2 py-1 text-xs"
                   />
                   <button
                     onClick={addOrgMember}
@@ -576,27 +583,27 @@ export default function WarRoomAdmin() {
             )}
 
             {/* Create new org */}
-            <div className="space-y-2 pt-3 border-t border-gray-700">
-              <label className="block text-sm text-gray-400">Create News Organization</label>
+            <div className="space-y-2 pt-3 border-t" style={{ borderColor: 'var(--war-border)' }}>
+              <label className="block text-sm" style={{ color: 'var(--war-text-dim)' }}>Create News Organization</label>
               <input
                 type="text"
                 placeholder="Organization Name"
                 value={newOrg.name}
                 onChange={(e) => setNewOrg(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm"
+                className="war-input w-full rounded px-3 py-2 text-sm"
               />
               <input
                 type="text"
                 placeholder="Discord Server (optional)"
                 value={newOrg.discord_server_name}
                 onChange={(e) => setNewOrg(prev => ({ ...prev, discord_server_name: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm"
+                className="war-input w-full rounded px-3 py-2 text-sm"
               />
               <textarea
                 placeholder="Description (optional)"
                 value={newOrg.description}
                 onChange={(e) => setNewOrg(prev => ({ ...prev, description: e.target.value }))}
-                className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm"
+                className="war-input w-full rounded px-3 py-2 text-sm"
                 rows={2}
               />
               <button
@@ -610,34 +617,34 @@ export default function WarRoomAdmin() {
         </div>
 
         {/* Conflict History */}
-        <div className="bg-gray-900/80 border border-gray-500/20 rounded-lg">
-          <div className="px-4 py-3 border-b border-gray-500/20">
-            <h2 className="text-lg font-bold text-gray-400">Conflict History ({conflictHistory.length})</h2>
+        <div className="war-card">
+          <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--war-border)' }}>
+            <h2 className="text-lg font-bold" style={{ color: 'var(--war-text-dim)' }}>Conflict History ({conflictHistory.length})</h2>
           </div>
           <div className="p-4">
             {conflictHistory.length === 0 ? (
-              <p className="text-gray-500 text-sm">No resolved conflicts yet</p>
+              <p className="text-sm" style={{ color: 'var(--war-text-dim)' }}>No resolved conflicts yet</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {conflictHistory.slice(0, 20).map(c => (
-                  <div key={c.id} className="bg-gray-800/50 rounded p-3">
+                  <div key={c.id} className="war-card p-3">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-white font-medium text-sm">{c.target_system_name}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        c.resolution === 'attacker_victory' ? 'bg-red-500/20 text-red-400' :
-                        c.resolution === 'defender_victory' ? 'bg-blue-500/20 text-blue-400' :
-                        c.resolution === 'surrender' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-green-500/20 text-green-400'
+                      <span className="font-medium text-sm" style={{ color: 'var(--war-text)' }}>{c.target_system_name}</span>
+                      <span className={`war-pill ${
+                        c.resolution === 'attacker_victory' ? 'war-pill-red' :
+                        c.resolution === 'defender_victory' ? 'war-pill-info' :
+                        c.resolution === 'surrender' ? 'war-pill-warning' :
+                        'war-pill-success'
                       }`}>
                         {c.resolution?.replace(/_/g, ' ') || 'Resolved'}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
                       <span style={{ color: c.attacker?.color }}>{c.attacker?.display_name}</span>
                       {' vs '}
                       <span style={{ color: c.defender?.color }}>{c.defender?.display_name}</span>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="text-xs mt-1" style={{ color: 'var(--war-text-dim)' }}>
                       {c.resolved_at ? new Date(c.resolved_at).toLocaleDateString() : 'Unknown date'}
                     </div>
                   </div>
@@ -647,25 +654,25 @@ export default function WarRoomAdmin() {
           </div>
         </div>
 
-        {/* News Management */}
-        <div className="bg-gray-900/80 border border-yellow-500/20 rounded-lg lg:col-span-2">
-          <div className="px-4 py-3 border-b border-yellow-500/20">
+        {/* News Management — yellow accent retained as semantic "news" channel */}
+        <div className="war-card lg:col-span-2" style={{ borderColor: 'rgba(234, 179, 8, 0.3)' }}>
+          <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(234, 179, 8, 0.3)' }}>
             <h2 className="text-lg font-bold text-yellow-400">News & Reports ({newsArticles.length})</h2>
           </div>
           <div className="p-4">
             {newsArticles.length === 0 ? (
-              <p className="text-gray-500 text-sm">No news articles yet</p>
+              <p className="text-sm" style={{ color: 'var(--war-text-dim)' }}>No news articles yet</p>
             ) : (
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {newsArticles.map(article => (
-                  <div key={article.id} className="bg-gray-800/50 rounded p-3 flex items-start justify-between gap-3">
+                  <div key={article.id} className="war-card p-3 flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          article.article_type === 'breaking' ? 'bg-red-500/20 text-red-400' :
-                          article.article_type === 'editorial' ? 'bg-purple-500/20 text-purple-400' :
-                          article.article_type === 'report' ? 'bg-blue-500/20 text-blue-400' :
-                          'bg-gray-500/20 text-gray-400'
+                        <span className={`war-pill ${
+                          article.article_type === 'breaking' ? 'war-pill-red' :
+                          article.article_type === 'editorial' ? 'war-pill-purple' :
+                          article.article_type === 'report' ? 'war-pill-info' :
+                          'war-pill-muted'
                         }`}>
                           {article.article_type || 'news'}
                         </span>
@@ -673,20 +680,20 @@ export default function WarRoomAdmin() {
                           <span className="text-xs text-yellow-400">📌 Pinned</span>
                         )}
                       </div>
-                      <div className="text-white font-medium text-sm truncate">{article.headline}</div>
-                      <div className="text-xs text-gray-400 mt-1">
+                      <div className="font-medium text-sm truncate" style={{ color: 'var(--war-text)' }}>{article.headline}</div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--war-text-dim)' }}>
                         By {article.author_name || article.author_username}
                         {article.reporting_org_name && (
                           <span className="text-yellow-400"> • {article.reporting_org_name}</span>
                         )}
-                        <span className="ml-2 text-gray-500">
+                        <span className="ml-2">
                           {new Date(article.published_at).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
                     <button
                       onClick={() => deleteNewsArticle(article.id, article.headline)}
-                      className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs flex-shrink-0"
+                      className="war-btn-danger px-2 py-1 rounded text-xs flex-shrink-0"
                       title="Delete this article"
                     >
                       Delete
@@ -699,14 +706,14 @@ export default function WarRoomAdmin() {
         </div>
 
         {/* Admin Actions */}
-        <div className="bg-gray-900/80 border border-red-500/20 rounded-lg lg:col-span-2">
-          <div className="px-4 py-3 border-b border-red-500/20">
-            <h2 className="text-lg font-bold text-red-400">Admin Actions</h2>
+        <div className="war-card lg:col-span-2">
+          <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--war-border)' }}>
+            <h2 className="text-lg font-bold" style={{ color: 'var(--war-accent)' }}>Admin Actions</h2>
           </div>
           <div className="p-4 flex flex-wrap gap-4">
             <button
               onClick={syncAllTerritory}
-              className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded text-sm font-bold"
+              className="war-btn-success px-4 py-2 rounded text-sm font-bold"
               title="Sync all enrolled civs' territory from their discord_tags"
             >
               Sync All Territory
@@ -719,7 +726,7 @@ export default function WarRoomAdmin() {
             </button>
             <button
               onClick={() => navigate('/war-room')}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+              className="war-btn-ghost px-4 py-2 rounded text-sm"
             >
               View War Room
             </button>
@@ -727,38 +734,39 @@ export default function WarRoomAdmin() {
         </div>
       </div>
 
-      {/* Home Region Modal */}
+      {/* Home Region Modal — cyan accent retained as semantic "HQ/identity" marker (matches war map HQ cyan ring) */}
       {editingHomeRegion && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-cyan-500/30 rounded-lg p-6 w-full max-w-md">
+          <div className="war-card p-6 w-full max-w-md" style={{ borderColor: 'rgba(34, 211, 209, 0.3)' }}>
             <h2 className="text-xl font-bold text-cyan-400 mb-4">
               Set Home Region: {editingHomeRegion.display_name}
             </h2>
             <div className="space-y-4">
               {/* Searchable Region Selector */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Search Your Systems</label>
+                <label className="block text-sm mb-2" style={{ color: 'var(--war-text-dim)' }}>Search Your Systems</label>
                 <div className="relative">
                   <input
                     type="text"
                     value={regionSearchQuery}
                     onChange={(e) => setRegionSearchQuery(e.target.value)}
                     placeholder={`Search systems with ${editingHomeRegion.discord_tag} tag...`}
-                    className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm"
+                    className="war-input w-full rounded px-3 py-2 text-sm"
                   />
                   {searchingRegions && (
-                    <span className="absolute right-3 top-2 text-gray-400 text-sm">...</span>
+                    <span className="absolute right-3 top-2 text-sm" style={{ color: 'var(--war-text-dim)' }}>...</span>
                   )}
                   {regionSearchResults.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-600 rounded shadow-lg max-h-48 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 war-card shadow-lg max-h-48 overflow-y-auto">
                       {regionSearchResults.map(s => (
                         <button
                           key={s.id}
                           onClick={() => selectRegionFromSearch(s)}
-                          className="w-full text-left px-3 py-2 hover:bg-gray-700 text-sm border-b border-gray-700 last:border-b-0"
+                          className="w-full text-left px-3 py-2 hover:bg-white/5 text-sm border-b last:border-b-0"
+                          style={{ borderColor: 'var(--war-border)' }}
                         >
-                          <div className="font-medium text-white">{s.name}</div>
-                          <div className="text-xs text-gray-400">
+                          <div className="font-medium" style={{ color: 'var(--war-text)' }}>{s.name}</div>
+                          <div className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
                             {s.region_name || `(${s.region_x}, ${s.region_y}, ${s.region_z})`} - {s.galaxy}
                           </div>
                         </button>
@@ -766,17 +774,17 @@ export default function WarRoomAdmin() {
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Search for a system in {editingHomeRegion.discord_tag}'s territory</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--war-text-dim)' }}>Search for a system in {editingHomeRegion.discord_tag}'s territory</p>
               </div>
 
               {/* Selected Region Display */}
               {homeRegionForm.region_x !== '' && (
-                <div className="bg-gray-800/50 border border-cyan-500/30 rounded p-3">
-                  <div className="text-sm text-gray-400 mb-1">Selected Region:</div>
-                  <div className="text-white font-medium">
+                <div className="war-card p-3" style={{ borderColor: 'rgba(34, 211, 209, 0.3)' }}>
+                  <div className="text-sm mb-1" style={{ color: 'var(--war-text-dim)' }}>Selected Region:</div>
+                  <div className="font-medium" style={{ color: 'var(--war-text)' }}>
                     {homeRegionForm.region_name || 'Unnamed Region'}
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">
+                  <div className="text-xs mt-1" style={{ color: 'var(--war-text-dim)' }}>
                     Coordinates: ({homeRegionForm.region_x}, {homeRegionForm.region_y}, {homeRegionForm.region_z}) • {homeRegionForm.galaxy}
                   </div>
                 </div>
@@ -788,7 +796,7 @@ export default function WarRoomAdmin() {
                 </div>
               )}
 
-              <p className="text-xs text-gray-500">
+              <p className="text-xs" style={{ color: 'var(--war-text-dim)' }}>
                 The home region (HQ) will be displayed on the war map and is protected from peace treaty demands.
               </p>
               <div className="flex gap-3 pt-2">
@@ -801,7 +809,7 @@ export default function WarRoomAdmin() {
                 </button>
                 <button
                   onClick={() => setEditingHomeRegion(null)}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
+                  className="war-btn-ghost px-4 py-2 rounded"
                 >
                   Cancel
                 </button>

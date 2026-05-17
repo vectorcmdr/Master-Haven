@@ -153,19 +153,19 @@ export default function CsvImport() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-cyan-400">CSV Import</h1>
+      <h1 className="text-2xl font-bold" style={{ color: 'var(--app-primary)' }}>CSV Import</h1>
 
-      <Card className="bg-gray-800/50">
+      <Card className="haven-card">
         <div className="p-4">
-          <h3 className="text-lg font-semibold text-white mb-2">Import Star Systems from CSV</h3>
-          <p className="text-sm text-gray-400 mb-4">
+          <h3 className="text-lg font-semibold mb-2">Import Star Systems from CSV</h3>
+          <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
             Upload a CSV file to bulk-import star systems. Supports multiple formats — column headers are auto-detected.
           </p>
 
           {/* Drag and drop area */}
           <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer
-              ${file ? 'border-cyan-500 bg-cyan-900/10' : 'border-gray-600 hover:border-gray-500'}`}
+            className={`haven-card-hover border-2 border-dashed rounded-lg p-8 text-center cursor-pointer ${file ? 'bg-cyan-900/10' : ''}`}
+            style={{ borderColor: file ? 'var(--app-primary)' : 'var(--border-soft)' }}
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
@@ -179,8 +179,8 @@ export default function CsvImport() {
             />
             {file ? (
               <div>
-                <div className="text-lg text-cyan-400 font-semibold">{file.name}</div>
-                <div className="text-sm text-gray-400 mt-1">{(file.size / 1024).toFixed(1)} KB</div>
+                <div className="text-lg font-semibold" style={{ color: 'var(--app-primary)' }}>{file.name}</div>
+                <div className="text-sm mt-1" style={{ color: 'var(--muted)' }}>{(file.size / 1024).toFixed(1)} KB</div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -196,8 +196,8 @@ export default function CsvImport() {
               </div>
             ) : (
               <div>
-                <div className="text-lg text-gray-300">Drop CSV file here</div>
-                <div className="text-sm text-gray-500 mt-1">or click to browse</div>
+                <div className="text-lg">Drop CSV file here</div>
+                <div className="text-sm mt-1" style={{ color: 'var(--muted)' }}>or click to browse</div>
               </div>
             )}
           </div>
@@ -215,43 +215,51 @@ export default function CsvImport() {
           {preview && (
             <div className="mt-6 space-y-4">
               {/* Detection summary */}
-              <div className="p-3 bg-gray-700/50 rounded border border-gray-600">
+              <div className="haven-card p-3">
                 <div className="flex flex-wrap gap-4 text-sm">
-                  <span className="text-gray-400">Format: <span className="text-cyan-400 font-medium">{preview.format === 'ghub' ? 'GHUB (region + headers)' : 'Dynamic (headers on row 1)'}</span></span>
-                  <span className="text-gray-400">Data rows: <span className="text-white font-medium">{preview.total_data_rows}</span></span>
+                  <span style={{ color: 'var(--muted)' }}>Format: <span className="font-medium" style={{ color: 'var(--app-primary)' }}>{preview.format === 'ghub' ? 'GHUB (region + headers)' : 'Dynamic (headers on row 1)'}</span></span>
+                  <span style={{ color: 'var(--muted)' }}>Data rows: <span className="font-medium">{preview.total_data_rows}</span></span>
                   {preview.coord_type && (
-                    <span className="text-gray-400">Coordinates: <span className="text-green-400 font-medium">
+                    <span style={{ color: 'var(--muted)' }}>Coordinates: <span className="font-medium text-green-400">
                       {preview.coord_type === 'portal_glyph' ? 'Portal Glyphs' : preview.coord_type === 'galactic_coords' ? 'Galactic Coords' : 'NMSPortals Link'}
                     </span></span>
                   )}
                   {preview.region_name && (
-                    <span className="text-gray-400">Region: <span className="text-yellow-400 font-medium">{preview.region_name}</span></span>
+                    <span style={{ color: 'var(--muted)' }}>Region: <span className="font-medium" style={{ color: 'var(--app-accent-amber)' }}>{preview.region_name}</span></span>
                   )}
                 </div>
               </div>
 
               {/* Column mapping table */}
               <div>
-                <h4 className="text-sm font-semibold text-gray-300 mb-2">Column Mapping</h4>
-                <p className="text-xs text-gray-500 mb-3">Review and adjust how each CSV column maps to Haven fields.</p>
+                <h4 className="text-sm font-semibold mb-2">Column Mapping</h4>
+                <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>Review and adjust how each CSV column maps to Haven fields.</p>
                 <div className="space-y-1.5">
                   {columnMapping.map((cm) => (
                     // flex-wrap + min-w-0 on the column-name span lets the
                     // select drop to its own line on phone instead of being
                     // pushed offscreen. min-w-[160px] reasserts on sm+ so
                     // desktop layout is unchanged.
-                    <div key={cm.index} className={`flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-1.5 rounded text-sm ${cm.mapped_to !== 'ignored' ? 'bg-gray-700/60' : 'bg-gray-800/30'}`}>
-                      <span className="text-gray-400 w-6 text-right text-xs">{cm.index + 1}</span>
-                      <span className={`font-medium min-w-0 sm:min-w-[160px] truncate ${cm.mapped_to !== 'ignored' ? 'text-white' : 'text-gray-500'}`}>
+                    <div
+                      key={cm.index}
+                      className="flex flex-wrap items-center gap-2 sm:gap-3 px-3 py-1.5 rounded text-sm"
+                      style={{
+                        background: cm.mapped_to !== 'ignored' ? 'var(--app-primary-soft)' : 'rgba(255,255,255,0.02)',
+                      }}
+                    >
+                      <span className="w-6 text-right text-xs" style={{ color: 'var(--muted)' }}>{cm.index + 1}</span>
+                      <span
+                        className="font-medium min-w-0 sm:min-w-[160px] truncate"
+                        style={{ color: cm.mapped_to !== 'ignored' ? 'var(--app-text)' : 'var(--muted)' }}
+                      >
                         {cm.csv_column}
                       </span>
-                      <span className="text-gray-500 hidden sm:inline">→</span>
+                      <span className="hidden sm:inline" style={{ color: 'var(--muted)' }}>→</span>
                       <select
                         value={cm.mapped_to}
                         onChange={(e) => updateMapping(cm.index, e.target.value)}
-                        className={`px-2 py-1 bg-gray-700 border rounded text-sm w-full sm:w-auto sm:flex-1 ${
-                          cm.mapped_to !== 'ignored' ? 'border-cyan-600 text-cyan-300' : 'border-gray-600 text-gray-400'
-                        }`}
+                        className="haven-input px-2 py-1 text-sm w-full sm:w-auto sm:flex-1"
+                        style={cm.mapped_to !== 'ignored' ? { color: '#6effe5', borderColor: 'var(--app-primary)' } : undefined}
                       >
                         {FIELD_OPTIONS.map(opt => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -265,13 +273,17 @@ export default function CsvImport() {
               {/* Data preview table */}
               {preview.preview_rows && preview.preview_rows.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-300 mb-2">Data Preview (first {preview.preview_rows.length} rows)</h4>
+                  <h4 className="text-sm font-semibold mb-2">Data Preview (first {preview.preview_rows.length} rows)</h4>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
                       <thead>
                         <tr>
                           {columnMapping.filter(cm => cm.mapped_to !== 'ignored').map(cm => (
-                            <th key={cm.index} className="px-2 py-1 text-left text-cyan-400 border-b border-gray-700 whitespace-nowrap">
+                            <th
+                              key={cm.index}
+                              className="px-2 py-1 text-left whitespace-nowrap"
+                              style={{ color: 'var(--app-primary)', borderBottom: '1px solid var(--border-soft)' }}
+                            >
                               {FIELD_OPTIONS.find(f => f.value === cm.mapped_to)?.label || cm.mapped_to}
                             </th>
                           ))}
@@ -279,10 +291,10 @@ export default function CsvImport() {
                       </thead>
                       <tbody>
                         {preview.preview_rows.map((row, i) => (
-                          <tr key={i} className="border-b border-gray-800">
+                          <tr key={i} style={{ borderBottom: '1px solid var(--border-soft)' }}>
                             {columnMapping.filter(cm => cm.mapped_to !== 'ignored').map(cm => (
-                              <td key={cm.index} className="px-2 py-1 text-gray-300 whitespace-nowrap max-w-[200px] truncate">
-                                {row[cm.mapped_to] || <span className="text-gray-600">—</span>}
+                              <td key={cm.index} className="px-2 py-1 whitespace-nowrap max-w-[200px] truncate">
+                                {row[cm.mapped_to] || <span style={{ color: 'var(--muted)' }}>—</span>}
                               </td>
                             ))}
                           </tr>
@@ -295,12 +307,12 @@ export default function CsvImport() {
 
               {/* Validation warnings */}
               {!hasCoords && (
-                <div className="p-2 bg-red-900/30 border border-red-700 rounded text-sm text-red-300">
+                <div className="haven-card p-2 text-sm text-red-300" style={{ borderColor: 'rgba(239,68,68,0.4)' }}>
                   No coordinate column detected. Map a column to "Portal Code", "Galactic Coordinates", or "NMSPortals Link".
                 </div>
               )}
               {!hasSystemName && (
-                <div className="p-2 bg-yellow-900/30 border border-yellow-700 rounded text-sm text-yellow-300">
+                <div className="haven-card p-2 text-sm" style={{ borderColor: 'var(--app-accent-amber)', color: 'var(--app-accent-amber)' }}>
                   No system name column detected. Systems will be named using their glyph code.
                 </div>
               )}
@@ -312,7 +324,8 @@ export default function CsvImport() {
                 </Button>
                 <button
                   onClick={() => { setPreview(null); setColumnMapping([]) }}
-                  className="text-sm text-gray-400 hover:text-gray-300"
+                  className="text-sm"
+                  style={{ color: 'var(--muted)' }}
                 >
                   Cancel
                 </button>
@@ -322,42 +335,45 @@ export default function CsvImport() {
 
           {/* Results */}
           {result && (
-            <div className={`mt-6 p-4 rounded border ${result.success ? 'bg-green-900/30 border-green-700' : 'bg-red-900/30 border-red-700'}`}>
+            <div
+              className="haven-card mt-6 p-4"
+              style={{ borderColor: result.success ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)' }}
+            >
               {result.success ? (
                 <div>
                   <h4 className="text-lg font-semibold text-green-400 mb-2">Import Complete</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-400">Systems Imported:</span>
+                      <span style={{ color: 'var(--muted)' }}>Systems Imported:</span>
                       <span className="ml-2 text-green-400 font-semibold">{result.imported}</span>
                     </div>
                     <div>
-                      <span className="text-gray-400">Rows Processed:</span>
-                      <span className="ml-2 text-white font-semibold">{result.totalRows}</span>
+                      <span style={{ color: 'var(--muted)' }}>Rows Processed:</span>
+                      <span className="ml-2 font-semibold">{result.totalRows}</span>
                     </div>
                     <div>
-                      <span className="text-gray-400">Skipped:</span>
-                      <span className="ml-2 text-yellow-400 font-semibold">{result.skipped}</span>
+                      <span style={{ color: 'var(--muted)' }}>Skipped:</span>
+                      <span className="ml-2 font-semibold" style={{ color: 'var(--app-accent-amber)' }}>{result.skipped}</span>
                     </div>
                     {result.systemsGrouped && (
                       <div>
-                        <span className="text-gray-400">Systems Grouped:</span>
-                        <span className="ml-2 text-cyan-400 font-semibold">{result.systemsGrouped}</span>
+                        <span style={{ color: 'var(--muted)' }}>Systems Grouped:</span>
+                        <span className="ml-2 font-semibold" style={{ color: 'var(--app-primary)' }}>{result.systemsGrouped}</span>
                       </div>
                     )}
                     {result.regionName && (
                       <div className="col-span-2">
-                        <span className="text-gray-400">Region:</span>
-                        <span className="ml-2 text-cyan-400">{result.regionName}</span>
+                        <span style={{ color: 'var(--muted)' }}>Region:</span>
+                        <span className="ml-2" style={{ color: 'var(--app-primary)' }}>{result.regionName}</span>
                       </div>
                     )}
                   </div>
                   {result.errors && result.errors.length > 0 && (
                     <div className="mt-4">
-                      <h5 className="text-sm font-semibold text-yellow-400 mb-1">
+                      <h5 className="text-sm font-semibold mb-1" style={{ color: 'var(--app-accent-amber)' }}>
                         Errors ({result.totalErrors} total, showing first {result.errors.length}):
                       </h5>
-                      <ul className="text-xs text-gray-400 space-y-1 max-h-32 overflow-y-auto">
+                      <ul className="text-xs space-y-1 max-h-32 overflow-y-auto" style={{ color: 'var(--muted)' }}>
                         {result.errors.map((err, i) => (
                           <li key={i} className="text-red-300">{err}</li>
                         ))}
@@ -378,10 +394,10 @@ export default function CsvImport() {
 
       {/* Info about permissions */}
       {isPartner && (
-        <Card className="bg-gray-800/50">
+        <Card className="haven-card">
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-gray-300 mb-2">About CSV Import</h3>
-            <ul className="text-sm text-gray-400 space-y-1 list-disc list-inside">
+            <h3 className="text-lg font-semibold mb-2">About CSV Import</h3>
+            <ul className="text-sm space-y-1 list-disc list-inside" style={{ color: 'var(--muted)' }}>
               <li>Imported systems will be tagged with your Discord ({user?.discordTag})</li>
               <li>Duplicate systems (same glyph code) will be skipped</li>
               <li>Systems are imported directly into the database (no approval needed)</li>

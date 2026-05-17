@@ -8,7 +8,8 @@ import { GALAXIES } from '../data/galaxies'
 import { normalizeUsernameForUrl } from '../posters/_shared/identity'
 
 const TIER_LABELS = { 1: 'Super Admin', 2: 'Partner', 3: 'Sub-Admin', 4: 'Member', 5: 'Member (Read-Only)' }
-const TIER_COLORS = { 1: 'text-yellow-400', 2: 'text-blue-400', 3: 'text-teal-400', 4: 'text-green-400', 5: 'text-gray-400' }
+// 2.0 design contract: tier badges use .pill + variant per CLAUDE.md "Tier badge palette".
+const TIER_PILL_VARIANTS = { 1: 'pill-emerald', 2: 'pill-blue', 3: 'pill-teal', 4: 'pill-purple', 5: 'pill-muted' }
 
 export default function Profile() {
   const auth = useContext(AuthContext)
@@ -130,8 +131,8 @@ export default function Profile() {
     setPage(1)
   }
 
-  if (loading) return <div className="text-gray-400 text-center py-12">Loading profile...</div>
-  if (!profile) return <div className="text-gray-400 text-center py-12">Not authenticated</div>
+  if (loading) return <div className="muted text-center py-12">Loading profile...</div>
+  if (!profile) return <div className="muted text-center py-12">Not authenticated</div>
 
   const manualCount = submissions.source_counts?.manual || 0
   const extractorCount = submissions.source_counts?.haven_extractor || 0
@@ -148,28 +149,30 @@ export default function Profile() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xl font-semibold">{profile.username}</div>
-              <div className={`text-sm ${TIER_COLORS[profile.tier] || 'text-gray-400'}`}>
-                {TIER_LABELS[profile.tier] || `Tier ${profile.tier}`}
+              <div className="mt-1">
+                <span className={`pill ${TIER_PILL_VARIANTS[profile.tier] || 'pill-muted'}`}>
+                  {TIER_LABELS[profile.tier] || `Tier ${profile.tier}`}
+                </span>
               </div>
             </div>
             {profile.stats && (
-              <div className="text-right text-sm text-gray-400">
+              <div className="text-right text-sm muted">
                 <div>{profile.stats.systems} systems</div>
                 <div>{profile.stats.discoveries} discoveries</div>
               </div>
             )}
           </div>
 
-          {/* Tier 5 promotion banner */}
+          {/* Tier 5 promotion banner — canonical warning callout pattern */}
           {isReadOnly && (
-            <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-3">
-              <div className="text-yellow-400 font-medium text-sm">Set a password to unlock profile editing</div>
-              <div className="text-yellow-500/70 text-xs mt-1">
+            <div className="haven-card p-3" style={{ borderColor: 'var(--app-accent-amber)' }}>
+              <div className="font-medium text-sm" style={{ color: 'var(--app-accent-amber)' }}>Set a password to unlock profile editing</div>
+              <div className="text-xs mt-1 muted">
                 With a password you can edit your display name, default community, reality, and galaxy preferences.
               </div>
               <button
                 onClick={() => setShowSetPassword(true)}
-                className="mt-2 px-3 py-1 bg-yellow-600 hover:bg-yellow-500 text-white text-sm rounded transition-colors"
+                className="haven-btn-primary mt-2 text-sm"
               >
                 Set Password
               </button>
@@ -180,19 +183,19 @@ export default function Profile() {
           {editing ? (
             <div className="space-y-3">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Display Name</label>
+                <label className="block text-sm muted mb-1">Display Name</label>
                 <input
                   value={form.display_name}
                   onChange={e => setForm({ ...form, display_name: e.target.value })}
-                  className="w-full p-2 bg-gray-700 rounded text-white"
+                  className="w-full"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Default Community</label>
+                <label className="block text-sm muted mb-1">Default Community</label>
                 <select
                   value={form.default_civ_tag}
                   onChange={e => setForm({ ...form, default_civ_tag: e.target.value })}
-                  className="w-full p-2 bg-gray-700 rounded text-white"
+                  className="w-full"
                 >
                   {/* "Personal" comes from /api/discord_tags as the first
                       entry — no need for a hardcoded option (which had a
@@ -205,11 +208,11 @@ export default function Profile() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Default Reality</label>
+                  <label className="block text-sm muted mb-1">Default Reality</label>
                   <select
                     value={form.default_reality || ''}
                     onChange={e => setForm({ ...form, default_reality: e.target.value })}
-                    className="w-full p-2 bg-gray-700 rounded text-white"
+                    className="w-full"
                   >
                     <option value="">Not set</option>
                     <option value="Normal">Normal</option>
@@ -217,7 +220,7 @@ export default function Profile() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Default Galaxy</label>
+                  <label className="block text-sm muted mb-1">Default Galaxy</label>
                   <SearchableSelect
                     options={GALAXIES.map(g => ({ value: g.name, label: `${g.index}. ${g.name}` }))}
                     value={form.default_galaxy || ''}
@@ -228,43 +231,43 @@ export default function Profile() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={saveProfile} disabled={saving} className="btn">
+                <button onClick={saveProfile} disabled={saving} className="haven-btn-primary">
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
-                <button onClick={() => setEditing(false)} className="btn bg-gray-600">Cancel</button>
+                <button onClick={() => setEditing(false)} className="haven-btn-ghost">Cancel</button>
               </div>
             </div>
           ) : (
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-400">Display Name</span>
+                <span className="muted">Display Name</span>
                 <span>{profile.display_name || profile.username}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Default Community</span>
+                <span className="muted">Default Community</span>
                 <span>{profile.default_civ_tag || 'Not set'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Default Reality</span>
-                <span className={!profile.default_reality ? 'text-gray-600' : ''}>{profile.default_reality || 'Not set'}</span>
+                <span className="muted">Default Reality</span>
+                <span className={!profile.default_reality ? 'muted' : ''}>{profile.default_reality || 'Not set'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Default Galaxy</span>
-                <span className={!profile.default_galaxy ? 'text-gray-600' : ''}>{profile.default_galaxy || 'Not set'}</span>
+                <span className="muted">Default Galaxy</span>
+                <span className={!profile.default_galaxy ? 'muted' : ''}>{profile.default_galaxy || 'Not set'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Password</span>
+                <span className="muted">Password</span>
                 <span>{profile.has_password ? 'Set' : 'Not set'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Member Since</span>
+                <span className="muted">Member Since</span>
                 <span>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}</span>
               </div>
               <div className="flex gap-2 pt-2">
                 {!isReadOnly && (
-                  <button onClick={() => setEditing(true)} className="btn text-sm">Edit Profile</button>
+                  <button onClick={() => setEditing(true)} className="haven-btn-primary text-sm">Edit Profile</button>
                 )}
-                <button onClick={() => setShowSetPassword(true)} className="btn text-sm bg-gray-600">
+                <button onClick={() => setShowSetPassword(true)} className="haven-btn-ghost text-sm">
                   {profile.has_password ? 'Change Password' : 'Set Password'}
                 </button>
               </div>
@@ -277,30 +280,39 @@ export default function Profile() {
       <Card>
         <h2 className="text-lg font-semibold mb-3">My Submissions</h2>
 
-        {/* Source tabs */}
+        {/* Source tabs — token-driven; active tab gets primary/accent color */}
         {totalSystems > 0 && (
-          <div className="flex gap-1 mb-4 border-b border-gray-700 pb-2">
+          <div className="flex gap-1 mb-4 pb-2" style={{ borderBottom: '1px solid var(--border-soft)' }}>
             <button
               onClick={() => handleSourceTab('all')}
-              className={`px-3 py-1.5 text-sm rounded-t transition-colors ${
-                sourceTab === 'all' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'
-              }`}
+              className="px-3 py-1.5 text-sm rounded-t transition-colors"
+              style={
+                sourceTab === 'all'
+                  ? { background: 'var(--app-card)', color: 'var(--app-text)' }
+                  : { color: 'var(--muted)' }
+              }
             >
-              All <span className="text-xs text-gray-500 ml-1">{totalSystems}</span>
+              All <span className="text-xs ml-1" style={{ color: 'var(--muted)' }}>{totalSystems}</span>
             </button>
             <button
               onClick={() => handleSourceTab('manual')}
-              className={`px-3 py-1.5 text-sm rounded-t transition-colors ${
-                sourceTab === 'manual' ? 'bg-cyan-900/50 text-cyan-400' : 'text-gray-400 hover:text-cyan-400'
-              }`}
+              className="px-3 py-1.5 text-sm rounded-t transition-colors"
+              style={
+                sourceTab === 'manual'
+                  ? { background: 'var(--app-card)', color: 'var(--app-primary)' }
+                  : { color: 'var(--muted)' }
+              }
             >
               Manual <span className="text-xs opacity-60 ml-1">{manualCount}</span>
             </button>
             <button
               onClick={() => handleSourceTab('haven_extractor')}
-              className={`px-3 py-1.5 text-sm rounded-t transition-colors ${
-                sourceTab === 'haven_extractor' ? 'bg-purple-900/50 text-purple-400' : 'text-gray-400 hover:text-purple-400'
-              }`}
+              className="px-3 py-1.5 text-sm rounded-t transition-colors"
+              style={
+                sourceTab === 'haven_extractor'
+                  ? { background: 'var(--app-card)', color: 'var(--app-accent-2)' }
+                  : { color: 'var(--muted)' }
+              }
             >
               Extractor <span className="text-xs opacity-60 ml-1">{extractorCount}</span>
             </button>
@@ -308,22 +320,27 @@ export default function Profile() {
         )}
 
         {subsLoading ? (
-          <div className="text-gray-400 text-sm">Loading...</div>
+          <div className="muted text-sm">Loading...</div>
         ) : (
           <div className="space-y-4">
             {/* Pending submissions */}
             {submissions.pending.length > 0 && sourceTab === 'all' && (
               <div>
-                <h3 className="text-sm font-medium text-yellow-400 mb-2">Pending Approval ({submissions.pending.length})</h3>
+                <h3 className="text-sm font-medium mb-2" style={{ color: 'var(--app-accent-amber)' }}>
+                  Pending Approval ({submissions.pending.length})
+                </h3>
                 <div className="space-y-1">
                   {submissions.pending.map(p => (
-                    <div key={`p-${p.id}`} className="flex items-center justify-between py-1.5 px-2 bg-gray-800 rounded text-sm">
+                    <div key={`p-${p.id}`} className="haven-card flex items-center justify-between py-1.5 px-2 text-sm">
                       <div className="flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${p.source === 'haven_extractor' ? 'bg-purple-400' : 'bg-cyan-400'}`} />
-                        <span className="text-white">{p.system_name}</span>
-                        <span className="text-gray-500">{p.galaxy} / {p.reality}</span>
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ background: p.source === 'haven_extractor' ? 'var(--app-accent-2)' : 'var(--app-primary)' }}
+                        />
+                        <span>{p.system_name}</span>
+                        <span className="muted">{p.galaxy} / {p.reality}</span>
                       </div>
-                      <span className="text-xs px-2 py-0.5 rounded bg-yellow-600/30 text-yellow-400">pending</span>
+                      <span className="pill pill-amber">pending</span>
                     </div>
                   ))}
                 </div>
@@ -333,56 +350,65 @@ export default function Profile() {
             {/* Approved systems */}
             {submissions.systems.length > 0 ? (
               <div>
-                <h3 className="text-sm font-medium text-green-400 mb-2">
+                <h3 className="text-sm font-medium mb-2" style={{ color: 'var(--app-primary)' }}>
                   Approved Systems ({submissions.total})
                 </h3>
                 <div className="space-y-1">
-                  {submissions.systems.map(s => (
-                    <a
-                      key={s.id}
-                      href={`/haven-ui/systems/${s.id}`}
-                      className="flex items-center justify-between py-1.5 px-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors block"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${s.source === 'haven_extractor' ? 'bg-purple-400' : 'bg-cyan-400'}`}
-                              title={s.source === 'haven_extractor' ? 'Haven Extractor' : 'Manual Upload'} />
-                        <span className="text-white">{s.name}</span>
-                        <span className="text-gray-500">{s.galaxy}</span>
-                        {s.discord_tag && <span className="text-cyan-400 text-xs">{s.discord_tag}</span>}
-                      </div>
-                      {s.is_complete !== null && s.is_complete !== undefined && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          s.is_complete >= 85 ? 'bg-yellow-600/30 text-yellow-400' :
-                          s.is_complete >= 65 ? 'bg-green-600/30 text-green-400' :
-                          s.is_complete >= 40 ? 'bg-blue-600/30 text-blue-400' :
-                          'bg-gray-600/30 text-gray-400'
-                        }`}>{
-                          s.is_complete >= 85 ? 'S' :
-                          s.is_complete >= 65 ? 'A' :
-                          s.is_complete >= 40 ? 'B' : 'C'
-                        }</span>
-                      )}
-                    </a>
-                  ))}
+                  {submissions.systems.map(s => {
+                    // Map completeness score → grade letter + .grade-* utility class.
+                    // S(85+), A(65-84), B(40-64), C(0-39) per CLAUDE.md grading contract.
+                    let gradeLetter = null
+                    let gradeClass = ''
+                    if (s.is_complete !== null && s.is_complete !== undefined) {
+                      if (s.is_complete >= 85) { gradeLetter = 'S'; gradeClass = 'grade-s' }
+                      else if (s.is_complete >= 65) { gradeLetter = 'A'; gradeClass = 'grade-a' }
+                      else if (s.is_complete >= 40) { gradeLetter = 'B'; gradeClass = 'grade-b' }
+                      else { gradeLetter = 'C'; gradeClass = 'grade-c' }
+                    }
+                    return (
+                      <a
+                        key={s.id}
+                        href={`/haven-ui/systems/${s.id}`}
+                        className="haven-card haven-card-hover flex items-center justify-between py-1.5 px-2 text-sm block"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{ background: s.source === 'haven_extractor' ? 'var(--app-accent-2)' : 'var(--app-primary)' }}
+                            title={s.source === 'haven_extractor' ? 'Haven Extractor' : 'Manual Upload'}
+                          />
+                          <span>{s.name}</span>
+                          <span className="muted">{s.galaxy}</span>
+                          {s.discord_tag && (
+                            <span className="text-xs" style={{ color: 'var(--app-primary)' }}>{s.discord_tag}</span>
+                          )}
+                        </div>
+                        {gradeLetter && <span className={gradeClass}>{gradeLetter}</span>}
+                      </a>
+                    )
+                  })}
                 </div>
 
                 {/* Pagination */}
                 {submissions.total_pages > 1 && (
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
+                  <div
+                    className="flex items-center justify-between mt-3 pt-3"
+                    style={{ borderTop: '1px solid var(--border-soft)' }}
+                  >
                     <button
                       onClick={() => setPage(p => Math.max(1, p - 1))}
                       disabled={page <= 1}
-                      className="px-3 py-1 text-sm bg-gray-700 rounded disabled:opacity-30 hover:bg-gray-600 transition-colors"
+                      className="haven-btn-ghost text-sm"
                     >
                       Previous
                     </button>
-                    <span className="text-sm text-gray-400">
+                    <span className="text-sm muted">
                       Page {page} of {submissions.total_pages}
                     </span>
                     <button
                       onClick={() => setPage(p => Math.min(submissions.total_pages, p + 1))}
                       disabled={page >= submissions.total_pages}
-                      className="px-3 py-1 text-sm bg-gray-700 rounded disabled:opacity-30 hover:bg-gray-600 transition-colors"
+                      className="haven-btn-ghost text-sm"
                     >
                       Next
                     </button>
@@ -390,7 +416,7 @@ export default function Profile() {
                 )}
               </div>
             ) : (
-              <div className="text-gray-500 text-sm">
+              <div className="muted text-sm">
                 {sourceTab !== 'all'
                   ? `No ${sourceTab === 'haven_extractor' ? 'extractor' : 'manual'} submissions yet.`
                   : 'No approved systems yet. Submit your first system from the Create page!'}
@@ -407,30 +433,30 @@ export default function Profile() {
           <div className="space-y-3">
             {profile.has_password && (
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Current Password</label>
+                <label className="block text-sm muted mb-1">Current Password</label>
                 <input
                   type="password"
                   value={currentPassword}
                   onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full p-2 bg-gray-700 rounded text-white"
+                  className="w-full"
                 />
               </div>
             )}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">New Password</label>
+              <label className="block text-sm muted mb-1">New Password</label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={e => setNewPassword(e.target.value)}
                 placeholder="At least 4 characters"
-                className="w-full p-2 bg-gray-700 rounded text-white"
+                className="w-full"
               />
             </div>
             <div className="flex gap-2">
-              <button onClick={handleSetPassword} disabled={pwSaving} className="btn">
+              <button onClick={handleSetPassword} disabled={pwSaving} className="haven-btn-primary">
                 {pwSaving ? 'Saving...' : (profile.has_password ? 'Change Password' : 'Set Password')}
               </button>
-              <button onClick={() => { setShowSetPassword(false); setPwMessage('') }} className="btn bg-gray-600">Cancel</button>
+              <button onClick={() => { setShowSetPassword(false); setPwMessage('') }} className="haven-btn-ghost">Cancel</button>
             </div>
             {pwMessage && (
               <div className={`text-sm ${pwMessage.includes('Failed') || pwMessage.includes('incorrect') ? 'text-red-400' : 'text-green-400'}`}>
@@ -513,19 +539,26 @@ function VoyagerCardSection({ profile, onUpdate }) {
     <Card>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">Your Voyager Card</h2>
-        <a href={liveUrl} target="_blank" rel="noopener noreferrer"
-          className="text-xs text-cyan-400 hover:text-cyan-300">
+        <a
+          href={liveUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs"
+          style={{ color: 'var(--app-primary)' }}
+        >
           View live →
         </a>
       </div>
 
       {optOut ? (
-        <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-6 text-center">
-          <div className="text-gray-400 text-sm">Your card is set to private.</div>
-          <div className="text-gray-500 text-xs mt-1">Toggle below to make it public again.</div>
+        <div className="haven-card p-6 text-center">
+          <div className="muted text-sm">Your card is set to private.</div>
+          <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+            Toggle below to make it public again.
+          </div>
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg overflow-hidden flex justify-center">
+        <div className="haven-card overflow-hidden flex justify-center p-0">
           <img
             src={pngUrl}
             alt={`${profile.username}'s Voyager Card`}
@@ -538,25 +571,28 @@ function VoyagerCardSection({ profile, onUpdate }) {
       <div className="flex flex-wrap gap-2 mt-3 items-center">
         <button
           onClick={handleCopy}
-          className="px-3 py-1.5 text-xs bg-cyan-600 hover:bg-cyan-700 text-white rounded transition"
+          className="haven-btn-primary text-xs"
         >
           {copied ? 'Link copied ✓' : 'Copy share link'}
         </button>
         <a
           href={pngUrl}
           download={`voyager-${slug}.png`}
-          className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded transition"
+          className="haven-btn-ghost text-xs"
         >
           Download PNG
         </a>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded transition disabled:opacity-50"
+          className="haven-btn-ghost text-xs"
         >
           {refreshing ? 'Refreshing…' : 'Refresh data'}
         </button>
-        <label className="ml-auto flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+        <label
+          className="ml-auto flex items-center gap-2 text-xs cursor-pointer"
+          style={{ color: 'var(--muted)' }}
+        >
           <input
             type="checkbox"
             checked={optOut}

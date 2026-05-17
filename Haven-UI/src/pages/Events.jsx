@@ -28,9 +28,9 @@ import { formatDate } from '../hooks/useDateFormat'
  */
 
 const EVENT_TYPE_LABELS = {
-  submissions: { label: 'System Submissions', icon: '🌌', color: 'bg-cyan-500' },
-  discoveries: { label: 'Discoveries', icon: '🔬', color: 'bg-purple-500' },
-  both: { label: 'Systems + Discoveries', icon: '🏆', color: 'bg-amber-500' }
+  submissions: { label: 'System Submissions', icon: '🌌', pill: 'pill-teal' },
+  discoveries: { label: 'Discoveries', icon: '🔬', pill: 'pill-purple' },
+  both: { label: 'Systems + Discoveries', icon: '🏆', pill: 'pill-emerald' }
 }
 
 /**
@@ -198,10 +198,10 @@ export default function Events({ embedded = false }) {
 
   const getEventStatus = (event) => {
     const now = new Date().toISOString()
-    if (!event.is_active) return { label: 'Inactive', color: 'bg-gray-500' }
-    if (event.start_date > now) return { label: 'Upcoming', color: 'bg-blue-500' }
-    if (event.end_date + 'T23:59:59' < now) return { label: 'Ended', color: 'bg-gray-500' }
-    return { label: 'Active', color: 'bg-green-500' }
+    if (!event.is_active) return { label: 'Inactive', pill: 'pill-muted' }
+    if (event.start_date > now) return { label: 'Upcoming', pill: 'pill-amber' }
+    if (event.end_date + 'T23:59:59' < now) return { label: 'Ended', pill: 'pill-muted' }
+    return { label: 'Active', pill: 'pill-emerald' }
   }
 
   // Determine which leaderboard tabs to show based on event type.
@@ -244,8 +244,7 @@ export default function Events({ embedded = false }) {
         ) : <div />}
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors"
-          style={{ background: 'var(--app-primary)', color: '#000' }}
+          className="haven-btn-primary flex items-center gap-2 px-4 py-2 rounded-lg transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -256,13 +255,7 @@ export default function Events({ embedded = false }) {
 
       {/* Events List */}
       {events.length === 0 ? (
-        <div
-          className="rounded-xl p-12 text-center"
-          style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-            border: '1px solid rgba(255,255,255,0.04)'
-          }}
-        >
+        <div className="haven-card p-12 text-center">
           <div className="text-4xl mb-4">📅</div>
           <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>No Events Yet</h3>
           <p className="text-sm mb-4" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
@@ -270,8 +263,7 @@ export default function Events({ embedded = false }) {
           </p>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 rounded-lg font-medium"
-            style={{ background: 'var(--app-primary)', color: '#000' }}
+            className="haven-btn-primary px-4 py-2 rounded-lg"
           >
             Create Event
           </button>
@@ -285,11 +277,7 @@ export default function Events({ embedded = false }) {
             return (
               <div
                 key={event.id}
-                className="rounded-xl p-4"
-                style={{
-                  background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-                  border: '1px solid rgba(255,255,255,0.04)'
-                }}
+                className="haven-card haven-card-hover p-4"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -297,19 +285,16 @@ export default function Events({ embedded = false }) {
                     <div>
                       <h3 className="font-semibold" style={{ color: 'var(--app-text)' }}>{event.name}</h3>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${status.color}`}>
+                        <span className={`pill ${status.pill}`}>
                           {status.label}
                         </span>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${typeInfo.color}`}>
+                        <span className={`pill ${typeInfo.pill}`}>
                           {typeInfo.label}
                         </span>
                       </div>
                     </div>
                   </div>
-                  <span
-                    className="px-2 py-1 rounded text-xs font-medium"
-                    style={{ background: 'rgba(0, 194, 179, 0.1)', color: 'var(--app-primary)' }}
-                  >
+                  <span className="pill pill-teal">
                     {event.discord_tag}
                   </span>
                 </div>
@@ -334,7 +319,7 @@ export default function Events({ embedded = false }) {
                   )}
                   {(eventType === 'discoveries' || eventType === 'both') && (
                     <div>
-                      <span className="font-semibold" style={{ color: '#a855f7' }}>
+                      <span className="font-semibold" style={{ color: 'var(--app-accent-2)' }}>
                         {event.discovery_count}
                       </span> discoveries
                     </div>
@@ -346,37 +331,24 @@ export default function Events({ embedded = false }) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="flex items-center gap-2 pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
                   <button
                     onClick={() => handleViewLeaderboard(event)}
-                    className="flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{
-                      background: 'rgba(0, 194, 179, 0.1)',
-                      color: 'var(--app-primary)',
-                      border: '1px solid rgba(0, 194, 179, 0.2)'
-                    }}
+                    className="haven-btn-ghost flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    style={{ color: 'var(--app-primary)', borderColor: 'rgba(0, 194, 179, 0.3)' }}
                   >
                     View Leaderboard
                   </button>
                   <button
                     onClick={() => handleToggleActive(event)}
-                    className="px-3 py-2 rounded-lg text-sm transition-colors"
-                    style={{
-                      background: 'rgba(255,255,255,0.05)',
-                      color: 'var(--app-text)',
-                      border: '1px solid rgba(255,255,255,0.1)'
-                    }}
+                    className="haven-btn-ghost px-3 py-2 rounded-lg text-sm transition-colors"
                   >
                     {event.is_active ? 'Deactivate' : 'Activate'}
                   </button>
                   <button
                     onClick={() => handleDeleteEvent(event)}
-                    className="px-3 py-2 rounded-lg text-sm transition-colors"
-                    style={{
-                      background: 'rgba(239, 68, 68, 0.1)',
-                      color: '#ef4444',
-                      border: '1px solid rgba(239, 68, 68, 0.2)'
-                    }}
+                    className="haven-btn-ghost px-3 py-2 rounded-lg text-sm transition-colors"
+                    style={{ color: '#fca5a5', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                   >
                     Delete
                   </button>
@@ -389,18 +361,16 @@ export default function Events({ embedded = false }) {
 
       {/* Create Event Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowCreateModal(false)} />
+        <div className="haven-modal" onClick={() => setShowCreateModal(false)}>
           <div
-            className="relative rounded-xl p-6 w-full max-w-md"
-            style={{
-              background: 'var(--app-card)',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }}
+            className="haven-modal-panel haven-modal-panel-narrow"
+            onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--app-text)' }}>Create New Event</h2>
+            <div className="haven-modal-header">
+              <span>Create New Event</span>
+            </div>
             <form onSubmit={handleCreateEvent}>
-              <div className="space-y-4">
+              <div className="haven-modal-body space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: 'var(--app-text)' }}>
                     Event Name
@@ -490,19 +460,17 @@ export default function Events({ embedded = false }) {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="haven-modal-footer">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-lg text-sm"
-                  style={{ color: 'var(--app-text)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  className="haven-btn-ghost px-4 py-2 rounded-lg text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg text-sm font-medium"
-                  style={{ background: 'var(--app-primary)', color: '#000' }}
+                  className="haven-btn-primary px-4 py-2 rounded-lg text-sm"
                 >
                   Create Event
                 </button>
@@ -514,22 +482,18 @@ export default function Events({ embedded = false }) {
 
       {/* Leaderboard Modal */}
       {showLeaderboardModal && selectedEvent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowLeaderboardModal(false)} />
+        <div className="haven-modal" onClick={() => setShowLeaderboardModal(false)}>
           <div
-            className="relative rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
-            style={{
-              background: 'var(--app-card)',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }}
+            className="haven-modal-panel haven-modal-panel-wide"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="haven-modal-header">
               <div>
-                <h2 className="text-xl font-semibold" style={{ color: 'var(--app-text)' }}>
+                <div style={{ color: 'var(--app-text)' }}>
                   {(EVENT_TYPE_LABELS[selectedEvent.event_type] || EVENT_TYPE_LABELS.submissions).icon}{' '}
                   {selectedEvent.name}
-                </h2>
-                <p className="text-sm mt-1" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
+                </div>
+                <p className="text-sm mt-1 font-normal" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
                   {formatDate(selectedEvent.start_date)} - {formatDate(selectedEvent.end_date)}
                 </p>
               </div>
@@ -544,110 +508,112 @@ export default function Events({ embedded = false }) {
               </button>
             </div>
 
-            {/* Tab Switcher */}
-            {getAvailableTabs(selectedEvent).length > 1 && (
-              <div className="flex items-center rounded-lg overflow-hidden mb-4" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                {getAvailableTabs(selectedEvent).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => handleTabChange(tab)}
-                    className="px-4 py-2 text-sm font-medium transition-colors flex-1"
-                    style={{
-                      background: leaderboardTab === tab ? 'var(--app-primary)' : 'transparent',
-                      color: leaderboardTab === tab ? '#000' : 'var(--app-text)'
-                    }}
-                  >
-                    {tab === 'submissions' ? 'Systems' : tab === 'discoveries' ? 'Discoveries' : 'Combined'}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="haven-modal-body">
+              {/* Tab Switcher */}
+              {getAvailableTabs(selectedEvent).length > 1 && (
+                <div className="haven-card flex items-center rounded-lg overflow-hidden mb-4">
+                  {getAvailableTabs(selectedEvent).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => handleTabChange(tab)}
+                      className="px-4 py-2 text-sm font-medium transition-colors flex-1"
+                      style={{
+                        background: leaderboardTab === tab ? 'var(--app-primary)' : 'transparent',
+                        color: leaderboardTab === tab ? '#000' : 'var(--app-text)'
+                      }}
+                    >
+                      {tab === 'submissions' ? 'Systems' : tab === 'discoveries' ? 'Discoveries' : 'Combined'}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-            {/* Event Stats */}
-            <div className={`grid gap-4 mb-6 ${
-              leaderboardTab === 'combined' ? 'grid-cols-4' :
-              leaderboardTab === 'submissions' ? 'grid-cols-3' : 'grid-cols-2'
-            }`}>
-              {leaderboardTab === 'submissions' && (
-                <>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(0, 194, 179, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: 'var(--app-primary)' }}>
-                      {eventLeaderboard.totals.total_submissions || 0}
+              {/* Event Stats */}
+              <div className={`grid gap-4 mb-6 ${
+                leaderboardTab === 'combined' ? 'grid-cols-4' :
+                leaderboardTab === 'submissions' ? 'grid-cols-3' : 'grid-cols-2'
+              }`}>
+                {leaderboardTab === 'submissions' && (
+                  <>
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: 'var(--app-primary)' }}>
+                        {eventLeaderboard.totals.total_submissions || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Submissions</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Submissions</div>
-                  </div>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(34, 197, 94, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: '#22c55e' }}>
-                      {eventLeaderboard.totals.total_approved || 0}
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: '#34d399' }}>
+                        {eventLeaderboard.totals.total_approved || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Approved</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Approved</div>
-                  </div>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(157, 78, 221, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
-                      {eventLeaderboard.totals.participants || 0}
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
+                        {eventLeaderboard.totals.participants || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Participants</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Participants</div>
-                  </div>
-                </>
-              )}
-              {leaderboardTab === 'discoveries' && (
-                <>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(168, 85, 247, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: '#a855f7' }}>
-                      {eventLeaderboard.totals.total_discoveries || 0}
+                  </>
+                )}
+                {leaderboardTab === 'discoveries' && (
+                  <>
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
+                        {eventLeaderboard.totals.total_discoveries || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Discoveries</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Discoveries</div>
-                  </div>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(157, 78, 221, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
-                      {eventLeaderboard.totals.participants || 0}
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
+                        {eventLeaderboard.totals.participants || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Discoverers</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Discoverers</div>
-                  </div>
-                </>
-              )}
-              {leaderboardTab === 'combined' && (
-                <>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(0, 194, 179, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: 'var(--app-primary)' }}>
-                      {eventLeaderboard.totals.total_submissions || 0}
+                  </>
+                )}
+                {leaderboardTab === 'combined' && (
+                  <>
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: 'var(--app-primary)' }}>
+                        {eventLeaderboard.totals.total_submissions || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Submissions</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Submissions</div>
-                  </div>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(168, 85, 247, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: '#a855f7' }}>
-                      {eventLeaderboard.totals.total_discoveries || 0}
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
+                        {eventLeaderboard.totals.total_discoveries || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Discoveries</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Discoveries</div>
-                  </div>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(245, 158, 11, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: '#f59e0b' }}>
-                      {eventLeaderboard.totals.combined_total || 0}
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-amber)' }}>
+                        {eventLeaderboard.totals.combined_total || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Combined</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Combined</div>
-                  </div>
-                  <div className="p-4 rounded-lg text-center" style={{ background: 'rgba(157, 78, 221, 0.1)' }}>
-                    <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
-                      {eventLeaderboard.totals.participants || 0}
+                    <div className="haven-card p-3 text-center">
+                      <div className="text-2xl font-bold" style={{ color: 'var(--app-accent-2)' }}>
+                        {eventLeaderboard.totals.participants || 0}
+                      </div>
+                      <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Participants</div>
                     </div>
-                    <div className="text-sm" style={{ color: 'var(--app-text)', opacity: 0.7 }}>Participants</div>
-                  </div>
-                </>
+                  </>
+                )}
+              </div>
+
+              {/* Leaderboard Table */}
+              {leaderboardTab === 'discoveries' ? (
+                <DiscoveryLeaderboard data={eventLeaderboard.leaderboard} loading={leaderboardLoading} />
+              ) : leaderboardTab === 'combined' ? (
+                <CombinedLeaderboard data={eventLeaderboard.leaderboard} loading={leaderboardLoading} />
+              ) : (
+                <LeaderboardTable
+                  data={eventLeaderboard.leaderboard}
+                  showCommunity={false}
+                  loading={leaderboardLoading}
+                />
               )}
             </div>
-
-            {/* Leaderboard Table */}
-            {leaderboardTab === 'discoveries' ? (
-              <DiscoveryLeaderboard data={eventLeaderboard.leaderboard} loading={leaderboardLoading} />
-            ) : leaderboardTab === 'combined' ? (
-              <CombinedLeaderboard data={eventLeaderboard.leaderboard} loading={leaderboardLoading} />
-            ) : (
-              <LeaderboardTable
-                data={eventLeaderboard.leaderboard}
-                showCommunity={false}
-                loading={leaderboardLoading}
-              />
-            )}
           </div>
         </div>
       )}
@@ -659,11 +625,11 @@ export default function Events({ embedded = false }) {
 /** Leaderboard table for discovery-only events (shows discoverer, count, types) */
 function DiscoveryLeaderboard({ data, loading }) {
   if (loading) {
-    return <div className="text-center py-8 text-gray-400">Loading leaderboard...</div>
+    return <div className="text-center py-8" style={{ color: 'var(--muted)' }}>Loading leaderboard...</div>
   }
 
   if (!data || data.length === 0) {
-    return <div className="text-center py-8 text-gray-400">No discoveries during this event period.</div>
+    return <div className="text-center py-8" style={{ color: 'var(--muted)' }}>No discoveries during this event period.</div>
   }
 
   return (
@@ -688,7 +654,7 @@ function DiscoveryLeaderboard({ data, loading }) {
               <td className="py-3 px-2 font-medium" style={{ color: 'var(--app-text)' }}>
                 {entry.username}
               </td>
-              <td className="py-3 px-2 text-right font-semibold" style={{ color: '#a855f7' }}>
+              <td className="py-3 px-2 text-right font-semibold" style={{ color: 'var(--app-accent-2)' }}>
                 {entry.total_discoveries}
               </td>
               <td className="py-3 px-2 text-right" style={{ color: 'var(--app-text)', opacity: 0.7 }}>
@@ -706,11 +672,11 @@ function DiscoveryLeaderboard({ data, loading }) {
 /** Leaderboard table for 'both' events (shows systems + discoveries + combined total) */
 function CombinedLeaderboard({ data, loading }) {
   if (loading) {
-    return <div className="text-center py-8 text-gray-400">Loading leaderboard...</div>
+    return <div className="text-center py-8" style={{ color: 'var(--muted)' }}>Loading leaderboard...</div>
   }
 
   if (!data || data.length === 0) {
-    return <div className="text-center py-8 text-gray-400">No activity during this event period.</div>
+    return <div className="text-center py-8" style={{ color: 'var(--muted)' }}>No activity during this event period.</div>
   }
 
   return (
@@ -739,10 +705,10 @@ function CombinedLeaderboard({ data, loading }) {
               <td className="py-3 px-2 text-right" style={{ color: 'var(--app-primary)' }}>
                 {entry.total_submissions}
               </td>
-              <td className="py-3 px-2 text-right" style={{ color: '#a855f7' }}>
+              <td className="py-3 px-2 text-right" style={{ color: 'var(--app-accent-2)' }}>
                 {entry.total_discoveries}
               </td>
-              <td className="py-3 px-2 text-right font-semibold" style={{ color: '#f59e0b' }}>
+              <td className="py-3 px-2 text-right font-semibold" style={{ color: 'var(--app-accent-amber)' }}>
                 {entry.combined_total}
               </td>
             </tr>

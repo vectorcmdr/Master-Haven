@@ -243,6 +243,15 @@ export default function Wizard() {
   // name that matched the last procgen, OR cleared the field intending to
   // retype, the auto-fill kicked in and clobbered intent.
   const userEditedNameRef = useRef(false)
+  // Same dual-guard for the proposed region name. Pre-fix the field had only
+  // a `prev || newName` short-circuit, which silently dropped namegen updates
+  // when the user changed galaxy (state was already non-empty from the prior
+  // galaxy's auto-fill, so the OR never reached the new value).
+  // `userEditedRegionRef` flips on user keystroke; `lastProceduralRegionRef`
+  // remembers what auto-gen last wrote so we can tell "still the suggestion"
+  // from "user customized it".
+  const userEditedRegionRef = useRef(false)
+  const lastProceduralRegionRef = useRef('')
   // Captures the originally-loaded space_station on edit so toggling the
   // station off/on doesn't replace a real loaded station with an
   // auto-generated placeholder. Cleared on submit / Submit Another.
@@ -364,7 +373,19 @@ export default function Wizard() {
                 return s
               })
               if (!r.data?.custom_name) {
-                setProposedRegionName((p) => p || ng.data.region_name || '')
+                // Mirror the system-name pattern: only auto-fill when the user
+                // hasn't customized the field. Allow overwrite when current
+                // value is empty OR still equals the last value we wrote
+                // (i.e., user hasn't customized after the prior galaxy's gen).
+                setProposedRegionName((prev) => {
+                  if (userEditedRegionRef.current) return prev
+                  const newName = ng.data.region_name || ''
+                  if (!prev || prev === lastProceduralRegionRef.current) {
+                    lastProceduralRegionRef.current = newName
+                    return newName
+                  }
+                  return prev
+                })
               }
             })
             .catch(() => {})
@@ -1060,6 +1081,8 @@ export default function Wizard() {
     setDiscoveries([])
     setSameNameMatches([])
     userEditedNameRef.current = false
+    userEditedRegionRef.current = false
+    lastProceduralRegionRef.current = ''
     originalStationRef.current = null
     setSystem((s) => ({
       ...EMPTY_SYSTEM,
@@ -1406,7 +1429,7 @@ export default function Wizard() {
               regionInfo={regionInfo}
               regionLoading={regionLoading}
               proposedRegionName={proposedRegionName}
-              setProposedRegionName={(v) => { setProposedRegionName(v); setRegionNameSavedAt(null) }}
+              setProposedRegionName={(v) => { userEditedRegionRef.current = true; setProposedRegionName(v); setRegionNameSavedAt(null) }}
               regionNameSavedAt={regionNameSavedAt}
               onSaveRegionName={saveRegionNameLocally}
               diffMap={diffMap}

@@ -232,12 +232,7 @@ export default function CivilizationManagement() {
           placeholder="Search by tag or display name..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full px-3 py-2 rounded border"
-          style={{
-            backgroundColor: 'var(--app-card)',
-            borderColor: 'var(--app-accent-3)',
-            color: 'var(--app-text)',
-          }}
+          className="haven-input w-full px-3 py-2"
         />
       </div>
 
@@ -261,7 +256,7 @@ export default function CivilizationManagement() {
         >
           <div className="space-y-4">
             {/* Brand panel */}
-            <div className="border-b pb-3" style={{ borderColor: 'var(--app-accent-3)' }}>
+            <div className="border-b pb-3" style={{ borderColor: 'var(--border-soft)' }}>
               <div className="flex items-center justify-between mb-2">
                 <h4 className="font-semibold">Brand</h4>
                 {!editMode ? (
@@ -291,10 +286,9 @@ export default function CivilizationManagement() {
                     <span className="opacity-70">Display name</span>
                     <input
                       type="text"
-                      className="w-full mt-0.5 px-2 py-1 rounded border bg-transparent"
+                      className="haven-input w-full mt-0.5 px-2 py-1"
                       value={editDraft.display_name}
                       onChange={e => setEditDraft(d => ({ ...d, display_name: e.target.value }))}
-                      style={{ borderColor: 'var(--app-accent-3)' }}
                     />
                   </label>
                   <label className="block">
@@ -380,20 +374,18 @@ export default function CivilizationManagement() {
               <span className="opacity-70">Exact username</span>
               <input
                 type="text"
-                className="w-full mt-1 px-2 py-1 rounded border bg-transparent"
+                className="haven-input w-full mt-1 px-2 py-1"
                 value={addProfileQuery}
                 onChange={e => setAddProfileQuery(e.target.value)}
                 placeholder="username (case-insensitive)"
-                style={{ borderColor: 'var(--app-accent-3)' }}
               />
             </label>
             <label className="block text-sm">
               <span className="opacity-70">Role</span>
               <select
-                className="w-full mt-1 px-2 py-1 rounded border bg-transparent"
+                className="haven-input w-full mt-1 px-2 py-1"
                 value={addRole}
                 onChange={e => setAddRole(e.target.value)}
-                style={{ borderColor: 'var(--app-accent-3)' }}
               >
                 {ROLES.map(r => <option key={r.id} value={r.id}>{r.label} — {r.desc}</option>)}
               </select>
@@ -414,21 +406,19 @@ export default function CivilizationManagement() {
               <span className="opacity-70">Tag (the discord_tag on every system, e.g. "GHUB"). Cannot be changed.</span>
               <input
                 type="text"
-                className="w-full mt-1 px-2 py-1 rounded border bg-transparent"
+                className="haven-input w-full mt-1 px-2 py-1"
                 value={createDraft.tag}
                 onChange={e => setCreateDraft(d => ({ ...d, tag: e.target.value }))}
-                style={{ borderColor: 'var(--app-accent-3)' }}
               />
             </label>
             <label className="block text-sm">
               <span className="opacity-70">Display name</span>
               <input
                 type="text"
-                className="w-full mt-1 px-2 py-1 rounded border bg-transparent"
+                className="haven-input w-full mt-1 px-2 py-1"
                 value={createDraft.display_name}
                 onChange={e => setCreateDraft(d => ({ ...d, display_name: e.target.value }))}
                 placeholder="(defaults to tag)"
-                style={{ borderColor: 'var(--app-accent-3)' }}
               />
             </label>
             <label className="block text-sm">
@@ -444,10 +434,9 @@ export default function CivilizationManagement() {
               <span className="opacity-70">Founder username (must already have a profile)</span>
               <input
                 type="text"
-                className="w-full mt-1 px-2 py-1 rounded border bg-transparent"
+                className="haven-input w-full mt-1 px-2 py-1"
                 value={createDraft.founder_username}
                 onChange={e => setCreateDraft(d => ({ ...d, founder_username: e.target.value }))}
-                style={{ borderColor: 'var(--app-accent-3)' }}
               />
             </label>
             <div>
@@ -484,10 +473,9 @@ function CivCard({ civ, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="text-left rounded-lg p-4 border hover:bg-white/5 transition-colors w-full"
+      className="haven-card haven-card-hover text-left p-4 w-full"
       style={{
-        backgroundColor: 'var(--app-card)',
-        borderColor: civ.region_color || 'var(--app-accent-3)',
+        borderColor: civ.region_color || 'var(--border-card)',
         opacity: civ.is_active ? 1 : 0.55,
       }}
     >
@@ -495,7 +483,7 @@ function CivCard({ civ, onClick }) {
         <span className="font-bold">{civ.tag}</span>
         <span
           className="inline-block w-3 h-3 rounded-full"
-          style={{ backgroundColor: civ.region_color || '#666' }}
+          style={{ backgroundColor: civ.region_color || 'var(--muted)' }}
         />
       </div>
       <div className="text-sm opacity-90 mb-3 truncate">{civ.display_name}</div>
@@ -522,13 +510,7 @@ function Stat({ label, value }) {
 
 function MemberRow({ member, onChangeRole, onToggleCap, onRemove }) {
   return (
-    <div
-      className="flex items-center gap-2 px-3 py-2 rounded border text-sm"
-      style={{
-        backgroundColor: 'rgba(255,255,255,0.03)',
-        borderColor: 'var(--app-accent-3)',
-      }}
-    >
+    <div className="haven-card flex items-center gap-2 px-3 py-2 text-sm">
       <div className="flex-1 min-w-0">
         <div className="font-medium truncate">{member.display_name || member.username}</div>
         <div className="text-xs opacity-60 truncate">
@@ -539,8 +521,7 @@ function MemberRow({ member, onChangeRole, onToggleCap, onRemove }) {
       <select
         value={member.role}
         onChange={e => onChangeRole(e.target.value)}
-        className="px-2 py-1 rounded border bg-transparent text-xs"
-        style={{ borderColor: 'var(--app-accent-3)' }}
+        className="haven-input px-2 py-1 text-xs"
       >
         {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
       </select>
@@ -554,7 +535,7 @@ function MemberRow({ member, onChangeRole, onToggleCap, onRemove }) {
       </label>
       <button
         onClick={onRemove}
-        className="px-2 py-1 rounded bg-red-500/20 text-red-300 text-xs hover:bg-red-500/30"
+        className="pill pill-red pill-clickable"
       >
         Remove
       </button>

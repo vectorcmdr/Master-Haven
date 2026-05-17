@@ -78,30 +78,20 @@ export default function AdminTools() {
 
   return (
     <div className="-mx-3 sm:-mx-6 -mt-3 sm:-mt-6">
-      {/* Hub header — same shape as AnalyticsHub / AccessControl.
-          Negative margin clamped to match container padding on phones
-          (container has px-3 on mobile, px-6 on sm+); pre-fix the -mx-6
-          over-pulled past the container's mobile padding and triggered
-          horizontal page scroll. */}
-      <div
-        className="px-6 pt-4 pb-3 border-b"
-        style={{
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.03), transparent)',
-          borderColor: 'rgba(255,255,255,0.08)',
-        }}
-      >
-        <h1 className="text-xl font-bold" style={{ color: 'var(--app-text)' }}>Admin Tools</h1>
-        <p className="text-xs" style={{ color: 'var(--app-text)', opacity: 0.55 }}>
+      {/* Hub header — uses shared .hub-header utility (matches AnalyticsHub / AccessControl). */}
+      <div className="hub-header">
+        <h1 className="hub-header-title">Admin Tools</h1>
+        <p className="hub-header-subtitle">
           One-shot operations — destructive or hard to reverse. Read each prompt before confirming.
         </p>
       </div>
       <div className="p-6 space-y-6">
 
       {/* Database backup */}
-      <Card className="bg-gray-800/50">
+      <Card className="haven-card">
         <div className="p-4">
-          <h3 className="text-lg font-semibold text-white mb-2">Database Backup</h3>
-          <p className="text-sm text-gray-400 mb-4">
+          <h3 className="text-lg font-semibold mb-2">Database Backup</h3>
+          <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
             Snapshot the live SQLite database to a timestamped file on the server. Safe to run anytime.
           </p>
           <Button onClick={doBackup} disabled={backupBusy}>
@@ -112,7 +102,7 @@ export default function AdminTools() {
               {backupResult.ok ? (
                 <div className="text-green-400">
                   ✓ Backup created at <span className="font-mono">{backupResult.path}</span>
-                  <div className="text-xs text-gray-500">{backupResult.at}</div>
+                  <div className="text-xs" style={{ color: 'var(--muted)' }}>{backupResult.at}</div>
                 </div>
               ) : (
                 <div className="text-red-400">✗ {backupResult.error}</div>
@@ -123,17 +113,17 @@ export default function AdminTools() {
       </Card>
 
       {/* Data migrations */}
-      <Card className="bg-gray-800/50">
+      <Card className="haven-card">
         <div className="p-4">
-          <h3 className="text-lg font-semibold text-white mb-2">Data Migrations</h3>
-          <p className="text-sm text-gray-400 mb-4">
+          <h3 className="text-lg font-semibold mb-2">Data Migrations</h3>
+          <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
             One-time data fixes. Each migration is idempotent but check the description before running.
           </p>
 
           <div className="space-y-4">
-            <div className="border-t border-gray-700 pt-4">
-              <h4 className="text-sm font-medium text-gray-300 mb-1">Hub Tag → Name</h4>
-              <p className="text-xs text-gray-500 mb-3">
+            <div className="pt-4 hairline">
+              <h4 className="text-sm font-medium mb-1">Hub Tag → Name</h4>
+              <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
                 Renames systems that have "HUB Tag:" in their description to use the hub tag as the display name.
                 The original system name will be preserved in the notes as "New Name:".
               </p>
@@ -145,7 +135,7 @@ export default function AdminTools() {
                   {migrateResult.ok ? (
                     <div className="text-green-400">
                       ✓ Migration complete. Updated {migrateResult.updated} of {migrateResult.found} matching systems.
-                      <div className="text-xs text-gray-500">{migrateResult.at}</div>
+                      <div className="text-xs" style={{ color: 'var(--muted)' }}>{migrateResult.at}</div>
                     </div>
                   ) : (
                     <div className="text-red-400">✗ {migrateResult.error}</div>
@@ -158,8 +148,8 @@ export default function AdminTools() {
       </Card>
 
         {/* Placeholder for future tools */}
-        <Card className="bg-gray-800/30">
-          <div className="p-4 text-sm text-gray-500">
+        <Card className="haven-card">
+          <div className="p-4 text-sm" style={{ color: 'var(--muted)' }}>
             <strong>Future tools:</strong> WAL checkpoint, VACUUM, schema-migration history, etc. can be wired in here.
           </div>
         </Card>

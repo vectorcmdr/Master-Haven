@@ -19,6 +19,51 @@ import { format } from 'date-fns'
  *   GET /api/approval_audit/export  — download filtered results as CSV or JSON
  *   GET /api/discord_tags           — community list for filter dropdown
  */
+
+// Map action verb -> outcome pill (per 2.0 design conventions).
+// Constructive approve/activate -> emerald; reject/revoke -> red;
+// modify -> blue; super-admin special (reissue/force/suspend) -> amber.
+function pillForAction(action) {
+  if (!action) return 'pill-muted'
+  const a = String(action).toLowerCase()
+  if (
+    a.startsWith('approve') ||
+    a.startsWith('batch_approve') ||
+    a === 'approved' ||
+    a === 'activated' ||
+    a === 'direct_add'
+  ) return 'pill-emerald'
+  if (
+    a.startsWith('reject') ||
+    a.startsWith('batch_reject') ||
+    a === 'rejected' ||
+    a === 'deactivated' ||
+    a === 'revoke' ||
+    a === 'revoked' ||
+    a === 'delete' ||
+    a === 'deleted' ||
+    a === 'remove' ||
+    a === 'removed'
+  ) return 'pill-red'
+  if (
+    a.startsWith('edit') ||
+    a === 'direct_edit' ||
+    a === 'permission_change' ||
+    a === 'tier_change' ||
+    a === 'update' ||
+    a === 'updated'
+  ) return 'pill-blue'
+  if (
+    a === 'reissue_api_key' ||
+    a === 'force_approve' ||
+    a === 'override' ||
+    a === 'suspend' ||
+    a === 'suspended' ||
+    a === 'password_reset'
+  ) return 'pill-amber'
+  return 'pill-muted'
+}
+
 export default function ApprovalAudit() {
   const navigate = useNavigate()
   const auth = useContext(AuthContext)
@@ -142,18 +187,6 @@ export default function ApprovalAudit() {
   }
 
   function getActionBadge(action) {
-    const colors = {
-      approved: 'bg-green-500 text-white',
-      rejected: 'bg-red-500 text-white',
-      direct_edit: 'bg-blue-500 text-white',
-      direct_add: 'bg-purple-500 text-white',
-      edit_pending: 'bg-yellow-500 text-black',
-      tier_change: 'bg-orange-500 text-white',
-      permission_change: 'bg-teal-500 text-white',
-      activated: 'bg-green-600 text-white',
-      deactivated: 'bg-red-600 text-white',
-      password_reset: 'bg-amber-500 text-black'
-    }
     const labels = {
       approved: 'APPROVED',
       rejected: 'REJECTED',
@@ -164,27 +197,34 @@ export default function ApprovalAudit() {
       permission_change: 'PERMS CHANGED',
       activated: 'ACTIVATED',
       deactivated: 'DEACTIVATED',
-      password_reset: 'PW RESET'
+      password_reset: 'PW RESET',
+      reissue_api_key: 'KEY REISSUED',
+      force_approve: 'FORCE APPROVED',
+      override: 'OVERRIDE',
+      suspend: 'SUSPENDED',
     }
     return (
-      <span className={`px-2 py-1 rounded text-xs font-semibold ${colors[action] || 'bg-gray-500 text-white'}`}>
-        {labels[action] || action.toUpperCase()}
+      <span className={`pill ${pillForAction(action)}`}>
+        {labels[action] || String(action).toUpperCase()}
       </span>
     )
   }
 
   function getSourceBadge(source) {
     if (!source) return null
-    if (source === 'haven_extractor') return <span className="px-1.5 py-0.5 rounded text-xs bg-purple-600 text-white ml-1">Extractor</span>
-    if (source === 'companion_app') return <span className="px-1.5 py-0.5 rounded text-xs bg-cyan-600 text-white ml-1">Companion</span>
+    if (source === 'haven_extractor') return <span className="pill pill-purple ml-1">Extractor</span>
+    if (source === 'keeper_bot') return <span className="pill pill-blue ml-1">Keeper</span>
+    if (source === 'companion_app') return <span className="pill pill-teal ml-1">Companion</span>
+    if (source === 'manual') return <span className="pill pill-muted ml-1">Manual</span>
     return null
   }
 
   function getApproverTypeBadge(type) {
-    const colors = {
-      super_admin: 'bg-purple-500 text-white',
-      partner: 'bg-cyan-500 text-white',
-      sub_admin: 'bg-amber-500 text-black'
+    // Tier badge palette: super_admin=emerald, partner=blue, sub_admin=teal.
+    const variants = {
+      super_admin: 'pill-emerald',
+      partner: 'pill-blue',
+      sub_admin: 'pill-teal',
     }
     const labels = {
       super_admin: 'Super Admin',
@@ -192,7 +232,7 @@ export default function ApprovalAudit() {
       sub_admin: 'Sub-Admin'
     }
     return (
-      <span className={`px-2 py-1 rounded text-xs ${colors[type] || 'bg-gray-500 text-white'}`}>
+      <span className={`pill ${variants[type] || 'pill-muted'}`}>
         {labels[type] || type}
       </span>
     )
@@ -221,14 +261,14 @@ export default function ApprovalAudit() {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold">Approval Audit Log</h2>
-            <p className="text-sm text-gray-400 mt-1 hidden sm:block">
+            <p className="text-sm mt-1 hidden sm:block" style={{ color: 'var(--muted)' }}>
               Track all approval and rejection actions across the system.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
               <button
-                className="flex items-center gap-2 px-3 py-2 rounded text-sm font-medium bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                className="haven-btn-ghost flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors"
                 onClick={() => document.getElementById('export-menu').classList.toggle('hidden')}
                 disabled={exporting}
               >
@@ -241,9 +281,9 @@ export default function ApprovalAudit() {
                 )}
                 Export
               </button>
-              <div id="export-menu" className="hidden absolute right-0 mt-1 w-32 bg-gray-700 rounded shadow-lg z-10">
+              <div id="export-menu" className="haven-card hidden absolute right-0 mt-1 w-32 z-10">
                 <button
-                  className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-white/5"
                   onClick={() => {
                     document.getElementById('export-menu').classList.add('hidden')
                     handleExport('csv')
@@ -252,7 +292,7 @@ export default function ApprovalAudit() {
                   Export CSV
                 </button>
                 <button
-                  className="w-full px-4 py-2 text-left text-sm text-white hover:bg-gray-600"
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-white/5"
                   onClick={() => {
                     document.getElementById('export-menu').classList.add('hidden')
                     handleExport('json')
@@ -262,19 +302,20 @@ export default function ApprovalAudit() {
                 </button>
               </div>
             </div>
-            <Button className="bg-gray-200 text-gray-800 text-sm" onClick={() => navigate(-1)}>
+            <Button className="haven-btn-ghost text-sm" onClick={() => navigate(-1)}>
               Back
             </Button>
           </div>
         </div>
 
         {/* Enhanced Filters */}
-        <div className="mb-6 p-4 bg-gray-700 rounded-lg">
+        <div className="haven-card mb-6 p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-medium text-gray-300">Filters</h3>
+            <h3 className="text-sm font-medium" style={{ color: 'var(--app-text)' }}>Filters</h3>
             {activeFilterCount > 0 && (
               <button
-                className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                className="text-xs flex items-center gap-1"
+                style={{ color: 'var(--app-primary)' }}
                 onClick={clearFilters}
               >
                 Clear {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''}
@@ -288,7 +329,7 @@ export default function ApprovalAudit() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
             {/* Date Range */}
             <div className="sm:col-span-2 md:col-span-1">
-              <label className="block text-xs text-gray-400 mb-1">Date Range</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--muted)' }}>Date Range</label>
               <DateRangePicker
                 startDate={dateRange.startDate}
                 endDate={dateRange.endDate}
@@ -301,9 +342,9 @@ export default function ApprovalAudit() {
 
             {/* Action */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Action</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--muted)' }}>Action</label>
               <select
-                className="w-full border rounded p-2 bg-gray-600 text-white text-sm"
+                className="haven-input w-full p-2 text-sm"
                 value={filterAction}
                 onChange={(e) => {
                   setFilterAction(e.target.value)
@@ -326,9 +367,9 @@ export default function ApprovalAudit() {
 
             {/* Submission Type */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Type</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--muted)' }}>Type</label>
               <select
-                className="w-full border rounded p-2 bg-gray-600 text-white text-sm"
+                className="haven-input w-full p-2 text-sm"
                 value={filterSubmissionType}
                 onChange={(e) => {
                   setFilterSubmissionType(e.target.value)
@@ -345,9 +386,9 @@ export default function ApprovalAudit() {
 
             {/* Source */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Source</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--muted)' }}>Source</label>
               <select
-                className="w-full border rounded p-2 bg-gray-600 text-white text-sm"
+                className="haven-input w-full p-2 text-sm"
                 value={filterSource}
                 onChange={(e) => {
                   setFilterSource(e.target.value)
@@ -367,9 +408,9 @@ export default function ApprovalAudit() {
 
             {/* Community */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Community</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--muted)' }}>Community</label>
               <select
-                className="w-full border rounded p-2 bg-gray-600 text-white text-sm"
+                className="haven-input w-full p-2 text-sm"
                 value={filterDiscordTag}
                 onChange={(e) => {
                   setFilterDiscordTag(e.target.value)
@@ -385,10 +426,10 @@ export default function ApprovalAudit() {
 
             {/* Approver */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Approver</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--muted)' }}>Approver</label>
               <input
                 type="text"
-                className="w-full border rounded p-2 bg-gray-600 text-white text-sm"
+                className="haven-input w-full p-2 text-sm"
                 placeholder="Username..."
                 value={filterApprover}
                 onChange={(e) => {
@@ -400,10 +441,10 @@ export default function ApprovalAudit() {
 
             {/* Submitter */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Submitter</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--muted)' }}>Submitter</label>
               <input
                 type="text"
-                className="w-full border rounded p-2 bg-gray-600 text-white text-sm"
+                className="haven-input w-full p-2 text-sm"
                 placeholder="Username..."
                 value={filterSubmitter}
                 onChange={(e) => {
@@ -415,10 +456,10 @@ export default function ApprovalAudit() {
 
             {/* Search Notes */}
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Search</label>
+              <label className="block text-xs mb-1" style={{ color: 'var(--muted)' }}>Search</label>
               <input
                 type="text"
-                className="w-full border rounded p-2 bg-gray-600 text-white text-sm"
+                className="haven-input w-full p-2 text-sm"
                 placeholder="Notes..."
                 value={searchNotes}
                 onChange={(e) => {
@@ -432,10 +473,10 @@ export default function ApprovalAudit() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--app-primary)' }}></div>
           </div>
         ) : entries.length === 0 ? (
-          <div className="text-gray-400 italic p-4 bg-gray-700 rounded text-center">
+          <div className="haven-card italic p-4 text-center" style={{ color: 'var(--muted)' }}>
             No audit entries found matching your filters.
           </div>
         ) : (
@@ -443,44 +484,44 @@ export default function ApprovalAudit() {
             {/* Mobile Card Layout */}
             <div className="md:hidden space-y-3">
               {entries.map(entry => (
-                <div key={entry.id} className="bg-gray-700 rounded-lg p-3">
+                <div key={entry.id} className="haven-card p-3">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="font-semibold">{entry.submission_name || 'Unknown'}</div>
                     {getActionBadge(entry.action)}
                   </div>
-                  <div className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                  <div className="text-xs mb-2 flex items-center gap-1" style={{ color: 'var(--muted)' }}>
                     {entry.submission_type} {entry.submission_id === 0 ? '(Direct)' : `#${entry.submission_id}`}
                     {getSourceBadge(entry.source)}
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
-                      <div className="text-xs text-gray-400">Approver</div>
-                      <div className="text-gray-200">{entry.approver_username}</div>
+                      <div className="text-xs" style={{ color: 'var(--muted)' }}>Approver</div>
+                      <div>{entry.approver_username}</div>
                       <div className="mt-1">{getApproverTypeBadge(entry.approver_type)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-400">Submitter</div>
-                      <div className="text-gray-200">{entry.submitter_username || 'Unknown'}</div>
+                      <div className="text-xs" style={{ color: 'var(--muted)' }}>Submitter</div>
+                      <div>{entry.submitter_username || 'Unknown'}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-gray-400">Community</div>
+                      <div className="text-xs" style={{ color: 'var(--muted)' }}>Community</div>
                       {entry.submission_discord_tag ? (
-                        <span className="px-2 py-0.5 rounded text-xs bg-cyan-600 text-white">
+                        <span className="pill pill-teal">
                           {entry.submission_discord_tag}
                         </span>
                       ) : (
-                        <span className="text-gray-500 text-xs">Untagged</span>
+                        <span className="text-xs" style={{ color: 'var(--muted)' }}>Untagged</span>
                       )}
                     </div>
                     <div>
-                      <div className="text-xs text-gray-400">Date</div>
-                      <div className="text-gray-300 text-xs">{new Date(entry.timestamp).toLocaleDateString()}</div>
+                      <div className="text-xs" style={{ color: 'var(--muted)' }}>Date</div>
+                      <div className="text-xs">{new Date(entry.timestamp).toLocaleDateString()}</div>
                     </div>
                   </div>
                   {entry.notes && (
-                    <div className="mt-2 pt-2 border-t border-gray-600">
-                      <div className="text-xs text-gray-400">Notes</div>
-                      <div className="text-xs text-gray-300 line-clamp-2">{entry.notes}</div>
+                    <div className="mt-2 pt-2 hairline">
+                      <div className="text-xs" style={{ color: 'var(--muted)' }}>Notes</div>
+                      <div className="text-xs line-clamp-2">{entry.notes}</div>
                     </div>
                   )}
                 </div>
@@ -490,7 +531,7 @@ export default function ApprovalAudit() {
             {/* Desktop Table Layout */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm table-fixed">
-                <thead className="bg-gray-700">
+                <thead style={{ background: 'rgba(255,255,255,0.04)' }}>
                   <tr>
                     <th className="px-4 py-3 text-left w-[160px]">Timestamp</th>
                     <th className="px-4 py-3 text-left w-[100px]">Action</th>
@@ -503,8 +544,8 @@ export default function ApprovalAudit() {
                 </thead>
                 <tbody>
                   {entries.map(entry => (
-                    <tr key={entry.id} className="border-b border-gray-600 hover:bg-gray-700/50">
-                      <td className="px-4 py-3 text-gray-300 whitespace-nowrap">
+                    <tr key={entry.id} className="hover:bg-white/5" style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                      <td className="px-4 py-3 whitespace-nowrap" style={{ color: 'var(--muted)' }}>
                         {new Date(entry.timestamp).toLocaleString()}
                       </td>
                       <td className="px-4 py-3">
@@ -514,7 +555,7 @@ export default function ApprovalAudit() {
                         <div className="font-semibold truncate" title={entry.submission_name || 'Unknown'}>
                           {entry.submission_name || 'Unknown'}
                         </div>
-                        <div className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                        <div className="text-xs mt-1 flex items-center gap-1" style={{ color: 'var(--muted)' }}>
                           {entry.submission_type} {entry.submission_id === 0 ? '(Direct)' : `#${entry.submission_id}`}
                           {getSourceBadge(entry.source)}
                         </div>
@@ -525,30 +566,30 @@ export default function ApprovalAudit() {
                         </div>
                         <div className="mt-1">{getApproverTypeBadge(entry.approver_type)}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-300">
+                      <td className="px-4 py-3">
                         <div className="truncate" title={entry.submitter_username || 'Unknown'}>
                           {entry.submitter_username || 'Unknown'}
                         </div>
                         {entry.submitter_type && (
-                          <div className="text-xs text-gray-400 mt-1">{entry.submitter_type}</div>
+                          <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>{entry.submitter_type}</div>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         {entry.submission_discord_tag ? (
-                          <span className="px-2 py-1 rounded text-xs bg-cyan-600 text-white">
+                          <span className="pill pill-teal">
                             {entry.submission_discord_tag}
                           </span>
                         ) : (
-                          <span className="text-gray-500 text-xs">Untagged</span>
+                          <span className="text-xs" style={{ color: 'var(--muted)' }}>Untagged</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-300 text-sm">
+                      <td className="px-4 py-3 text-sm">
                         {entry.notes ? (
                           <span className="block truncate" title={entry.notes}>
                             {entry.notes}
                           </span>
                         ) : (
-                          <span className="text-gray-500">-</span>
+                          <span style={{ color: 'var(--muted)' }}>-</span>
                         )}
                       </td>
                     </tr>
@@ -558,23 +599,23 @@ export default function ApprovalAudit() {
             </div>
 
             {/* Pagination */}
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mt-6 pt-4 border-t border-gray-600">
-              <p className="text-xs sm:text-sm text-gray-400 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mt-6 pt-4 hairline">
+              <p className="text-xs sm:text-sm text-center sm:text-left" style={{ color: 'var(--muted)' }}>
                 {page * limit + 1}-{Math.min((page + 1) * limit, total)} of {total}
               </p>
               <div className="flex justify-center gap-2">
                 <Button
-                  className="bg-gray-600 text-white text-sm px-3 py-1"
+                  className="haven-btn-ghost text-sm px-3 py-1"
                   onClick={() => setPage(p => Math.max(0, p - 1))}
                   disabled={page === 0}
                 >
                   Prev
                 </Button>
-                <span className="text-sm text-gray-400 flex items-center px-2">
+                <span className="text-sm flex items-center px-2" style={{ color: 'var(--muted)' }}>
                   {page + 1}/{totalPages || 1}
                 </span>
                 <Button
-                  className="bg-gray-600 text-white text-sm px-3 py-1"
+                  className="haven-btn-ghost text-sm px-3 py-1"
                   onClick={() => setPage(p => p + 1)}
                   disabled={page >= totalPages - 1}
                 >

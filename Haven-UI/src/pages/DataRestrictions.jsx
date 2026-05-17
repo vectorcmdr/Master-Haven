@@ -259,7 +259,7 @@ export default function DataRestrictions() {
   }
 
   if (!isAdmin) {
-    return <div className="text-center py-12 text-gray-500">Please log in to manage data restrictions.</div>
+    return <div className="text-center py-12" style={{ color: 'var(--muted)' }}>Please log in to manage data restrictions.</div>
   }
 
   // Stats
@@ -272,38 +272,38 @@ export default function DataRestrictions() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Data Restrictions</h1>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
             Control which data is visible to public viewers. {isSuperAdmin ? 'Viewing all systems.' : 'Viewing your systems.'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm">
-          <span className="px-3 py-1 bg-gray-700 rounded">{totalSystems} systems</span>
-          <span className="px-3 py-1 bg-yellow-600 rounded">{restrictedCount} restricted</span>
+          <span className="pill pill-muted">{totalSystems} systems</span>
+          <span className="pill pill-amber">{restrictedCount} restricted</span>
         </div>
       </div>
 
       {/* Search and Actions */}
-      <Card className="p-4">
+      <Card className="haven-card p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <input
             type="text"
             placeholder="Search systems..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 px-4 py-2 bg-gray-800 border border-gray-600 rounded focus:outline-none focus:border-cyan-500"
+            className="haven-input flex-1 px-4 py-2"
           />
           <div className="flex gap-2">
-            <Button onClick={selectAll} variant="secondary" size="sm">Select All</Button>
-            <Button onClick={clearSelection} variant="secondary" size="sm">Clear</Button>
+            <Button onClick={selectAll} className="haven-btn-ghost" size="sm">Select All</Button>
+            <Button onClick={clearSelection} className="haven-btn-ghost" size="sm">Clear</Button>
           </div>
         </div>
 
         {/* Bulk Actions */}
         {selectedIds.size > 0 && (
-          <div className="mt-4 p-3 bg-gray-800 rounded flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <span className="text-cyan-400 font-medium">{selectedIds.size} systems selected</span>
+          <div className="haven-card mt-4 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <span className="font-medium" style={{ color: 'var(--app-primary)' }}>{selectedIds.size} systems selected</span>
             <div className="flex gap-2">
-              <Button onClick={openBulkModal} variant="primary" size="sm">Apply Restrictions</Button>
+              <Button onClick={openBulkModal} className="haven-btn-primary" size="sm">Apply Restrictions</Button>
               <Button onClick={bulkRemoveRestrictions} variant="danger" size="sm">Remove Restrictions</Button>
             </div>
           </div>
@@ -311,88 +311,93 @@ export default function DataRestrictions() {
       </Card>
 
       {/* Systems List */}
-      <Card>
-        {loading ? (
-          <div className="p-8 text-center text-gray-400">Loading systems...</div>
-        ) : filteredSystems.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
+      {loading ? (
+        <Card className="haven-card">
+          <div className="p-8 text-center" style={{ color: 'var(--muted)' }}>Loading systems...</div>
+        </Card>
+      ) : filteredSystems.length === 0 ? (
+        <Card className="haven-card">
+          <div className="p-8 text-center" style={{ color: 'var(--muted)' }}>
             {systems.length === 0 ? 'No systems found.' : 'No systems match your search.'}
           </div>
-        ) : (
-          <div className="divide-y divide-gray-700">
-            {filteredSystems.map(system => (
-              <div
-                key={system.id}
-                className={`p-4 flex items-center gap-4 hover:bg-gray-800/50 transition-colors ${selectedIds.has(system.id) ? 'bg-gray-800' : ''}`}
-              >
-                {/* Checkbox */}
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(system.id)}
-                  onChange={() => toggleSelect(system.id)}
-                  className="w-5 h-5 rounded border-gray-600 text-cyan-500 focus:ring-cyan-500"
-                />
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {filteredSystems.map(system => (
+            <div
+              key={system.id}
+              className="haven-card haven-card-hover p-3 flex items-center gap-4"
+              style={selectedIds.has(system.id) ? { borderColor: 'var(--app-primary)' } : undefined}
+            >
+              {/* Checkbox */}
+              <input
+                type="checkbox"
+                checked={selectedIds.has(system.id)}
+                onChange={() => toggleSelect(system.id)}
+                className="w-5 h-5 rounded"
+              />
 
-                {/* System Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium truncate">{system.name}</span>
-                    <span className="text-xs px-2 py-0.5 bg-gray-700 rounded">{system.galaxy}</span>
-                    {isSuperAdmin && system.discord_tag && (
-                      <span className="text-xs px-2 py-0.5 bg-purple-700 rounded">{system.discord_tag}</span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-400 mt-1">
-                    {system.region_name || `Region (${system.region_x}, ${system.region_y}, ${system.region_z})`}
-                  </div>
-                </div>
-
-                {/* Restriction Status */}
-                <div className="flex items-center gap-3">
-                  {system.has_restriction ? (
-                    <div className="flex items-center gap-2">
-                      {system.restriction.is_hidden_from_public && (
-                        <span className="text-xs px-2 py-1 bg-red-600 rounded">HIDDEN</span>
-                      )}
-                      {system.restriction.hidden_fields?.length > 0 && (
-                        <span className="text-xs px-2 py-1 bg-yellow-600 rounded">
-                          {system.restriction.hidden_fields.length} fields
-                        </span>
-                      )}
-                      {system.restriction.map_visibility !== 'normal' && (
-                        <span className="text-xs px-2 py-1 bg-orange-600 rounded">
-                          {system.restriction.map_visibility === 'hidden' ? 'Map Hidden' : 'Point Only'}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-gray-500">Public</span>
+              {/* System Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium truncate">{system.name}</span>
+                  <span className="pill pill-muted">{system.galaxy}</span>
+                  {isSuperAdmin && system.discord_tag && (
+                    <span className="pill pill-purple">{system.discord_tag}</span>
                   )}
-                  <Button onClick={() => openEditModal(system)} variant="secondary" size="sm">
-                    Configure
-                  </Button>
+                </div>
+                <div className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                  {system.region_name || `Region (${system.region_x}, ${system.region_y}, ${system.region_z})`}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
+
+              {/* Restriction Status */}
+              <div className="flex items-center gap-3">
+                {system.has_restriction ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {system.restriction.is_hidden_from_public && (
+                      <span className="pill pill-red">HIDDEN</span>
+                    )}
+                    {system.restriction.hidden_fields?.length > 0 && (
+                      <span className="pill pill-yellow">
+                        {system.restriction.hidden_fields.length} fields
+                      </span>
+                    )}
+                    {system.restriction.map_visibility !== 'normal' && (
+                      <span className="pill pill-amber">
+                        {system.restriction.map_visibility === 'hidden' ? 'Map Hidden' : 'Point Only'}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs" style={{ color: 'var(--muted)' }}>Public</span>
+                )}
+                <Button onClick={() => openEditModal(system)} className="haven-btn-ghost" size="sm">
+                  Configure
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Single System Edit Modal */}
       {editingSystem && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-700">
-              <h2 className="text-xl font-bold">Configure Restrictions</h2>
-              <p className="text-gray-400 text-sm mt-1">{editingSystem.name}</p>
+        <div className="haven-modal">
+          <div className="haven-modal-panel">
+            <div className="haven-modal-header">
+              <div>
+                <div className="text-xl font-bold">Configure Restrictions</div>
+                <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>{editingSystem.name}</p>
+              </div>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="haven-modal-body space-y-6">
               {/* Hide from public toggle */}
-              <div className="flex items-center justify-between p-4 bg-gray-800 rounded">
+              <div className="haven-card p-4 flex items-center justify-between">
                 <div>
                   <div className="font-medium">Hide from Public</div>
-                  <div className="text-sm text-gray-400">Completely hide this system from non-owners</div>
+                  <div className="text-sm" style={{ color: 'var(--muted)' }}>Completely hide this system from non-owners</div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -412,17 +417,17 @@ export default function DataRestrictions() {
                   {RESTRICTABLE_FIELDS.map(field => (
                     <label
                       key={field.id}
-                      className="flex items-start gap-3 p-3 bg-gray-800 rounded cursor-pointer hover:bg-gray-750"
+                      className="haven-card haven-card-hover flex items-start gap-3 p-3 cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={formFields.includes(field.id)}
                         onChange={() => toggleField(field.id)}
-                        className="w-5 h-5 mt-0.5 rounded border-gray-600 text-cyan-500 focus:ring-cyan-500"
+                        className="w-5 h-5 mt-0.5 rounded"
                       />
                       <div>
                         <div className="font-medium">{field.label}</div>
-                        <div className="text-sm text-gray-400">{field.description}</div>
+                        <div className="text-sm" style={{ color: 'var(--muted)' }}>{field.description}</div>
                       </div>
                     </label>
                   ))}
@@ -436,7 +441,8 @@ export default function DataRestrictions() {
                   {MAP_VISIBILITY_OPTIONS.map(opt => (
                     <label
                       key={opt.value}
-                      className={`flex items-start gap-3 p-3 rounded cursor-pointer ${formMapVisibility === opt.value ? 'bg-cyan-900/30 border border-cyan-500' : 'bg-gray-800 hover:bg-gray-750'}`}
+                      className="haven-card haven-card-hover flex items-start gap-3 p-3 cursor-pointer"
+                      style={formMapVisibility === opt.value ? { borderColor: 'var(--app-primary)', background: 'var(--app-primary-soft)' } : undefined}
                     >
                       <input
                         type="radio"
@@ -444,11 +450,11 @@ export default function DataRestrictions() {
                         value={opt.value}
                         checked={formMapVisibility === opt.value}
                         onChange={(e) => setFormMapVisibility(e.target.value)}
-                        className="w-5 h-5 mt-0.5 text-cyan-500 focus:ring-cyan-500"
+                        className="w-5 h-5 mt-0.5"
                       />
                       <div>
                         <div className="font-medium">{opt.label}</div>
-                        <div className="text-sm text-gray-400">{opt.description}</div>
+                        <div className="text-sm" style={{ color: 'var(--muted)' }}>{opt.description}</div>
                       </div>
                     </label>
                   ))}
@@ -456,13 +462,13 @@ export default function DataRestrictions() {
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-700 flex justify-between">
+            <div className="haven-modal-footer" style={{ justifyContent: 'space-between' }}>
               <Button onClick={removeRestriction} variant="danger" disabled={saving || !editingSystem.has_restriction}>
                 Remove All
               </Button>
               <div className="flex gap-2">
-                <Button onClick={closeModal} variant="secondary" disabled={saving}>Cancel</Button>
-                <Button onClick={saveRestriction} variant="primary" disabled={saving}>
+                <Button onClick={closeModal} className="haven-btn-ghost" disabled={saving}>Cancel</Button>
+                <Button onClick={saveRestriction} className="haven-btn-primary" disabled={saving}>
                   {saving ? 'Saving...' : 'Save'}
                 </Button>
               </div>
@@ -473,19 +479,21 @@ export default function DataRestrictions() {
 
       {/* Bulk Edit Modal */}
       {showBulkModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-700">
-              <h2 className="text-xl font-bold">Bulk Apply Restrictions</h2>
-              <p className="text-gray-400 text-sm mt-1">Apply to {selectedIds.size} selected systems</p>
+        <div className="haven-modal">
+          <div className="haven-modal-panel">
+            <div className="haven-modal-header">
+              <div>
+                <div className="text-xl font-bold">Bulk Apply Restrictions</div>
+                <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Apply to {selectedIds.size} selected systems</p>
+              </div>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="haven-modal-body space-y-6">
               {/* Hide from public toggle */}
-              <div className="flex items-center justify-between p-4 bg-gray-800 rounded">
+              <div className="haven-card p-4 flex items-center justify-between">
                 <div>
                   <div className="font-medium">Hide from Public</div>
-                  <div className="text-sm text-gray-400">Completely hide these systems from non-owners</div>
+                  <div className="text-sm" style={{ color: 'var(--muted)' }}>Completely hide these systems from non-owners</div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -505,17 +513,17 @@ export default function DataRestrictions() {
                   {RESTRICTABLE_FIELDS.map(field => (
                     <label
                       key={field.id}
-                      className="flex items-start gap-3 p-3 bg-gray-800 rounded cursor-pointer hover:bg-gray-750"
+                      className="haven-card haven-card-hover flex items-start gap-3 p-3 cursor-pointer"
                     >
                       <input
                         type="checkbox"
                         checked={formFields.includes(field.id)}
                         onChange={() => toggleField(field.id)}
-                        className="w-5 h-5 mt-0.5 rounded border-gray-600 text-cyan-500 focus:ring-cyan-500"
+                        className="w-5 h-5 mt-0.5 rounded"
                       />
                       <div>
                         <div className="font-medium">{field.label}</div>
-                        <div className="text-sm text-gray-400">{field.description}</div>
+                        <div className="text-sm" style={{ color: 'var(--muted)' }}>{field.description}</div>
                       </div>
                     </label>
                   ))}
@@ -529,7 +537,8 @@ export default function DataRestrictions() {
                   {MAP_VISIBILITY_OPTIONS.map(opt => (
                     <label
                       key={opt.value}
-                      className={`flex items-start gap-3 p-3 rounded cursor-pointer ${formMapVisibility === opt.value ? 'bg-cyan-900/30 border border-cyan-500' : 'bg-gray-800 hover:bg-gray-750'}`}
+                      className="haven-card haven-card-hover flex items-start gap-3 p-3 cursor-pointer"
+                      style={formMapVisibility === opt.value ? { borderColor: 'var(--app-primary)', background: 'var(--app-primary-soft)' } : undefined}
                     >
                       <input
                         type="radio"
@@ -537,11 +546,11 @@ export default function DataRestrictions() {
                         value={opt.value}
                         checked={formMapVisibility === opt.value}
                         onChange={(e) => setFormMapVisibility(e.target.value)}
-                        className="w-5 h-5 mt-0.5 text-cyan-500 focus:ring-cyan-500"
+                        className="w-5 h-5 mt-0.5"
                       />
                       <div>
                         <div className="font-medium">{opt.label}</div>
-                        <div className="text-sm text-gray-400">{opt.description}</div>
+                        <div className="text-sm" style={{ color: 'var(--muted)' }}>{opt.description}</div>
                       </div>
                     </label>
                   ))}
@@ -549,9 +558,9 @@ export default function DataRestrictions() {
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-700 flex justify-end gap-2">
-              <Button onClick={closeModal} variant="secondary" disabled={saving}>Cancel</Button>
-              <Button onClick={saveBulkRestrictions} variant="primary" disabled={saving}>
+            <div className="haven-modal-footer">
+              <Button onClick={closeModal} className="haven-btn-ghost" disabled={saving}>Cancel</Button>
+              <Button onClick={saveBulkRestrictions} className="haven-btn-primary" disabled={saving}>
                 {saving ? 'Applying...' : `Apply to ${selectedIds.size} Systems`}
               </Button>
             </div>

@@ -276,9 +276,9 @@ export default function SubAdminManagement({ embedded = false }) {
 
   if (loading) {
     return (
-      <div className="p-4">
+      <div className={embedded ? '' : 'p-4'}>
         <Card>
-          <p>Loading sub-admins...</p>
+          <p style={{ color: 'var(--muted)' }}>Loading sub-admins...</p>
         </Card>
       </div>
     )
@@ -291,14 +291,14 @@ export default function SubAdminManagement({ embedded = false }) {
           {!embedded ? (
             <div>
               <h2 className="text-2xl font-bold">Sub-Admin Management</h2>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
                 Sub-admins can approve submissions (except their own) and manage content for their community.
               </p>
             </div>
           ) : <div />}
           <div className="flex space-x-2">
             <Button
-              className="bg-green-600 text-white hover:bg-green-700"
+              className="haven-btn-primary"
               onClick={() => {
                 resetForm()
                 setCreateModalOpen(true)
@@ -306,14 +306,14 @@ export default function SubAdminManagement({ embedded = false }) {
             >
               + Create Sub-Admin
             </Button>
-            <Button className="bg-gray-200 text-gray-800" onClick={() => navigate(-1)}>
+            <Button className="haven-btn-ghost" onClick={() => navigate(-1)}>
               Back
             </Button>
           </div>
         </div>
 
         {subAdmins.length === 0 ? (
-          <div className="text-gray-400 italic p-4 bg-gray-700 rounded">
+          <div className="haven-card italic p-4" style={{ color: 'var(--muted)' }}>
             No sub-admin accounts yet. Create one to allow community members to help with approvals.
           </div>
         ) : (
@@ -321,47 +321,47 @@ export default function SubAdminManagement({ embedded = false }) {
             {subAdmins.map(subAdmin => (
               <div
                 key={subAdmin.id}
-                className={`border rounded p-4 ${subAdmin.is_active ? 'bg-cyan-700' : 'bg-gray-600 opacity-75'}`}
+                className={`haven-card haven-card-hover p-4 ${subAdmin.is_active ? '' : 'opacity-75'}`}
               >
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-semibold">{subAdmin.username}</h3>
                       {!subAdmin.is_active && (
-                        <span className="px-2 py-0.5 rounded text-xs bg-red-500 text-white">INACTIVE</span>
+                        <span className="pill pill-red">INACTIVE</span>
                       )}
                     </div>
                     {subAdmin.display_name && (
-                      <p className="text-sm text-gray-300">{subAdmin.display_name}</p>
+                      <p className="text-sm" style={{ color: 'var(--app-text)' }}>{subAdmin.display_name}</p>
                     )}
-                    <p className="text-sm text-cyan-300 mt-1">
+                    <p className="text-sm mt-1" style={{ color: 'var(--app-primary)' }}>
                       Parent: {subAdmin.parent_display_name || 'Haven'}
                       {subAdmin.parent_partner_id ? ` (${subAdmin.parent_discord_tag || 'No tag'})` : ' (Super Admin)'}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(subAdmin.enabled_features || []).map(f => (
-                        <span key={f} className="px-2 py-0.5 rounded text-xs bg-cyan-600 text-white">
+                        <span key={f} className="pill pill-teal">
                           {f}
                         </span>
                       ))}
                       {(!subAdmin.enabled_features || subAdmin.enabled_features.length === 0) && (
-                        <span className="text-sm text-gray-400 italic">No features enabled</span>
+                        <span className="text-sm italic" style={{ color: 'var(--muted)' }}>No features enabled</span>
                       )}
                     </div>
                     {/* Show additional discord tags for Haven sub-admins */}
                     {!subAdmin.parent_partner_id && subAdmin.additional_discord_tags && subAdmin.additional_discord_tags.length > 0 && (
                       <div className="mt-2">
-                        <span className="text-xs text-gray-400">Can also view: </span>
-                        <span className="text-xs text-yellow-400">{subAdmin.additional_discord_tags.join(', ')}</span>
+                        <span className="text-xs" style={{ color: 'var(--muted)' }}>Can also view: </span>
+                        <span className="text-xs" style={{ color: 'var(--app-accent-amber)' }}>{subAdmin.additional_discord_tags.join(', ')}</span>
                       </div>
                     )}
                     {/* Show personal uploads permission for Haven sub-admins */}
                     {!subAdmin.parent_partner_id && subAdmin.can_approve_personal_uploads && (
                       <div className="mt-1">
-                        <span className="px-2 py-0.5 rounded text-xs bg-purple-600 text-white">Can approve personal uploads</span>
+                        <span className="pill pill-purple">Can approve personal uploads</span>
                       </div>
                     )}
-                    <p className="text-xs text-gray-400 mt-2">
+                    <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
                       Created: {new Date(subAdmin.created_at).toLocaleDateString()}
                       {subAdmin.last_login_at && (
                         <span> | Last login: {new Date(subAdmin.last_login_at).toLocaleDateString()}</span>
@@ -370,19 +370,19 @@ export default function SubAdminManagement({ embedded = false }) {
                   </div>
                   <div className="flex flex-col gap-1">
                     <Button
-                      className="bg-blue-600 text-white text-sm px-3 py-1"
+                      className="haven-btn-ghost text-sm px-3 py-1"
                       onClick={() => openEditModal(subAdmin)}
                     >
                       Edit
                     </Button>
                     <Button
-                      className="bg-yellow-600 text-white text-sm px-3 py-1"
+                      className="haven-btn-ghost text-sm px-3 py-1"
                       onClick={() => openResetPasswordModal(subAdmin)}
                     >
                       Reset Password
                     </Button>
                     <Button
-                      className={`text-sm px-3 py-1 ${subAdmin.is_active ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}
+                      className={`text-sm px-3 py-1 pill pill-clickable ${subAdmin.is_active ? 'pill-red' : 'pill-emerald'}`}
                       onClick={() => toggleActive(subAdmin)}
                       disabled={actionInProgress}
                     >
@@ -404,7 +404,7 @@ export default function SubAdminManagement({ embedded = false }) {
               <div>
                 <label className="block text-sm font-semibold mb-1">Parent</label>
                 <select
-                  className="w-full border rounded p-2 bg-gray-700 text-white"
+                  className="haven-input w-full p-2"
                   value={formData.parent_partner_id}
                   onChange={(e) => setFormData({...formData, parent_partner_id: e.target.value})}
                 >
@@ -417,7 +417,7 @@ export default function SubAdminManagement({ embedded = false }) {
                     ))}
                   </optgroup>
                 </select>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
                   Haven sub-admins report directly to you (no community tag).
                 </p>
               </div>
@@ -426,7 +426,7 @@ export default function SubAdminManagement({ embedded = false }) {
               <label className="block text-sm font-semibold mb-1">Username *</label>
               <input
                 type="text"
-                className="w-full border rounded p-2 bg-gray-700 text-white"
+                className="haven-input w-full p-2"
                 value={formData.username}
                 onChange={(e) => setFormData({...formData, username: e.target.value})}
                 placeholder="min 3 characters"
@@ -436,7 +436,7 @@ export default function SubAdminManagement({ embedded = false }) {
               <label className="block text-sm font-semibold mb-1">Password *</label>
               <input
                 type="password"
-                className="w-full border rounded p-2 bg-gray-700 text-white"
+                className="haven-input w-full p-2"
                 value={formData.password}
                 onChange={(e) => setFormData({...formData, password: e.target.value})}
                 placeholder="min 4 characters"
@@ -446,7 +446,7 @@ export default function SubAdminManagement({ embedded = false }) {
               <label className="block text-sm font-semibold mb-1">Display Name</label>
               <input
                 type="text"
-                className="w-full border rounded p-2 bg-gray-700 text-white"
+                className="haven-input w-full p-2"
                 value={formData.display_name}
                 onChange={(e) => setFormData({...formData, display_name: e.target.value})}
               />
@@ -463,7 +463,7 @@ export default function SubAdminManagement({ embedded = false }) {
                       className="rounded"
                     />
                     <span className="text-sm">{f.label}</span>
-                    <span className="text-xs text-gray-400">- {f.description}</span>
+                    <span className="text-xs" style={{ color: 'var(--muted)' }}>- {f.description}</span>
                   </label>
                 ))}
               </div>
@@ -475,12 +475,12 @@ export default function SubAdminManagement({ embedded = false }) {
                 {/* Additional Discord Tags */}
                 <div>
                   <label className="block text-sm font-semibold mb-1">Additional Discord Tag Visibility</label>
-                  <p className="text-xs text-gray-400 mb-2">
+                  <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>
                     Select which partner discords this Haven sub-admin can see and approve submissions for.
                   </p>
-                  <div className="max-h-32 overflow-y-auto border border-gray-600 rounded p-2 bg-gray-800 space-y-2">
+                  <div className="haven-card max-h-32 overflow-y-auto p-2 space-y-2">
                     {availableDiscordTags.length === 0 ? (
-                      <p className="text-sm text-gray-400 italic">No partner discord tags available</p>
+                      <p className="text-sm italic" style={{ color: 'var(--muted)' }}>No partner discord tags available</p>
                     ) : (
                       availableDiscordTags.filter(t => t.discord_tag !== 'Haven').map(tag => (
                         <label key={tag.discord_tag} className="flex items-center gap-2 cursor-pointer">
@@ -498,7 +498,7 @@ export default function SubAdminManagement({ embedded = false }) {
                 </div>
 
                 {/* Personal Uploads Permission */}
-                <div className="border-t border-gray-600 pt-3">
+                <div className="pt-3" style={{ borderTop: '1px solid var(--border-soft)' }}>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -508,7 +508,7 @@ export default function SubAdminManagement({ embedded = false }) {
                     />
                     <div>
                       <span className="text-sm font-semibold">Can Approve Personal Uploads</span>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs" style={{ color: 'var(--muted)' }}>
                         Allow this sub-admin to approve submissions without a discord tag.
                       </p>
                     </div>
@@ -519,14 +519,14 @@ export default function SubAdminManagement({ embedded = false }) {
 
             <div className="flex space-x-2 pt-3">
               <Button
-                className="bg-green-600 text-white"
+                className="haven-btn-primary"
                 onClick={createSubAdmin}
                 disabled={actionInProgress}
               >
                 {actionInProgress ? 'Creating...' : 'Create Sub-Admin'}
               </Button>
               <Button
-                className="bg-gray-200 text-gray-800"
+                className="haven-btn-ghost"
                 onClick={() => setCreateModalOpen(false)}
               >
                 Cancel
@@ -544,7 +544,7 @@ export default function SubAdminManagement({ embedded = false }) {
               <label className="block text-sm font-semibold mb-1">Display Name</label>
               <input
                 type="text"
-                className="w-full border rounded p-2 bg-gray-700 text-white"
+                className="haven-input w-full p-2"
                 value={formData.display_name}
                 onChange={(e) => setFormData({...formData, display_name: e.target.value})}
               />
@@ -570,12 +570,12 @@ export default function SubAdminManagement({ embedded = false }) {
             {!selectedSubAdmin.parent_partner_id && auth.isSuperAdmin && (
               <div>
                 <label className="block text-sm font-semibold mb-1">Additional Discord Tag Visibility</label>
-                <p className="text-xs text-gray-400 mb-2">
+                <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>
                   Select which partner discords this Haven sub-admin can see and approve submissions for (in addition to "Haven").
                 </p>
-                <div className="max-h-48 overflow-y-auto border border-gray-600 rounded p-2 bg-gray-800 space-y-2">
+                <div className="haven-card max-h-48 overflow-y-auto p-2 space-y-2">
                   {availableDiscordTags.length === 0 ? (
-                    <p className="text-sm text-gray-400 italic">No partner discord tags available</p>
+                    <p className="text-sm italic" style={{ color: 'var(--muted)' }}>No partner discord tags available</p>
                   ) : (
                     availableDiscordTags.filter(t => t.discord_tag !== 'Haven').map(tag => (
                       <label key={tag.discord_tag} className="flex items-center gap-2 cursor-pointer">
@@ -587,14 +587,14 @@ export default function SubAdminManagement({ embedded = false }) {
                         />
                         <span className="text-sm">{tag.discord_tag}</span>
                         {tag.display_name && (
-                          <span className="text-xs text-gray-400">({tag.display_name})</span>
+                          <span className="text-xs" style={{ color: 'var(--muted)' }}>({tag.display_name})</span>
                         )}
                       </label>
                     ))
                   )}
                 </div>
                 {formData.additional_discord_tags.length > 0 && (
-                  <p className="text-xs text-cyan-400 mt-1">
+                  <p className="text-xs mt-1" style={{ color: 'var(--app-primary)' }}>
                     Can view: Haven + {formData.additional_discord_tags.join(', ')}
                   </p>
                 )}
@@ -603,7 +603,7 @@ export default function SubAdminManagement({ embedded = false }) {
 
             {/* Personal Uploads Permission - Only for Haven sub-admins */}
             {!selectedSubAdmin.parent_partner_id && auth.isSuperAdmin && (
-              <div className="border-t border-gray-600 pt-4">
+              <div className="pt-4" style={{ borderTop: '1px solid var(--border-soft)' }}>
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -613,7 +613,7 @@ export default function SubAdminManagement({ embedded = false }) {
                   />
                   <div>
                     <span className="text-sm font-semibold">Can Approve Personal Uploads</span>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs" style={{ color: 'var(--muted)' }}>
                       Allow this sub-admin to see and approve submissions without a discord tag (personal uploads).
                       Note: Discord info will be hidden - only visible to super admin.
                     </p>
@@ -624,14 +624,14 @@ export default function SubAdminManagement({ embedded = false }) {
 
             <div className="flex space-x-2 pt-3">
               <Button
-                className="bg-blue-600 text-white"
+                className="haven-btn-primary"
                 onClick={updateSubAdmin}
                 disabled={actionInProgress}
               >
                 {actionInProgress ? 'Saving...' : 'Save Changes'}
               </Button>
               <Button
-                className="bg-gray-200 text-gray-800"
+                className="haven-btn-ghost"
                 onClick={() => setEditModalOpen(false)}
               >
                 Cancel
@@ -649,7 +649,7 @@ export default function SubAdminManagement({ embedded = false }) {
               <label className="block text-sm font-semibold mb-1">New Password *</label>
               <input
                 type="password"
-                className="w-full border rounded p-2 bg-gray-700 text-white"
+                className="haven-input w-full p-2"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="min 4 characters"
@@ -657,14 +657,14 @@ export default function SubAdminManagement({ embedded = false }) {
             </div>
             <div className="flex space-x-2 pt-3">
               <Button
-                className="bg-yellow-600 text-white"
+                className="haven-btn-primary"
                 onClick={resetPassword}
                 disabled={actionInProgress}
               >
                 {actionInProgress ? 'Resetting...' : 'Reset Password'}
               </Button>
               <Button
-                className="bg-gray-200 text-gray-800"
+                className="haven-btn-ghost"
                 onClick={() => setResetPasswordModalOpen(false)}
               >
                 Cancel

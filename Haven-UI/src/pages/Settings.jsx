@@ -264,70 +264,71 @@ export default function Settings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg text-gray-400">Loading settings...</div>
+        <div className="text-lg" style={{ color: 'var(--muted)' }}>Loading settings...</div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-cyan-400">Settings</h1>
+      <h1 className="text-2xl font-bold" style={{ color: 'var(--app-primary)' }}>Settings</h1>
 
       {/* User Info */}
-      <Card className="bg-gray-800/50">
+      <Card className="haven-card">
         <div className="p-4">
-          <h3 className="text-lg font-semibold text-white mb-2">Logged in as</h3>
-          <div className="text-gray-300">
+          <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>Logged in as</h3>
+          <div style={{ color: 'var(--app-text)' }}>
             <p><strong>{user?.displayName || user?.username}</strong></p>
-            {isSuperAdmin && <p className="text-yellow-400 text-sm">Super Admin</p>}
-            {isPartner && user?.discordTag && <p className="text-cyan-400 text-sm">Partner: {user.discordTag}</p>}
+            {isSuperAdmin && <p className="text-sm" style={{ color: 'var(--app-accent-amber)' }}>Super Admin</p>}
+            {isPartner && user?.discordTag && <p className="text-sm" style={{ color: 'var(--app-primary)' }}>Partner: {user.discordTag}</p>}
           </div>
-          <Button className="mt-3" variant="danger" onClick={logout}>Logout</Button>
+          <Button className="haven-btn-ghost mt-3" onClick={logout}>Logout</Button>
         </div>
       </Card>
 
       {/* Change Password */}
       {isAdmin && (
-        <Card className="bg-gray-800/50">
+        <Card className="haven-card">
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Change Password</h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>Change Password</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
               Update your password. You will be logged out after changing your password.
             </p>
 
             <div className="space-y-4 max-w-md">
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Current Password</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Current Password</label>
                 <input
                   type="password"
                   value={currentPassword}
                   onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full"
                   placeholder="Enter current password"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">New Password</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>New Password</label>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full"
                   placeholder="Enter new password (min 4 characters)"
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Confirm New Password</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Confirm New Password</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full"
                   placeholder="Confirm new password"
                 />
               </div>
 
               <Button
+                className="haven-btn-primary"
                 onClick={changePassword}
                 disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
               >
@@ -340,43 +341,44 @@ export default function Settings() {
 
       {/* Change Username (Partners only) */}
       {isPartner && (
-        <Card className="bg-gray-800/50">
+        <Card className="haven-card">
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Change Username</h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>Change Username</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
               Update your login username. You will be logged out after changing your username.
             </p>
 
             <div className="space-y-4 max-w-md">
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Current Username</label>
-                <p className="text-white font-medium">{user?.username || ''}</p>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Current Username</label>
+                <p className="font-medium" style={{ color: 'var(--app-text)' }}>{user?.username || ''}</p>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">New Username</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>New Username</label>
                 <input
                   type="text"
                   value={newUsername}
                   onChange={e => setNewUsername(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full"
                   placeholder="Enter new username (min 3 characters)"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
                   Letters, numbers, underscores, and hyphens only
                 </p>
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Current Password</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Current Password</label>
                 <input
                   type="password"
                   value={usernamePassword}
                   onChange={e => setUsernamePassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full"
                   placeholder="Enter your password to confirm"
                 />
               </div>
 
               <Button
+                className="haven-btn-primary"
                 onClick={changeUsername}
                 disabled={changingUsername || !newUsername || !usernamePassword}
               >
@@ -389,16 +391,16 @@ export default function Settings() {
 
       {/* Partner Theme Settings */}
       {isPartner && (
-        <Card className="bg-gray-800/50">
+        <Card className="haven-card">
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Your Theme</h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>Your Theme</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
               Customize your view of Haven Control Room. These settings only affect your session.
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Background</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Background</label>
                 <input
                   type="color"
                   value={partnerTheme.bg || '#1f2937'}
@@ -407,7 +409,7 @@ export default function Settings() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Text</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Text</label>
                 <input
                   type="color"
                   value={partnerTheme.text || '#f3f4f6'}
@@ -416,7 +418,7 @@ export default function Settings() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Card</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Card</label>
                 <input
                   type="color"
                   value={partnerTheme.card || '#374151'}
@@ -425,7 +427,7 @@ export default function Settings() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Primary</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Primary</label>
                 <input
                   type="color"
                   value={partnerTheme.primary || '#06b6d4'}
@@ -435,7 +437,7 @@ export default function Settings() {
               </div>
             </div>
 
-            <Button className="mt-4" onClick={savePartnerTheme} disabled={saving}>
+            <Button className="haven-btn-primary mt-4" onClick={savePartnerTheme} disabled={saving}>
               {saving ? 'Saving...' : 'Save Your Theme'}
             </Button>
           </div>
@@ -444,23 +446,24 @@ export default function Settings() {
 
       {/* Partner: Region Color for 3D Map */}
       {isPartner && (
-        <Card className="bg-gray-800/50">
+        <Card className="haven-card">
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">3D Galaxy Map - Region Color</h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>3D Galaxy Map - Region Color</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
               Choose a custom color for your community's regions on the 3D galaxy map.
               This color will be visible to everyone viewing the map.
             </p>
 
             <div className="flex items-center gap-4">
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Region Point Color</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Region Point Color</label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
                     value={regionColor}
                     onChange={e => setRegionColor(e.target.value)}
-                    className="w-16 h-10 rounded cursor-pointer border-2 border-gray-600"
+                    className="w-16 h-10 rounded cursor-pointer"
+                    style={{ border: '2px solid var(--border-soft)' }}
                   />
                   <input
                     type="text"
@@ -472,14 +475,14 @@ export default function Settings() {
                       }
                     }}
                     placeholder="#00C2B3"
-                    className="w-28 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-28 font-mono text-sm"
                   />
                 </div>
               </div>
 
               {/* Color preview */}
               <div className="flex-1">
-                <label className="block text-sm text-gray-300 mb-1">Preview</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Preview</label>
                 <div className="flex items-center gap-2">
                   <div
                     className="w-8 h-8 rounded-full shadow-lg"
@@ -488,14 +491,14 @@ export default function Settings() {
                       boxShadow: `0 0 15px ${regionColor}80`
                     }}
                   />
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm" style={{ color: 'var(--muted)' }}>
                     This is how your regions will appear on the map
                   </span>
                 </div>
               </div>
             </div>
 
-            <Button className="mt-4" onClick={saveRegionColor} disabled={savingRegionColor}>
+            <Button className="haven-btn-primary mt-4" onClick={saveRegionColor} disabled={savingRegionColor}>
               {savingRegionColor ? 'Saving...' : 'Save Region Color'}
             </Button>
           </div>
@@ -504,16 +507,16 @@ export default function Settings() {
 
       {/* Super Admin: Global Theme Settings */}
       {isSuperAdmin && (
-        <Card className="bg-gray-800/50">
+        <Card className="haven-card">
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Global Theme</h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>Global Theme</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
               Server-side theme controls the color palette for all users (default).
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Background</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Background</label>
                 <input
                   type="color"
                   value={(settings.theme && settings.theme.bg) || '#1f2937'}
@@ -522,7 +525,7 @@ export default function Settings() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Text</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Text</label>
                 <input
                   type="color"
                   value={(settings.theme && settings.theme.text) || '#f3f4f6'}
@@ -531,7 +534,7 @@ export default function Settings() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Card</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Card</label>
                 <input
                   type="color"
                   value={(settings.theme && settings.theme.card) || '#374151'}
@@ -540,7 +543,7 @@ export default function Settings() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Primary</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Primary</label>
                 <input
                   type="color"
                   value={(settings.theme && settings.theme.primary) || '#06b6d4'}
@@ -550,7 +553,7 @@ export default function Settings() {
               </div>
             </div>
 
-            <Button className="mt-4" onClick={saveGlobalSettings} disabled={saving}>
+            <Button className="haven-btn-primary mt-4" onClick={saveGlobalSettings} disabled={saving}>
               {saving ? 'Saving...' : 'Save Global Theme'}
             </Button>
           </div>
@@ -559,23 +562,24 @@ export default function Settings() {
 
       {/* Super Admin: Personal Submission Color */}
       {isSuperAdmin && (
-        <Card className="bg-gray-800/50">
+        <Card className="haven-card">
           <div className="p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Personal Submission Badge Color</h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>Personal Submission Badge Color</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
               Customize the color used for personal submissions (submissions without a community tag).
               This color is visible across the UI where personal badges are displayed.
             </p>
 
             <div className="flex items-center gap-4">
               <div>
-                <label className="block text-sm text-gray-300 mb-1">Badge Color</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Badge Color</label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
                     value={personalColor}
                     onChange={e => setPersonalColor(e.target.value)}
-                    className="w-16 h-10 rounded cursor-pointer border-2 border-gray-600"
+                    className="w-16 h-10 rounded cursor-pointer"
+                    style={{ border: '2px solid var(--border-soft)' }}
                   />
                   <input
                     type="text"
@@ -587,14 +591,14 @@ export default function Settings() {
                       }
                     }}
                     placeholder="#c026d3"
-                    className="w-28 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white font-mono text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-28 font-mono text-sm"
                   />
                 </div>
               </div>
 
               {/* Color preview */}
               <div className="flex-1">
-                <label className="block text-sm text-gray-300 mb-1">Preview</label>
+                <label className="block text-sm mb-1" style={{ color: 'var(--app-text)' }}>Preview</label>
                 <div className="flex items-center gap-2">
                   <span
                     className="px-2 py-1 rounded text-xs font-semibold text-white"
@@ -602,14 +606,14 @@ export default function Settings() {
                   >
                     PERSONAL
                   </span>
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm" style={{ color: 'var(--muted)' }}>
                     Badge preview
                   </span>
                 </div>
               </div>
             </div>
 
-            <Button className="mt-4" onClick={savePersonalColor} disabled={savingPersonalColor}>
+            <Button className="haven-btn-primary mt-4" onClick={savePersonalColor} disabled={savingPersonalColor}>
               {savingPersonalColor ? 'Saving...' : 'Save Personal Color'}
             </Button>
           </div>
@@ -618,10 +622,10 @@ export default function Settings() {
 
       {/* Pointer to Admin Tools — backup and migrations moved there v1.49.0 */}
       {isSuperAdmin && (
-        <Card className="bg-gray-800/30">
-          <div className="p-4 text-sm text-gray-400">
-            <strong className="text-white">Looking for backup / migrations?</strong> Those moved to{' '}
-            <a href="/haven-ui/admin/tools" className="text-cyan-400 hover:underline">Admin Tools</a>{' '}
+        <Card className="haven-card">
+          <div className="p-4 text-sm" style={{ color: 'var(--muted)' }}>
+            <strong style={{ color: 'var(--app-text)' }}>Looking for backup / migrations?</strong> Those moved to{' '}
+            <a href="/haven-ui/admin/tools" className="hover:underline" style={{ color: 'var(--app-primary)' }}>Admin Tools</a>{' '}
             so destructive operations don't sit next to personal settings.
           </div>
         </Card>

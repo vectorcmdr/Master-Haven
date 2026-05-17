@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { format, parseISO } from 'date-fns'
 import { TYPE_INFO } from '../data/discoveryTypes'
+import { CHART_PALETTE } from '../utils/chartPalette'
 
 /**
  * Partner Analytics Dashboard
@@ -35,7 +36,7 @@ import { TYPE_INFO } from '../data/discoveryTypes'
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null
   return (
-    <div className="rounded-lg p-3 shadow-xl" style={{ background: 'var(--app-card)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div className="haven-card p-3 shadow-xl">
       <div className="text-xs font-medium mb-2" style={{ color: 'var(--app-text)' }}>{label}</div>
       {payload.map((entry, index) => (
         <div key={index} className="flex items-center justify-between gap-4 text-sm">
@@ -207,7 +208,7 @@ export default function PartnerAnalytics({ embedded = false }) {
   if (auth.loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg text-gray-400">Loading...</div>
+        <div className="text-lg" style={{ color: 'var(--muted)' }}>Loading...</div>
       </div>
     )
   }
@@ -239,7 +240,7 @@ export default function PartnerAnalytics({ embedded = false }) {
         )}
         <div className="flex flex-wrap items-center gap-3">
           {/* Period quick filters */}
-          <div className="flex items-center rounded-lg overflow-hidden" style={{ background: 'var(--app-card)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div className="haven-card flex items-center rounded-lg overflow-hidden">
             {['week', 'month', 'year', 'all'].map((p) => (
               <button
                 key={p}
@@ -262,12 +263,7 @@ export default function PartnerAnalytics({ embedded = false }) {
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg text-sm"
-            style={{
-              background: 'var(--app-card)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'var(--app-text)'
-            }}
+            className="haven-input px-3 py-2 rounded-lg text-sm"
           >
             <option value="">All Sources</option>
             <option value="manual">Manual Only</option>
@@ -277,12 +273,7 @@ export default function PartnerAnalytics({ embedded = false }) {
             <select
               value={selectedCommunity}
               onChange={(e) => setSelectedCommunity(e.target.value)}
-              className="px-3 py-2 rounded-lg text-sm"
-              style={{
-                background: 'var(--app-card)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: 'var(--app-text)'
-              }}
+              className="haven-input px-3 py-2 rounded-lg text-sm"
             >
               <option value="">All Communities</option>
               {discordTags.map((tag) => (
@@ -322,13 +313,7 @@ export default function PartnerAnalytics({ embedded = false }) {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Submission Timeline */}
-        <div
-          className="rounded-xl p-4"
-          style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-            border: '1px solid rgba(255,255,255,0.04)'
-          }}
-        >
+        <div className="haven-card p-4">
           <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
             System Submissions Over Time
           </h2>
@@ -336,13 +321,7 @@ export default function PartnerAnalytics({ embedded = false }) {
         </div>
 
         {/* Discovery Timeline */}
-        <div
-          className="rounded-xl p-4"
-          style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-            border: '1px solid rgba(255,255,255,0.04)'
-          }}
-        >
+        <div className="haven-card p-4">
           <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
             Discoveries Over Time
           </h2>
@@ -359,8 +338,8 @@ export default function PartnerAnalytics({ embedded = false }) {
               <AreaChart data={formattedDiscTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorDiscoveries" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    <stop offset="5%" stopColor={CHART_PALETTE.discovery} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={CHART_PALETTE.discovery} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -385,7 +364,7 @@ export default function PartnerAnalytics({ embedded = false }) {
                   type="monotone"
                   dataKey="discoveries"
                   name="Discoveries"
-                  stroke="#8b5cf6"
+                  stroke={CHART_PALETTE.discovery}
                   strokeWidth={2}
                   fill="url(#colorDiscoveries)"
                 />
@@ -396,13 +375,7 @@ export default function PartnerAnalytics({ embedded = false }) {
       </div>
 
       {/* Discovery Type Breakdown */}
-      <div
-        className="rounded-xl p-4 mb-6"
-        style={{
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-          border: '1px solid rgba(255,255,255,0.04)'
-        }}
-      >
+      <div className="haven-card p-4 mb-6">
         <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
           Discovery Type Breakdown
         </h2>
@@ -469,13 +442,7 @@ export default function PartnerAnalytics({ embedded = false }) {
       {/* Two Leaderboards Side-by-Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* System Submission Leaderboard */}
-        <div
-          className="rounded-xl p-4"
-          style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-            border: '1px solid rgba(255,255,255,0.04)'
-          }}
-        >
+        <div className="haven-card p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
               System Submission Leaderboard
@@ -492,13 +459,7 @@ export default function PartnerAnalytics({ embedded = false }) {
         </div>
 
         {/* Discovery Leaderboard */}
-        <div
-          className="rounded-xl p-4"
-          style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-            border: '1px solid rgba(255,255,255,0.04)'
-          }}
-        >
+        <div className="haven-card p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold" style={{ color: 'var(--app-text)' }}>
               Discovery Leaderboard
@@ -520,10 +481,10 @@ export default function PartnerAnalytics({ embedded = false }) {
               <table className="w-full">
                 <thead>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-accent-3)' }}>Rank</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-accent-3)' }}>Discoverer</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-accent-3)' }}>Discoveries</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-accent-3)' }}>Types</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-primary)' }}>Rank</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-primary)' }}>Discoverer</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-primary)' }}>Discoveries</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--app-primary)' }}>Types</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -560,7 +521,7 @@ export default function PartnerAnalytics({ embedded = false }) {
                             </div>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right font-semibold" style={{ color: '#8b5cf6' }}>
+                        <td className="py-3 px-4 text-right font-semibold" style={{ color: 'var(--app-accent-2)' }}>
                           {entry.total_discoveries}
                         </td>
                         <td className="py-3 px-4 text-right">

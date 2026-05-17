@@ -165,6 +165,20 @@ textarea::placeholder {
 	--app-accent-purple-dim: rgba(157, 78, 221, 0.15);
 	--border-soft: rgba(255, 255, 255, 0.08);
 	--border-card: rgba(255, 255, 255, 0.04);
+
+	/* War Room exception (2026-05-16 audit, Option A).
+	   The /war-room and /war-room/admin pages intentionally diverge from the
+	   teal/purple haven palette. These tokens codify the red/grey theme so
+	   the divergence is intentional + overridable instead of accidental. */
+	--war-bg: #0a0c10;
+	--war-card: rgba(20, 20, 24, 0.85);
+	--war-card-hover: rgba(30, 25, 28, 0.95);
+	--war-border: rgba(239, 68, 68, 0.2);
+	--war-border-strong: rgba(239, 68, 68, 0.4);
+	--war-accent: #ef4444;
+	--war-accent-soft: rgba(239, 68, 68, 0.15);
+	--war-text: rgba(255, 255, 255, 0.85);
+	--war-text-dim: rgba(255, 255, 255, 0.55);
 }
 
 /* Card shell + hover lift */
@@ -427,4 +441,155 @@ details[open] .chev { transform: rotate(180deg); }
 @media (max-width: 640px) {
 	.haven-card,
 	.haven-card-hover { border-radius: 10px; }
+}
+
+/* ============================================================
+   2.0 audit additions (2026-05-16) — infrastructure utilities.
+   See docs/2.0-audit/rollout-plan.md for the conventions these
+   utilities encode.
+   ============================================================ */
+
+/* Hub header — shared by AnalyticsHub, AccessControl, AdminTools.
+   Pre-audit each hub built this gradient inline. Single class now. */
+.hub-header {
+	background: linear-gradient(135deg, rgba(0, 194, 179, 0.08), rgba(157, 78, 221, 0.06));
+	border: 1px solid var(--border-soft);
+	border-radius: var(--radius-md);
+	padding: 1.25rem 1.5rem;
+}
+.hub-header-title {
+	font-size: 1.5rem;
+	font-weight: 600;
+	color: var(--app-text);
+}
+.hub-header-subtitle {
+	font-size: 0.875rem;
+	color: var(--muted);
+	margin-top: 0.25rem;
+}
+
+/* Modal — standardized backdrop + panel.
+   Pre-audit DataRestrictions, Events, ApiKeys, SubAdminManagement
+   each rolled their own. */
+.haven-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 50;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+	background: rgba(0, 0, 0, 0.6);
+	backdrop-filter: blur(2px);
+}
+.haven-modal-panel {
+	background-color: var(--app-card);
+	border: 1px solid var(--border-soft);
+	border-radius: var(--radius-md);
+	box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+	max-width: 640px;
+	width: 100%;
+	max-height: calc(100vh - 2rem);
+	overflow-y: auto;
+	color: var(--app-text);
+}
+.haven-modal-panel-wide { max-width: 900px; }
+.haven-modal-panel-narrow { max-width: 440px; }
+.haven-modal-header {
+	padding: 1rem 1.25rem;
+	border-bottom: 1px solid var(--border-soft);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 1.1rem;
+	font-weight: 600;
+}
+.haven-modal-body { padding: 1.25rem; }
+.haven-modal-footer {
+	padding: 0.75rem 1.25rem;
+	border-top: 1px solid var(--border-soft);
+	display: flex;
+	gap: 0.5rem;
+	justify-content: flex-end;
+}
+
+/* War Room exception (Option A from audit).
+   Mirrors .haven-card / .haven-btn-* / .pill-* APIs but uses the
+   --war-* token set. Visual stays identical to the pre-audit
+   red/grey theme; divergence is now codified + overridable. */
+.war-card {
+	background-color: var(--war-card);
+	border: 1px solid var(--war-border);
+	border-radius: 12px;
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+	color: var(--war-text);
+}
+.war-card-hover {
+	transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+		background-color 200ms,
+		border-color 200ms,
+		box-shadow 200ms;
+}
+.war-card-hover:hover {
+	transform: translateY(-2px);
+	background-color: var(--war-card-hover);
+	border-color: var(--war-border-strong);
+	box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45), 0 0 24px -8px rgba(239, 68, 68, 0.3);
+}
+
+.war-btn-primary {
+	background-color: var(--war-accent);
+	color: #ffffff;
+	font-weight: 600;
+}
+.war-btn-primary:hover { background-color: #dc2626; }
+
+.war-btn-danger {
+	background-color: rgba(239, 68, 68, 0.15);
+	border: 1px solid var(--war-border-strong);
+	color: #fca5a5;
+}
+.war-btn-danger:hover { background-color: rgba(239, 68, 68, 0.25); }
+
+.war-btn-success {
+	background-color: rgba(34, 197, 94, 0.15);
+	border: 1px solid rgba(34, 197, 94, 0.4);
+	color: #86efac;
+}
+.war-btn-success:hover { background-color: rgba(34, 197, 94, 0.25); }
+
+.war-btn-ghost {
+	background-color: transparent;
+	border: 1px solid var(--war-border);
+	color: var(--war-text);
+}
+.war-btn-ghost:hover { background-color: rgba(255, 255, 255, 0.04); }
+
+.war-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0.25rem 0.625rem;
+	border-radius: 9999px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	line-height: 1.2;
+}
+.war-pill-red     { background: var(--war-accent-soft); color: #fca5a5; border: 1px solid var(--war-border); }
+.war-pill-success { background: rgba(34, 197, 94, 0.15); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.3); }
+.war-pill-warning { background: rgba(234, 179, 8, 0.15); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); }
+.war-pill-info    { background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
+.war-pill-purple  { background: rgba(168, 85, 247, 0.15); color: #d4a3ff; border: 1px solid rgba(168, 85, 247, 0.3); }
+.war-pill-muted   { background: rgba(255, 255, 255, 0.05); color: var(--war-text-dim); border: 1px solid var(--war-border); }
+
+.war-input {
+	background-color: var(--war-card);
+	color: var(--war-text);
+	border: 1px solid var(--war-border);
+	border-radius: 6px;
+}
+.war-input:focus {
+	outline: none;
+	border-color: var(--war-accent);
+	box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
 }

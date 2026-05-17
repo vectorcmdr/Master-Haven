@@ -6333,3 +6333,8 @@ audit/work/timeline.tsv
 
 # External cloned repo (kept locally, not part of Master Haven)
 Philbert-discord/
+
+# Audit work products — local-only notes, capture scripts, findings.
+# Kept on disk for reference but not committed.
+docs/2.0-audit/
+docs/code-audit/

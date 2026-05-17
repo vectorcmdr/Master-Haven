@@ -221,9 +221,9 @@ export default function PendingApprovals() {
             {/* Discord Tag Filter - Super Admin Only */}
             {isSuperAdmin && (
               <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-300 hidden sm:inline">Filter:</label>
+                <label className="text-sm hidden sm:inline" style={{ color: 'var(--muted)' }}>Filter:</label>
                 <select
-                  className="p-2 border rounded bg-gray-700 text-white text-sm flex-1 sm:flex-initial"
+                  className="haven-input p-2 text-sm flex-1 sm:flex-initial"
                   value={filterTag}
                   onChange={e => setFilterTag(e.target.value)}
                 >
@@ -236,7 +236,7 @@ export default function PendingApprovals() {
               </div>
             )}
             <div className="flex gap-2">
-              <Button className="bg-gray-200 text-gray-800 text-sm" onClick={() => navigate('/systems')}>
+              <Button className="haven-btn-ghost text-sm" onClick={() => navigate('/systems')}>
                 Back
               </Button>
             </div>
@@ -244,35 +244,33 @@ export default function PendingApprovals() {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-gray-600 mb-6">
+        <div className="flex mb-6" style={{ borderBottom: '1px solid var(--border-soft)' }}>
           <button
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
+            style={
               activeTab === 'systems'
-                ? 'border-cyan-500 text-cyan-400'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
+                ? { borderColor: 'var(--app-primary)', color: 'var(--app-primary)' }
+                : { borderColor: 'transparent', color: 'var(--muted)' }
+            }
             onClick={() => setActiveTab('systems')}
           >
             Systems
             {pendingSystemsCount > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-cyan-600 text-white">
-                {pendingSystemsCount}
-              </span>
+              <span className="pill pill-teal-solid ml-2">{pendingSystemsCount}</span>
             )}
           </button>
           <button
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            className="px-4 py-2 text-sm font-medium border-b-2 transition-colors"
+            style={
               activeTab === 'discoveries'
-                ? 'border-cyan-500 text-cyan-400'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
+                ? { borderColor: 'var(--app-primary)', color: 'var(--app-primary)' }
+                : { borderColor: 'transparent', color: 'var(--muted)' }
+            }
             onClick={() => setActiveTab('discoveries')}
           >
             Discoveries
             {pendingDiscoveriesCount > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-cyan-600 text-white">
-                {pendingDiscoveriesCount}
-              </span>
+              <span className="pill pill-teal-solid ml-2">{pendingDiscoveriesCount}</span>
             )}
           </button>
         </div>

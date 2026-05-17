@@ -26,18 +26,11 @@ const rankStyles = {
   3: { bg: 'rgba(205, 127, 50, 0.15)', border: 'rgba(205, 127, 50, 0.3)', text: '#CD7F32' },
 }
 
-// Star type colors
-const starTypeColors = {
-  'Yellow': '#facc15', 'Red': '#ef4444', 'Green': '#22c55e',
-  'Blue': '#3b82f6', 'Purple': '#a855f7', 'Unknown': '#6b7280',
-}
-
-// Grade badge colors
-const gradeColors = {
-  'S': { bg: 'rgba(255, 215, 0, 0.2)', text: '#FFD700' },
-  'A': { bg: 'rgba(34, 197, 94, 0.2)', text: '#22c55e' },
-  'B': { bg: 'rgba(59, 130, 246, 0.2)', text: '#3b82f6' },
-  'C': { bg: 'rgba(107, 114, 128, 0.2)', text: '#6b7280' },
+// Map a star type string to its pill-star-* utility variant (with .pill-muted fallback)
+const STAR_PILL_VARIANTS = new Set(['yellow', 'blue', 'red', 'green', 'purple'])
+function starPillClass(starType) {
+  const key = (starType || '').toLowerCase()
+  return STAR_PILL_VARIANTS.has(key) ? `pill pill-star-${key}` : 'pill pill-muted'
 }
 
 export default function CommunityDetail() {
@@ -76,7 +69,7 @@ export default function CommunityDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg" style={{ color: 'var(--app-text)', opacity: 0.5 }}>Loading...</div>
+        <div className="text-lg" style={{ color: 'var(--muted)' }}>Loading...</div>
       </div>
     )
   }
@@ -124,14 +117,11 @@ export default function CommunityDetail() {
             .map((c, i) => ({ ...c, _rank: i + 1 }))
           return (
             <div
-              className="rounded-xl p-4"
-              style={{
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-                border: '1px solid rgba(6, 182, 212, 0.15)'
-              }}
+              className="haven-card p-4"
+              style={{ borderColor: 'rgba(6, 182, 212, 0.25)' }}
             >
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--app-text)' }}>
-                <span className="inline-block w-3 h-3 rounded-full" style={{ background: '#06b6d4' }} />
+                <span className="inline-block w-3 h-3 rounded-full" style={{ background: 'var(--app-primary)' }} />
                 Manual Submissions
                 <span className="text-sm font-normal" style={{ opacity: 0.5 }}>({manualList.length})</span>
               </h2>
@@ -191,14 +181,11 @@ export default function CommunityDetail() {
             .map((c, i) => ({ ...c, _rank: i + 1 }))
           return (
             <div
-              className="rounded-xl p-4"
-              style={{
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-                border: '1px solid rgba(168, 85, 247, 0.15)'
-              }}
+              className="haven-card p-4"
+              style={{ borderColor: 'rgba(157, 78, 221, 0.25)' }}
             >
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--app-text)' }}>
-                <span className="inline-block w-3 h-3 rounded-full" style={{ background: '#a855f7' }} />
+                <span className="inline-block w-3 h-3 rounded-full" style={{ background: 'var(--app-accent-2)' }} />
                 Extractor Submissions
                 <span className="text-sm font-normal" style={{ opacity: 0.5 }}>({extractorList.length})</span>
               </h2>
@@ -252,16 +239,10 @@ export default function CommunityDetail() {
       </div>
 
       {/* Regions Section */}
-      <div
-        className="rounded-xl p-4"
-        style={{
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-          border: '1px solid rgba(255,255,255,0.04)'
-        }}
-      >
+      <div className="haven-card p-4">
         <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>
           Regions
-          <span className="text-sm font-normal ml-2" style={{ opacity: 0.5 }}>({regions.length})</span>
+          <span className="text-sm font-normal ml-2" style={{ color: 'var(--muted)' }}>({regions.length})</span>
         </h2>
 
         {regions.length === 0 ? (
@@ -280,19 +261,17 @@ export default function CommunityDetail() {
                   {/* Region row */}
                   <button
                     onClick={() => toggleRegion(key)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors text-left"
+                    className="haven-card haven-card-hover w-full flex items-center justify-between p-3 text-left"
                     style={{
-                      background: isExpanded ? 'rgba(255,255,255,0.04)' : 'transparent',
+                      background: isExpanded ? 'rgba(255,255,255,0.04)' : undefined,
                     }}
-                    onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = 'rgba(255,255,255,0.02)' }}
-                    onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = 'transparent' }}
                   >
                     <div className="flex items-center gap-3">
                       {/* Expand arrow */}
                       <span
-                        className="text-xs transition-transform"
+                        className="text-xs transition-transform chev"
                         style={{
-                          color: 'var(--app-text)', opacity: 0.4,
+                          color: 'var(--muted)',
                           transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
                           display: 'inline-block',
                         }}
@@ -300,12 +279,12 @@ export default function CommunityDetail() {
                         &#9654;
                       </span>
                       {/* Region name */}
-                      <span className="font-medium" style={{ color: region.custom_name ? 'var(--app-text)' : 'var(--app-text)', opacity: region.custom_name ? 1 : 0.6 }}>
+                      <span className="font-medium" style={{ color: 'var(--app-text)', opacity: region.custom_name ? 1 : 0.6 }}>
                         {region.display_name}
                       </span>
                     </div>
                     {/* System count */}
-                    <span className="text-sm px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--app-text)', opacity: 0.6 }}>
+                    <span className="pill pill-muted">
                       {region.system_count} {region.system_count === 1 ? 'system' : 'systems'}
                     </span>
                   </button>
@@ -314,8 +293,8 @@ export default function CommunityDetail() {
                   {isExpanded && (
                     <div className="ml-10 mr-4 mb-2 mt-1 space-y-0.5">
                       {region.systems.map((sys) => {
-                        const gc = gradeColors[sys.completeness_grade] || gradeColors['C']
-                        const starColor = starTypeColors[sys.star_type] || starTypeColors['Unknown']
+                        const gradeLetter = (sys.completeness_grade || 'C').toString()
+                        const gradeKey = gradeLetter.toLowerCase()
 
                         return (
                           <Link
@@ -327,21 +306,19 @@ export default function CommunityDetail() {
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
                             <div className="flex items-center gap-2">
-                              {/* Star type dot */}
+                              {/* Star type pill (compact, used as a dot equivalent) */}
                               <span
-                                className="inline-block w-2.5 h-2.5 rounded-full"
-                                style={{ background: starColor }}
+                                className={`${starPillClass(sys.star_type)} px-1.5 py-0.5 text-[10px]`}
                                 title={sys.star_type}
-                              />
+                              >
+                                {(sys.star_type || '?').charAt(0)}
+                              </span>
                               {/* System name */}
                               <span className="text-sm hover:underline">{sys.name}</span>
                             </div>
                             {/* Grade badge */}
-                            <span
-                              className="text-xs font-bold px-1.5 py-0.5 rounded"
-                              style={{ background: gc.bg, color: gc.text }}
-                            >
-                              {sys.completeness_grade}
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded grade-${gradeKey}`}>
+                              {gradeLetter}
                             </span>
                           </Link>
                         )

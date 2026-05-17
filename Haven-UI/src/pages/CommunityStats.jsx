@@ -4,6 +4,7 @@ import StatCard from '../components/StatCard'
 import { getTagColorStyle as getTagColors } from '../utils/tagColors'
 import { TYPE_INFO } from '../data/discoveryTypes'
 import { normalizeUsernameForUrl } from '../posters/_shared/identity'
+import { CHART_PALETTE } from '../utils/chartPalette'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, Cell
@@ -38,7 +39,7 @@ const rankStyles = {
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null
   return (
-    <div className="rounded-lg p-3 shadow-xl" style={{ background: 'var(--app-card)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div className="haven-card p-3 shadow-xl">
       <div className="text-xs font-medium mb-2" style={{ color: 'var(--app-text)' }}>{label}</div>
       {payload.map((entry, index) => (
         <div key={index} className="flex items-center justify-between gap-4 text-sm">
@@ -92,7 +93,7 @@ export default function CommunityStats() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg" style={{ color: 'var(--app-text)', opacity: 0.5 }}>Loading community stats...</div>
+        <div className="text-lg" style={{ color: 'var(--muted)' }}>Loading community stats...</div>
       </div>
     )
   }
@@ -105,7 +106,7 @@ export default function CommunityStats() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold" style={{ color: 'var(--app-text)' }}>Community Stats</h1>
-        <p className="mt-2 text-sm" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
+        <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
           Celebrating our community's contributions to mapping the universe
         </p>
       </div>
@@ -132,8 +133,8 @@ export default function CommunityStats() {
               <Link
                 key={community.discord_tag}
                 to={`/community-stats/${encodeURIComponent(community.discord_tag)}`}
-                className="rounded-xl p-5 block transition-all hover:scale-[1.02] hover:shadow-lg cursor-pointer"
-                style={{ background: colors.bg, border: `1px solid ${colors.border}`, textDecoration: 'none' }}
+                className="haven-card haven-card-hover p-5 block cursor-pointer"
+                style={{ textDecoration: 'none' }}
               >
                 {/* Community name */}
                 <div className="flex items-center gap-2 mb-4">
@@ -152,26 +153,26 @@ export default function CommunityStats() {
                     <div className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>
                       {community.total_systems.toLocaleString()}
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--app-text)', opacity: 0.5 }}>Systems</div>
+                    <div className="text-xs" style={{ color: 'var(--muted)' }}>Systems</div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>
                       {community.total_discoveries.toLocaleString()}
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--app-text)', opacity: 0.5 }}>Discoveries</div>
+                    <div className="text-xs" style={{ color: 'var(--muted)' }}>Discoveries</div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>
                       {community.unique_contributors}
                     </div>
-                    <div className="text-xs" style={{ color: 'var(--app-text)', opacity: 0.5 }}>Members</div>
+                    <div className="text-xs" style={{ color: 'var(--muted)' }}>Members</div>
                   </div>
                 </div>
 
                 {/* Upload method bar */}
                 {totalMethod > 0 && (
                   <div>
-                    <div className="flex items-center justify-between text-xs mb-1" style={{ color: 'var(--app-text)', opacity: 0.6 }}>
+                    <div className="flex items-center justify-between text-xs mb-1" style={{ color: 'var(--muted)' }}>
                       <span>Manual: {community.manual_systems}</span>
                       <span>Extractor: {community.extractor_systems}</span>
                     </div>
@@ -179,25 +180,21 @@ export default function CommunityStats() {
                       {manualPct > 0 && (
                         <div
                           className="h-full"
-                          style={{ width: `${manualPct}%`, background: '#06b6d4' }}
+                          style={{ width: `${manualPct}%`, background: CHART_PALETTE.manual }}
                           title={`Manual: ${manualPct}%`}
                         />
                       )}
                       {extractorPct > 0 && (
                         <div
                           className="h-full"
-                          style={{ width: `${extractorPct}%`, background: '#a855f7' }}
+                          style={{ width: `${extractorPct}%`, background: CHART_PALETTE.extractor }}
                           title={`Extractor: ${extractorPct}%`}
                         />
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--app-text)', opacity: 0.5 }}>
-                        <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#06b6d4' }} /> Manual
-                      </div>
-                      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--app-text)', opacity: 0.5 }}>
-                        <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#a855f7' }} /> Extractor
-                      </div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="pill pill-teal">manual</span>
+                      <span className="pill pill-purple">extractor</span>
                     </div>
                   </div>
                 )}
@@ -208,16 +205,10 @@ export default function CommunityStats() {
       </div>
 
       {/* Activity Timeline */}
-      <div
-        className="rounded-xl p-4 mb-8"
-        style={{
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-          border: '1px solid rgba(255,255,255,0.04)'
-        }}
-      >
+      <div className="haven-card p-4 mb-8">
         <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>Activity Timeline</h2>
         {timeline.length === 0 ? (
-          <div className="text-center py-12" style={{ color: 'var(--app-text)', opacity: 0.5 }}>
+          <div className="text-center py-12" style={{ color: 'var(--muted)' }}>
             No activity data available
           </div>
         ) : (
@@ -225,16 +216,16 @@ export default function CommunityStats() {
             <AreaChart data={timeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="manualGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
+                  <stop offset="5%" stopColor={CHART_PALETTE.manual} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={CHART_PALETTE.manual} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="extractorGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                  <stop offset="5%" stopColor={CHART_PALETTE.extractor} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={CHART_PALETTE.extractor} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="discoveriesGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  <stop offset="5%" stopColor={CHART_PALETTE.success} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={CHART_PALETTE.success} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -251,9 +242,9 @@ export default function CommunityStats() {
                 allowDecimals={false}
               />
               <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="manual" name="Manual" stroke="#06b6d4" fill="url(#manualGrad)" strokeWidth={2} />
-              <Area type="monotone" dataKey="extractor" name="Extractor" stroke="#a855f7" fill="url(#extractorGrad)" strokeWidth={2} />
-              <Area type="monotone" dataKey="discoveries" name="Discoveries" stroke="#22c55e" fill="url(#discoveriesGrad)" strokeWidth={2} />
+              <Area type="monotone" dataKey="manual" name="Manual" stroke={CHART_PALETTE.manual} fill="url(#manualGrad)" strokeWidth={2} />
+              <Area type="monotone" dataKey="extractor" name="Extractor" stroke={CHART_PALETTE.extractor} fill="url(#extractorGrad)" strokeWidth={2} />
+              <Area type="monotone" dataKey="discoveries" name="Discoveries" stroke={CHART_PALETTE.success} fill="url(#discoveriesGrad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -261,13 +252,7 @@ export default function CommunityStats() {
 
       {/* Discovery Type Breakdown */}
       {formattedTypeBreakdown.length > 0 && (
-        <div
-          className="rounded-xl p-4 mb-8"
-          style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-            border: '1px solid rgba(255,255,255,0.04)'
-          }}
-        >
+        <div className="haven-card p-4 mb-8">
           <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--app-text)' }}>Discovery Types</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ResponsiveContainer width="100%" height={300}>
@@ -308,7 +293,7 @@ export default function CommunityStats() {
                   <div className="text-2xl font-bold mt-1" style={{ color: 'var(--app-text)' }}>
                     {item.count}
                   </div>
-                  <div className="text-xs mt-0.5" style={{ color: 'var(--app-text)', opacity: 0.5 }}>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                     {item.percentage}% of total
                   </div>
                 </div>
@@ -327,29 +312,23 @@ export default function CommunityStats() {
             .sort((a, b) => (b.manual_count || 0) - (a.manual_count || 0))
             .map((c, i) => ({ ...c, _rank: i + 1 }))
           return (
-            <div
-              className="rounded-xl p-4"
-              style={{
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-                border: '1px solid rgba(6, 182, 212, 0.15)'
-              }}
-            >
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--app-text)' }}>
-                <span className="inline-block w-3 h-3 rounded-full" style={{ background: '#06b6d4' }} />
+            <div className="haven-card p-0">
+              <h2 className="text-lg font-semibold p-4 pb-3 flex items-center gap-2" style={{ color: 'var(--app-text)' }}>
+                <span className="inline-block w-3 h-3 rounded-full" style={{ background: CHART_PALETTE.manual }} />
                 Manual Submissions
-                <span className="text-sm font-normal" style={{ opacity: 0.5 }}>({manualList.length})</span>
+                <span className="text-sm font-normal" style={{ color: 'var(--muted)' }}>({manualList.length})</span>
               </h2>
               {manualList.length === 0 ? (
-                <div className="text-center py-8" style={{ color: 'var(--app-text)', opacity: 0.5 }}>No manual submissions</div>
+                <div className="text-center py-8 px-4" style={{ color: 'var(--muted)' }}>No manual submissions</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--app-text)', opacity: 0.6, width: '3rem' }}>#</th>
-                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--app-text)', opacity: 0.6 }}>Name</th>
-                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--app-text)', opacity: 0.6 }}>Community</th>
-                        <th className="text-right py-2 px-2 font-medium" style={{ color: 'var(--app-text)', opacity: 0.6 }}>Systems</th>
+                      <tr style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--muted)', width: '3rem' }}>#</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--muted)' }}>Name</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--muted)' }}>Community</th>
+                        <th className="text-right py-2 px-2 font-medium" style={{ color: 'var(--muted)' }}>Systems</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -368,7 +347,7 @@ export default function CommunityStats() {
                                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
                                   style={{ background: rs.bg, border: `1px solid ${rs.border}`, color: rs.text }}>{c._rank}</span>
                               ) : (
-                                <span className="text-xs font-medium pl-1.5" style={{ color: 'var(--app-text)', opacity: 0.4 }}>{c._rank}</span>
+                                <span className="text-xs font-medium pl-1.5" style={{ color: 'var(--muted)' }}>{c._rank}</span>
                               )}
                             </td>
                             <td className="py-2.5 px-2 font-medium" style={{ color: 'var(--app-text)' }}>
@@ -389,7 +368,7 @@ export default function CommunityStats() {
                                 })}
                               </div>
                             </td>
-                            <td className="py-2.5 px-2 text-right font-semibold" style={{ color: '#06b6d4' }}>{c.manual_count}</td>
+                            <td className="py-2.5 px-2 text-right font-semibold" style={{ color: CHART_PALETTE.manual }}>{c.manual_count}</td>
                           </tr>
                         )
                       })}
@@ -408,29 +387,23 @@ export default function CommunityStats() {
             .sort((a, b) => (b.extractor_count || 0) - (a.extractor_count || 0))
             .map((c, i) => ({ ...c, _rank: i + 1 }))
           return (
-            <div
-              className="rounded-xl p-4"
-              style={{
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.02), transparent)',
-                border: '1px solid rgba(168, 85, 247, 0.15)'
-              }}
-            >
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--app-text)' }}>
-                <span className="inline-block w-3 h-3 rounded-full" style={{ background: '#a855f7' }} />
+            <div className="haven-card p-0">
+              <h2 className="text-lg font-semibold p-4 pb-3 flex items-center gap-2" style={{ color: 'var(--app-text)' }}>
+                <span className="inline-block w-3 h-3 rounded-full" style={{ background: CHART_PALETTE.extractor }} />
                 Extractor Submissions
-                <span className="text-sm font-normal" style={{ opacity: 0.5 }}>({extractorList.length})</span>
+                <span className="text-sm font-normal" style={{ color: 'var(--muted)' }}>({extractorList.length})</span>
               </h2>
               {extractorList.length === 0 ? (
-                <div className="text-center py-8" style={{ color: 'var(--app-text)', opacity: 0.5 }}>No extractor submissions</div>
+                <div className="text-center py-8 px-4" style={{ color: 'var(--muted)' }}>No extractor submissions</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--app-text)', opacity: 0.6, width: '3rem' }}>#</th>
-                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--app-text)', opacity: 0.6 }}>Name</th>
-                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--app-text)', opacity: 0.6 }}>Community</th>
-                        <th className="text-right py-2 px-2 font-medium" style={{ color: 'var(--app-text)', opacity: 0.6 }}>Systems</th>
+                      <tr style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--muted)', width: '3rem' }}>#</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--muted)' }}>Name</th>
+                        <th className="text-left py-2 px-2 font-medium" style={{ color: 'var(--muted)' }}>Community</th>
+                        <th className="text-right py-2 px-2 font-medium" style={{ color: 'var(--muted)' }}>Systems</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -449,7 +422,7 @@ export default function CommunityStats() {
                                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
                                   style={{ background: rs.bg, border: `1px solid ${rs.border}`, color: rs.text }}>{c._rank}</span>
                               ) : (
-                                <span className="text-xs font-medium pl-1.5" style={{ color: 'var(--app-text)', opacity: 0.4 }}>{c._rank}</span>
+                                <span className="text-xs font-medium pl-1.5" style={{ color: 'var(--muted)' }}>{c._rank}</span>
                               )}
                             </td>
                             <td className="py-2.5 px-2 font-medium" style={{ color: 'var(--app-text)' }}>
@@ -470,7 +443,7 @@ export default function CommunityStats() {
                                 })}
                               </div>
                             </td>
-                            <td className="py-2.5 px-2 text-right font-semibold" style={{ color: '#a855f7' }}>{c.extractor_count}</td>
+                            <td className="py-2.5 px-2 text-right font-semibold" style={{ color: CHART_PALETTE.extractor }}>{c.extractor_count}</td>
                           </tr>
                         )
                       })}

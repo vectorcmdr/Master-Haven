@@ -4,6 +4,7 @@ __pycache__
 .env
 creds.json
 xp.db
+friendcodes.db
 .git
 .gitignore
 The_Keeper/

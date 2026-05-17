@@ -4,7 +4,9 @@ import Card from '../components/Card'
 import { AuthContext, FEATURES } from '../utils/AuthContext'
 
 const TIER_LABELS = { 1: 'Super Admin', 2: 'Partner', 3: 'Sub-Admin', 4: 'Member', 5: 'Read-Only' }
-const TIER_COLORS = { 1: 'bg-yellow-500', 2: 'bg-blue-500', 3: 'bg-teal-500', 4: 'bg-green-500', 5: 'bg-gray-500' }
+// Canonical tier palette (CLAUDE.md 2.0 Design Conventions)
+const TIER_PILL_CLASS = { 1: 'pill-emerald', 2: 'pill-blue', 3: 'pill-teal', 4: 'pill-purple', 5: 'pill-muted' }
+const tierPill = (tier) => `pill ${TIER_PILL_CLASS[tier] || 'pill-muted'}`
 
 const PARTNER_FEATURES = [
   { key: 'system_create', label: 'Create Systems' },
@@ -186,12 +188,12 @@ export default function UserManagement({ embedded = false }) {
       {!embedded && (
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">User Management</h1>
-          <span className="text-gray-400 text-sm">{total} profiles</span>
+          <span className="text-sm" style={{ color: 'var(--muted)' }}>{total} profiles</span>
         </div>
       )}
       {embedded && (
         <div className="flex justify-end">
-          <span className="text-gray-400 text-sm">{total} profiles</span>
+          <span className="text-sm" style={{ color: 'var(--muted)' }}>{total} profiles</span>
         </div>
       )}
 
@@ -202,12 +204,12 @@ export default function UserManagement({ embedded = false }) {
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder="Search username..."
-            className="flex-1 min-w-48 p-2 bg-gray-700 rounded text-white placeholder-gray-400"
+            className="haven-input flex-1 min-w-48 p-2"
           />
           <select
             value={tierFilter}
             onChange={e => { setTierFilter(e.target.value); setPage(1) }}
-            className="p-2 bg-gray-700 rounded text-white"
+            className="haven-input p-2"
           >
             <option value="">All Tiers</option>
             <option value="2">Partners</option>
@@ -221,12 +223,12 @@ export default function UserManagement({ embedded = false }) {
       {/* Profiles table */}
       <Card>
         {loading ? (
-          <div className="text-gray-400 text-center py-8">Loading...</div>
+          <div className="text-center py-8" style={{ color: 'var(--muted)' }}>Loading...</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-400 border-b border-gray-700">
+                <tr className="text-left" style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border-soft)' }}>
                   <th className="pb-2 pr-4">Username</th>
                   <th className="pb-2 pr-4">Tier</th>
                   <th className="pb-2 pr-4">Community</th>
@@ -238,36 +240,36 @@ export default function UserManagement({ embedded = false }) {
               </thead>
               <tbody>
                 {profiles.map(p => (
-                  <tr key={p.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                  <tr key={p.id} style={{ borderBottom: '1px solid var(--border-soft)' }}>
                     <td className="py-2 pr-4">
                       <div className="font-medium">{p.username}</div>
                       {p.display_name && p.display_name !== p.username && (
-                        <div className="text-xs text-gray-500">{p.display_name}</div>
+                        <div className="text-xs" style={{ color: 'var(--muted)' }}>{p.display_name}</div>
                       )}
                     </td>
                     <td className="py-2 pr-4">
-                      <span className={`px-2 py-0.5 rounded text-xs text-white ${TIER_COLORS[p.tier] || 'bg-gray-600'}`}>
+                      <span className={tierPill(p.tier)}>
                         {TIER_LABELS[p.tier] || `Tier ${p.tier}`}
                       </span>
                     </td>
                     <td className="py-2 pr-4">
                       {p.partner_discord_tag ? (
-                        <span className="text-cyan-400">{p.partner_discord_tag}</span>
+                        <span style={{ color: 'var(--app-primary)' }}>{p.partner_discord_tag}</span>
                       ) : p.default_civ_tag ? (
-                        <span className="text-gray-400">{p.default_civ_tag}</span>
+                        <span style={{ color: 'var(--muted)' }}>{p.default_civ_tag}</span>
                       ) : (
-                        <span className="text-gray-600">-</span>
+                        <span style={{ color: 'var(--muted)', opacity: 0.6 }}>-</span>
                       )}
                     </td>
                     <td className="py-2 pr-4">{p.system_count}</td>
                     <td className="py-2 pr-4">
                       {p.is_active ? (
-                        <span className="text-green-400 text-xs">Active</span>
+                        <span className="pill pill-emerald">Active</span>
                       ) : (
-                        <span className="text-red-400 text-xs">Inactive</span>
+                        <span className="pill pill-red">Inactive</span>
                       )}
                     </td>
-                    <td className="py-2 pr-4 text-gray-500 text-xs">
+                    <td className="py-2 pr-4 text-xs" style={{ color: 'var(--muted)' }}>
                       {p.last_login_at ? new Date(p.last_login_at).toLocaleDateString() : 'Never'}
                     </td>
                     {canManage && (
@@ -277,7 +279,7 @@ export default function UserManagement({ embedded = false }) {
                           {(p.tier === 2 || p.tier === 3) && (isSuperAdmin || (isPartner && p.tier === 3)) && (
                             <button
                               onClick={() => openEditModal(p)}
-                              className="px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded"
+                              className="haven-btn-ghost px-2 py-1 text-xs rounded"
                             >
                               Edit
                             </button>
@@ -294,7 +296,7 @@ export default function UserManagement({ embedded = false }) {
                                 const startTier = allowed.includes(p.tier) ? p.tier : 4
                                 setElevateForm({ tier: startTier, partner_discord_tag: '', enabled_features: [], parent_profile_id: null, additional_discord_tags: [], can_approve_personal_uploads: false })
                               }}
-                              className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded"
+                              className="pill pill-blue pill-clickable"
                               title="Change non-membership tier (Super Admin / Member / Read-Only). Partner / Sub-Admin are managed via Civilizations."
                             >
                               Change Tier
@@ -310,7 +312,7 @@ export default function UserManagement({ embedded = false }) {
                                     .catch(err => alert(err.response?.data?.detail || 'Failed'))
                                 }
                               }}
-                              className="px-2 py-1 bg-orange-600 hover:bg-orange-500 text-white text-xs rounded"
+                              className="pill pill-amber pill-clickable"
                             >
                               Demote
                             </button>
@@ -319,7 +321,7 @@ export default function UserManagement({ embedded = false }) {
                           {(isSuperAdmin || (isPartner && p.tier === 3)) && p.tier > 1 && (
                             <button
                               onClick={() => { setResetProfile(p); setResetPassword('') }}
-                              className="px-2 py-1 bg-yellow-700 hover:bg-yellow-600 text-white text-xs rounded"
+                              className="pill pill-amber pill-clickable"
                             >
                               Reset PW
                             </button>
@@ -328,7 +330,7 @@ export default function UserManagement({ embedded = false }) {
                           {(isSuperAdmin || (isPartner && p.tier === 3)) && p.tier > 1 && (
                             <button
                               onClick={() => toggleActive(p)}
-                              className={`px-2 py-1 text-xs rounded ${p.is_active ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'} text-white`}
+                              className={`pill pill-clickable ${p.is_active ? 'pill-red' : 'pill-emerald'}`}
                             >
                               {p.is_active ? 'Deactivate' : 'Activate'}
                             </button>
@@ -339,7 +341,7 @@ export default function UserManagement({ embedded = false }) {
                   </tr>
                 ))}
                 {profiles.length === 0 && (
-                  <tr><td colSpan={7} className="py-8 text-center text-gray-500">No profiles found</td></tr>
+                  <tr><td colSpan={7} className="py-8 text-center" style={{ color: 'var(--muted)' }}>No profiles found</td></tr>
                 )}
               </tbody>
             </table>
@@ -348,113 +350,116 @@ export default function UserManagement({ embedded = false }) {
 
         {totalPages > 1 && (
           <div className="flex justify-center gap-2 mt-4">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="btn text-sm">Prev</button>
-            <span className="text-gray-400 text-sm py-1">Page {page} of {totalPages}</span>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="btn text-sm">Next</button>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="haven-btn-ghost px-3 py-1 text-sm rounded">Prev</button>
+            <span className="text-sm py-1" style={{ color: 'var(--muted)' }}>Page {page} of {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="haven-btn-ghost px-3 py-1 text-sm rounded">Next</button>
           </div>
         )}
       </Card>
 
       {/* ========== EDIT MODAL ========== */}
       {editProfile && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto" onClick={() => setEditProfile(null)}>
-          <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 my-8" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-1">Edit {editProfile.username}</h2>
-            <div className="text-sm text-gray-400 mb-4">
-              <span className={`px-2 py-0.5 rounded text-xs text-white ${TIER_COLORS[editProfile.tier]}`}>
-                {TIER_LABELS[editProfile.tier]}
-              </span>
-              {editProfile.partner_discord_tag && (
-                <span className="ml-2 text-cyan-400">{editProfile.partner_discord_tag}</span>
-              )}
-              {editProfile.parent_info && (
-                <span className="ml-2">under {editProfile.parent_info.username} ({editProfile.parent_info.partner_discord_tag})</span>
-              )}
+        <div className="haven-modal" onClick={() => setEditProfile(null)}>
+          <div className="haven-modal-panel" onClick={e => e.stopPropagation()}>
+            <div className="haven-modal-header">
+              <span>Edit {editProfile.username}</span>
             </div>
-
-            <div className="space-y-4">
-              {/* Display Name */}
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Display Name</label>
-                <input
-                  value={editForm.display_name}
-                  onChange={e => setEditForm({ ...editForm, display_name: e.target.value })}
-                  className="w-full p-2 bg-gray-700 rounded text-white"
-                />
+            <div className="haven-modal-body">
+              <div className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
+                <span className={tierPill(editProfile.tier)}>
+                  {TIER_LABELS[editProfile.tier]}
+                </span>
+                {editProfile.partner_discord_tag && (
+                  <span className="ml-2" style={{ color: 'var(--app-primary)' }}>{editProfile.partner_discord_tag}</span>
+                )}
+                {editProfile.parent_info && (
+                  <span className="ml-2">under {editProfile.parent_info.username} ({editProfile.parent_info.partner_discord_tag})</span>
+                )}
               </div>
 
-              {/* Feature permissions */}
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Permissions</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(editProfile.tier === 2 ? PARTNER_FEATURES : SUB_ADMIN_FEATURES).map(f => (
-                    <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-700/50 p-1 rounded">
-                      <input
-                        type="checkbox"
-                        checked={editForm.enabled_features.includes(f.key)}
-                        onChange={() => toggleFeature(f.key)}
-                        className="rounded"
-                      />
-                      <span>{f.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sub-admin specific: additional discord tags */}
-              {editProfile.tier === 3 && !editProfile.parent_profile_id && (
+              <div className="space-y-4">
+                {/* Display Name */}
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Additional Community Tags (Haven sub-admins)</label>
-                  <p className="text-xs text-gray-500 mb-2">Tags this sub-admin can see pending approvals for, in addition to Haven.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {partners.map(p => p.partner_discord_tag && (
-                      <label key={p.id} className="flex items-center gap-1 text-xs cursor-pointer bg-gray-700 px-2 py-1 rounded">
+                  <label className="block text-sm mb-1" style={{ color: 'var(--muted)' }}>Display Name</label>
+                  <input
+                    value={editForm.display_name}
+                    onChange={e => setEditForm({ ...editForm, display_name: e.target.value })}
+                    className="haven-input w-full p-2"
+                  />
+                </div>
+
+                {/* Feature permissions */}
+                <div>
+                  <label className="block text-sm mb-2" style={{ color: 'var(--muted)' }}>Permissions</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(editProfile.tier === 2 ? PARTNER_FEATURES : SUB_ADMIN_FEATURES).map(f => (
+                      <label key={f.key} className="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-white/5">
                         <input
                           type="checkbox"
-                          checked={editForm.additional_discord_tags.includes(p.partner_discord_tag)}
-                          onChange={() => {
-                            const tags = editForm.additional_discord_tags
-                            setEditForm({
-                              ...editForm,
-                              additional_discord_tags: tags.includes(p.partner_discord_tag)
-                                ? tags.filter(t => t !== p.partner_discord_tag)
-                                : [...tags, p.partner_discord_tag]
-                            })
-                          }}
+                          checked={editForm.enabled_features.includes(f.key)}
+                          onChange={() => toggleFeature(f.key)}
+                          className="rounded"
                         />
-                        <span className="text-cyan-400">{p.partner_discord_tag}</span>
+                        <span>{f.label}</span>
                       </label>
                     ))}
                   </div>
                 </div>
-              )}
 
-              {/* Sub-admin specific: can_approve_personal_uploads */}
-              {editProfile.tier === 3 && !editProfile.parent_profile_id && (
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editForm.can_approve_personal_uploads}
-                    onChange={e => setEditForm({ ...editForm, can_approve_personal_uploads: e.target.checked })}
-                  />
-                  <span>Can approve personal uploads</span>
-                </label>
-              )}
+                {/* Sub-admin specific: additional discord tags */}
+                {editProfile.tier === 3 && !editProfile.parent_profile_id && (
+                  <div>
+                    <label className="block text-sm mb-1" style={{ color: 'var(--muted)' }}>Additional Community Tags (Haven sub-admins)</label>
+                    <p className="text-xs mb-2" style={{ color: 'var(--muted)' }}>Tags this sub-admin can see pending approvals for, in addition to Haven.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {partners.map(p => p.partner_discord_tag && (
+                        <label key={p.id} className="flex items-center gap-1 text-xs cursor-pointer px-2 py-1 rounded" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                          <input
+                            type="checkbox"
+                            checked={editForm.additional_discord_tags.includes(p.partner_discord_tag)}
+                            onChange={() => {
+                              const tags = editForm.additional_discord_tags
+                              setEditForm({
+                                ...editForm,
+                                additional_discord_tags: tags.includes(p.partner_discord_tag)
+                                  ? tags.filter(t => t !== p.partner_discord_tag)
+                                  : [...tags, p.partner_discord_tag]
+                              })
+                            }}
+                          />
+                          <span style={{ color: 'var(--app-primary)' }}>{p.partner_discord_tag}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-              {/* Stats */}
-              {editProfile.stats && (
-                <div className="text-xs text-gray-500 pt-2 border-t border-gray-700">
-                  {editProfile.stats.systems} systems, {editProfile.stats.discoveries} discoveries
-                  {editProfile.created_at && <span className="ml-3">Member since {new Date(editProfile.created_at).toLocaleDateString()}</span>}
-                </div>
-              )}
+                {/* Sub-admin specific: can_approve_personal_uploads */}
+                {editProfile.tier === 3 && !editProfile.parent_profile_id && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editForm.can_approve_personal_uploads}
+                      onChange={e => setEditForm({ ...editForm, can_approve_personal_uploads: e.target.checked })}
+                    />
+                    <span>Can approve personal uploads</span>
+                  </label>
+                )}
 
-              <div className="flex gap-2 pt-2">
-                <button onClick={saveEdit} disabled={editSaving} className="btn flex-1">
-                  {editSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button onClick={() => setEditProfile(null)} className="btn bg-gray-600">Cancel</button>
+                {/* Stats */}
+                {editProfile.stats && (
+                  <div className="text-xs pt-2" style={{ color: 'var(--muted)', borderTop: '1px solid var(--border-soft)' }}>
+                    {editProfile.stats.systems} systems, {editProfile.stats.discoveries} discoveries
+                    {editProfile.created_at && <span className="ml-3">Member since {new Date(editProfile.created_at).toLocaleDateString()}</span>}
+                  </div>
+                )}
               </div>
+            </div>
+            <div className="haven-modal-footer">
+              <button onClick={() => setEditProfile(null)} className="haven-btn-ghost px-3 py-1.5 rounded">Cancel</button>
+              <button onClick={saveEdit} disabled={editSaving} className="haven-btn-primary px-3 py-1.5 rounded">
+                {editSaving ? 'Saving...' : 'Save Changes'}
+              </button>
             </div>
           </div>
         </div>
@@ -471,56 +476,59 @@ export default function UserManagement({ embedded = false }) {
           appropriate role. This modal now only handles non-civ tier
           changes: promote to Super Admin, or demote to Member / Read-Only. */}
       {elevateProfile && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto" onClick={() => setElevateProfile(null)}>
-          <div className="bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 my-8" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-4">Change Tier — {elevateProfile.username}</h2>
-            <div className="space-y-4">
-              <div className="rounded border border-cyan-500/30 bg-cyan-500/5 p-3 text-xs text-cyan-300">
-                <strong className="block mb-1">Partner / Sub-Admin tiers are now membership-derived.</strong>
-                To make this user a leader or moderator of a community, open the{' '}
-                <a href="/haven-ui/admin/civilizations" className="underline">Civilizations</a> page,
-                pick a civ, and add them with role <code>leader</code>, <code>co_leader</code>, or <code>sub_admin</code>.
-                Their tier syncs automatically. Use this modal only for promoting to Super Admin or
-                demoting to Member / Read-Only.
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">New Tier</label>
-                <select
-                  value={elevateForm.tier}
-                  onChange={e => setElevateForm({ ...elevateForm, tier: parseInt(e.target.value), enabled_features: [], partner_discord_tag: '', parent_profile_id: null })}
-                  className="w-full p-2 bg-gray-700 rounded text-white"
-                >
-                  <option value={1}>Super Admin</option>
-                  <option value={4}>Member</option>
-                  <option value={5}>Read-Only Member</option>
-                </select>
-              </div>
-
-              {elevateForm.tier === 1 && (
-                <div className="rounded border border-yellow-500/30 bg-yellow-500/5 p-3 text-xs text-yellow-300">
-                  ⚠ Super Admin has unrestricted access to all communities, settings, and destructive operations. Confirm intent.
+        <div className="haven-modal" onClick={() => setElevateProfile(null)}>
+          <div className="haven-modal-panel" onClick={e => e.stopPropagation()}>
+            <div className="haven-modal-header">
+              <span>Change Tier — {elevateProfile.username}</span>
+            </div>
+            <div className="haven-modal-body">
+              <div className="space-y-4">
+                <div className="haven-card p-3 text-xs" style={{ color: 'var(--app-primary)', borderColor: 'var(--app-primary)' }}>
+                  <strong className="block mb-1">Partner / Sub-Admin tiers are now membership-derived.</strong>
+                  To make this user a leader or moderator of a community, open the{' '}
+                  <a href="/haven-ui/admin/civilizations" className="underline">Civilizations</a> page,
+                  pick a civ, and add them with role <code>leader</code>, <code>co_leader</code>, or <code>sub_admin</code>.
+                  Their tier syncs automatically. Use this modal only for promoting to Super Admin or
+                  demoting to Member / Read-Only.
                 </div>
-              )}
 
-              {(elevateForm.tier === 4 || elevateForm.tier === 5) && (
-                <div className="rounded border border-gray-500/30 bg-gray-500/5 p-3 text-xs text-gray-400">
-                  If this user is currently a leader of any civilization, demoting their tier here
-                  will be overridden the next time their civ membership changes. To fully step them
-                  down, remove their <code>civilization_members</code> row first.
+                <div>
+                  <label className="block text-sm mb-1" style={{ color: 'var(--muted)' }}>New Tier</label>
+                  <select
+                    value={elevateForm.tier}
+                    onChange={e => setElevateForm({ ...elevateForm, tier: parseInt(e.target.value), enabled_features: [], partner_discord_tag: '', parent_profile_id: null })}
+                    className="haven-input w-full p-2"
+                  >
+                    <option value={1}>Super Admin</option>
+                    <option value={4}>Member</option>
+                    <option value={5}>Read-Only Member</option>
+                  </select>
                 </div>
-              )}
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={handleElevate}
-                  disabled={elevating}
-                  className="btn flex-1"
-                >
-                  {elevating ? 'Saving...' : 'Confirm'}
-                </button>
-                <button onClick={() => setElevateProfile(null)} className="btn bg-gray-600">Cancel</button>
+                {elevateForm.tier === 1 && (
+                  <div className="haven-card p-3 text-xs" style={{ color: 'var(--app-accent-amber)', borderColor: 'var(--app-accent-amber)' }}>
+                    ⚠ Super Admin has unrestricted access to all communities, settings, and destructive operations. Confirm intent.
+                  </div>
+                )}
+
+                {(elevateForm.tier === 4 || elevateForm.tier === 5) && (
+                  <div className="haven-card p-3 text-xs" style={{ color: 'var(--muted)' }}>
+                    If this user is currently a leader of any civilization, demoting their tier here
+                    will be overridden the next time their civ membership changes. To fully step them
+                    down, remove their <code>civilization_members</code> row first.
+                  </div>
+                )}
               </div>
+            </div>
+            <div className="haven-modal-footer">
+              <button onClick={() => setElevateProfile(null)} className="haven-btn-ghost px-3 py-1.5 rounded">Cancel</button>
+              <button
+                onClick={handleElevate}
+                disabled={elevating}
+                className="haven-btn-primary px-3 py-1.5 rounded"
+              >
+                {elevating ? 'Saving...' : 'Confirm'}
+              </button>
             </div>
           </div>
         </div>
@@ -528,26 +536,30 @@ export default function UserManagement({ embedded = false }) {
 
       {/* ========== RESET PASSWORD MODAL ========== */}
       {resetProfile && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setResetProfile(null)}>
-          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold mb-4">Reset Password for {resetProfile.username}</h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">New Password</label>
-                <input
-                  type="password"
-                  value={resetPassword}
-                  onChange={e => setResetPassword(e.target.value)}
-                  placeholder="At least 4 characters"
-                  className="w-full p-2 bg-gray-700 rounded text-white"
-                />
+        <div className="haven-modal" onClick={() => setResetProfile(null)}>
+          <div className="haven-modal-panel haven-modal-panel-narrow" onClick={e => e.stopPropagation()}>
+            <div className="haven-modal-header">
+              <span>Reset Password for {resetProfile.username}</span>
+            </div>
+            <div className="haven-modal-body">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm mb-1" style={{ color: 'var(--muted)' }}>New Password</label>
+                  <input
+                    type="password"
+                    value={resetPassword}
+                    onChange={e => setResetPassword(e.target.value)}
+                    placeholder="At least 4 characters"
+                    className="haven-input w-full p-2"
+                  />
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={handleResetPassword} disabled={resetting || resetPassword.length < 4} className="btn flex-1">
-                  {resetting ? 'Resetting...' : 'Reset Password'}
-                </button>
-                <button onClick={() => setResetProfile(null)} className="btn bg-gray-600">Cancel</button>
-              </div>
+            </div>
+            <div className="haven-modal-footer">
+              <button onClick={() => setResetProfile(null)} className="haven-btn-ghost px-3 py-1.5 rounded">Cancel</button>
+              <button onClick={handleResetPassword} disabled={resetting || resetPassword.length < 4} className="haven-btn-primary px-3 py-1.5 rounded">
+                {resetting ? 'Resetting...' : 'Reset Password'}
+              </button>
             </div>
           </div>
         </div>

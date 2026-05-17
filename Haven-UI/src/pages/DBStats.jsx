@@ -71,7 +71,7 @@ export default function DBStats() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="text-lg text-gray-400">Loading statistics...</div>
+        <div className="text-lg" style={{ color: 'var(--muted)' }}>Loading statistics...</div>
       </div>
     )
   }
@@ -88,23 +88,23 @@ export default function DBStats() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-2 text-cyan-400">
+      <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--app-primary)' }}>
         {getTitle()}
       </h2>
 
       {/* Partner/Sub-admin info banner */}
       {isPartnerOrSubAdmin && discordTag && (
-        <div className="mb-4 p-3 bg-cyan-900/30 border border-cyan-700 rounded">
-          <p className="text-cyan-300 text-sm">
-            Showing statistics for your community: <strong className="text-cyan-400">{discordTag}</strong>
+        <div className="haven-card p-4 mb-4" style={{ borderColor: 'var(--app-primary)' }}>
+          <p className="text-sm" style={{ color: 'var(--app-text)' }}>
+            Showing statistics for your community: <strong style={{ color: 'var(--app-primary)' }}>{discordTag}</strong>
           </p>
         </div>
       )}
 
       {/* Public user info */}
       {userType === 'public' && (
-        <div className="mb-4 p-3 bg-gray-800/50 border border-gray-600 rounded">
-          <p className="text-gray-400 text-sm">
+        <div className="haven-card p-4 mb-4" style={{ borderColor: 'var(--app-primary)' }}>
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>
             Showing global database statistics. Log in to see community-specific stats.
           </p>
         </div>
@@ -121,14 +121,14 @@ export default function DBStats() {
 
                 return (
                   <div key={category}>
-                    <h3 className="text-lg font-semibold text-gray-300 mb-3 border-b border-gray-700 pb-2">
+                    <h3 className="text-lg font-semibold mb-3 pb-2" style={{ color: 'var(--app-text)', borderBottom: '1px solid var(--border-soft)' }}>
                       {category}
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {categoryStats.map(k => (
-                        <div key={k} className="p-4 bg-gray-800 rounded border border-gray-700 hover:border-cyan-600 transition-colors">
-                          <div className="text-2xl font-bold text-white">{formatNumber(stats[k])}</div>
-                          <div className="text-sm text-gray-400">{formatLabel(k)}</div>
+                        <div key={k} className="haven-card haven-card-hover p-5">
+                          <div className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>{formatNumber(stats[k])}</div>
+                          <div className="text-sm" style={{ color: 'var(--muted)' }}>{formatLabel(k)}</div>
                         </div>
                       ))}
                     </div>
@@ -140,23 +140,23 @@ export default function DBStats() {
             /* Partner/Sub-admin/Public: Simple grid */
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {Object.entries(stats).map(([k, v]) => (
-                <div key={k} className="p-4 bg-gray-800 rounded border border-gray-700 hover:border-cyan-600 transition-colors">
-                  <div className="text-2xl font-bold text-white">{formatNumber(v)}</div>
-                  <div className="text-sm text-gray-400">{formatLabel(k)}</div>
+                <div key={k} className="haven-card haven-card-hover p-5">
+                  <div className="text-2xl font-bold" style={{ color: 'var(--app-text)' }}>{formatNumber(v)}</div>
+                  <div className="text-sm" style={{ color: 'var(--muted)' }}>{formatLabel(k)}</div>
                 </div>
               ))}
             </div>
           )}
         </>
       ) : (
-        <div className="text-gray-400">No statistics available.</div>
+        <div style={{ color: 'var(--muted)' }}>No statistics available.</div>
       )}
 
       {/* Partner/Sub-admin info footer */}
       {isPartnerOrSubAdmin && discordTag && (
-        <div className="mt-6 p-4 bg-gray-800/50 border border-gray-700 rounded">
-          <h3 className="text-lg font-semibold text-gray-300 mb-2">About Your Statistics</h3>
-          <ul className="text-sm text-gray-400 space-y-1 list-disc list-inside">
+        <div className="haven-card p-4 mt-6">
+          <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--app-text)' }}>About Your Statistics</h3>
+          <ul className="text-sm space-y-1 list-disc list-inside" style={{ color: 'var(--muted)' }}>
             <li>These statistics only include systems tagged with {discordTag}</li>
             <li>Planets, moons, and POIs are counted from your community's systems</li>
             <li>Create more systems or request the admin to tag existing systems with your community tag</li>
