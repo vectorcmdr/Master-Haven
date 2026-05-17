@@ -9,7 +9,7 @@ DB_FILE = "friendcodes.db"
 FRIENDCODE_CHANNEL_ID = 1424091032185868398
 
 
-RESET_DATABASE = True
+
 
 FRIEND_CODE_REGEX = re.compile(
     r"\b([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{5})\b",
