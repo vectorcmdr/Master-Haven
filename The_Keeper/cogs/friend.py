@@ -8,8 +8,6 @@ from discord import app_commands
 DB_FILE = "friendcodes.db"
 FRIENDCODE_CHANNEL_ID = 1424091032185868398
 
-# SET TRUE ONLY ONCE IF YOU WANT TO RESET DB
-RESET_DATABASE = False
 
 FRIEND_CODE_REGEX = re.compile(
     r"\b([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{5})\b",
@@ -27,11 +25,7 @@ class FriendCodes(commands.Cog):
 
     async def setup_db(self):
 
-        # OPTIONAL ONE-TIME RESET
-        if RESET_DATABASE and os.path.exists(DB_FILE):
-            os.remove(DB_FILE)
-            print("friendcodes.db reset")
-
+        
         async with aiosqlite.connect(DB_FILE) as db:
 
             await db.execute(
