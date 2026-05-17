@@ -204,6 +204,7 @@ COGS = [
     "cogs.Haven_upload",
     "cogs.announcements",
     "cogs.hex",
+    "cogs.friends",
     "cmds.exclaim",
     "cmds.list",
     "cmds.slash",
