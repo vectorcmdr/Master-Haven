@@ -45,6 +45,33 @@ class FeaturedCog(commands.Cog):
         self.FEATURED_MESSAGES = set()
         self.PROCESSING = set()
         self.bootstrapped = False
+        
+    async def save_featured(self, message, images, reactions):
+    
+        async with aiosqlite.connect(DB_PATH) as db:
+    
+            await db.execute("""
+                INSERT OR REPLACE INTO featured_messages (
+                    message_id,
+                    author_id,
+                    channel_id,
+                    jump_url,
+                    image_url,
+                    reactions,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                message.id,
+                message.author.id,
+                message.channel.id,
+                message.jump_url,
+                images[0].url if images else None,
+                reactions,
+                message.created_at.isoformat()
+            ))
+    
+            await db.commit()
 
     # -------------------- SQLITE INIT --------------------
     async def init_db(self):
