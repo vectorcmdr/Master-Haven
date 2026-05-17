@@ -29,7 +29,25 @@ class FriendCodes(commands.Cog):
             await db.commit()
 
     async def save_friend_code(self, user: discord.User, friend_code: str):
+        friend_code = friend_code.upper()
+    
         async with aiosqlite.connect(DB_FILE) as db:
+    
+            # Check if code already belongs to another user
+            async with db.execute(
+                """
+                SELECT user_id
+                FROM friendcodes
+                WHERE friend_code = ?
+                """,
+                (friend_code,)
+            ) as cursor:
+                existing = await cursor.fetchone()
+    
+            if existing and existing[0] != user.id:
+                return False
+    
+            # Insert or update user's code
             await db.execute(
                 """
                 INSERT INTO friendcodes (user_id, username, friend_code)
@@ -42,10 +60,13 @@ class FriendCodes(commands.Cog):
                 (
                     user.id,
                     str(user),
-                    friend_code.upper()
+                    friend_code
                 )
             )
+    
             await db.commit()
+
+        return True
 
     async def get_friend_code(self, user: discord.User):
         async with aiosqlite.connect(DB_FILE) as db:
@@ -70,8 +91,18 @@ class FriendCodes(commands.Cog):
 
         friend_code = match.group(1)
 
-        await self.save_friend_code(message.author, friend_code)
-
+        success = await self.save_friend_code(
+            message.author,
+            friend_code
+        )
+        
+        if not success:
+            await message.reply(
+                "error: this friendcode already exists",
+                delete_after=10
+            )
+            return
+        
         await message.add_reaction("✅")
 
     @app_commands.command(
