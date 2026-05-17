@@ -112,11 +112,11 @@ class FeaturedCog(commands.Cog):
             return
     
         try:
-            async for message in photo_channel.history(limit=5):
+            async for message in photo_channel.history(limit=20):
                 await self.try_feature_message(message)
                 await asyncio.sleep(0.2)
     
-            self.log("BOOTSTRAP", "Checked last 5 photos on startup")
+            self.log("BOOTSTRAP", "Checked last 20 photos on startup")
     
         except Exception as e:
             self.log("BOOTSTRAP_ERROR", str(e))
@@ -129,6 +129,16 @@ class FeaturedCog(commands.Cog):
     
         # already featured in memory
         if message.id in self.FEATURED_MESSAGES:
+            return
+        
+        # already featured via bot reaction
+        already_starred = any(
+            str(reaction.emoji) == "🌟" and reaction.me
+            for reaction in message.reactions
+        )
+        
+        if already_starred:
+            self.FEATURED_MESSAGES.add(message.id)
             return
     
         self.PROCESSING.add(message.id)
