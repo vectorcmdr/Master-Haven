@@ -45,52 +45,40 @@ class FriendCodes(commands.Cog):
         user: discord.User,
         friend_code: str
     ):
-
+    
         friend_code = friend_code.upper()
-
-        async with aiosqlite.connect(DB_FILE) as db:
-
-            # CHECK FOR DUPLICATE CODE
-            async with db.execute(
-                """
-                SELECT user_id
-                FROM friendcodes
-                WHERE UPPER(friend_code) = ?
-                """,
-                (friend_code,)
-            ) as cursor:
-
-                existing = await cursor.fetchone()
-
-            # CODE BELONGS TO ANOTHER USER
-            if existing and existing[0] != user.id:
-                return False
-
-            # INSERT OR UPDATE
-            await db.execute(
-                """
-                INSERT INTO friendcodes (
-                    user_id,
-                    username,
-                    friend_code
+    
+        try:
+    
+            async with aiosqlite.connect(DB_FILE) as db:
+    
+                await db.execute(
+                    """
+                    INSERT INTO friendcodes (
+                        user_id,
+                        username,
+                        friend_code
+                    )
+                    VALUES (?, ?, ?)
+    
+                    ON CONFLICT(user_id)
+                    DO UPDATE SET
+                        username = excluded.username,
+                        friend_code = excluded.friend_code
+                    """,
+                    (
+                        user.id,
+                        str(user),
+                        friend_code
+                    )
                 )
-                VALUES (?, ?, ?)
-
-                ON CONFLICT(user_id)
-                DO UPDATE SET
-                    username = excluded.username,
-                    friend_code = excluded.friend_code
-                """,
-                (
-                    user.id,
-                    str(user),
-                    friend_code
-                )
-            )
-
-            await db.commit()
-
-        return True
+    
+                await db.commit()
+    
+            return True
+    
+    except aiosqlite.IntegrityError:
+        return False
 
     async def get_friend_code(
         self,
