@@ -318,7 +318,11 @@ async def get_level(user_id, role):
 
 async def get_rank(user_id, role):
     level = await get_level(user_id, role)
-    return get_rank_name(level, role)
+    rank = next(
+        r for r in CONFIG["ranks"]
+        if r["min_level"] <= level <= r["max_level"]
+    )
+    return rank
 
 
 async def set_level(user_id, role, level):
