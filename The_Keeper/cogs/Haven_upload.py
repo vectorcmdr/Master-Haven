@@ -541,78 +541,78 @@ class DiscoveryConfirmView(discord.ui.View):
                 ephemeral=True
             )
 # ---------------- SYSTEM CREATION -----------
-    async def get_system(self):
-                if self.system_exists:
-                    system_result = self.system_exists
-                    system_id = system_result.get("id")
-            
-                    if not system_id:
-                        raise Exception("Existing system missing ID")
-            
-                    return system_result, system_id
-            
+        async def get_system(self):
+                    if self.system_exists:
+                        system_result = self.system_exists
+                        system_id = system_result.get("id")
                 
-                system_payload = {
-                    "glyph_code": self.glyph,
-                    "system_name": self.system_name,
-                    "community_tag": self.community_tag,
-                    "galaxy_name": self.galaxy_name,
-                    "reality": getattr(self, "reality", "Normal"),
-                    "user_id": self.user_id
-                }
-            
-                system_result = await self.api.submit_system(system_payload)
-            
-                if not system_result:
-                    raise Exception("System API returned empty response")
-            
-                system_id = (
-                    system_result.get("system_id")
-                    or system_result.get("submission_id")
-                    or system_result.get("id")
-                    or (system_result.get("system") or {}).get("id")
-                )
-            
-                if not system_id:
-                    raise Exception(f"System creation failed: {system_result}")
-            
-                return system_result, system_id
+                        if not system_id:
+                            raise Exception("Existing system missing ID")
+                
+                        return system_result, system_id
+                
+                    
+                    system_payload = {
+                        "glyph_code": self.glyph,
+                        "system_name": self.system_name,
+                        "community_tag": self.community_tag,
+                        "galaxy_name": self.galaxy_name,
+                        "reality": getattr(self, "reality", "Normal"),
+                        "user_id": self.user_id
+                    }
+                
+                    system_result = await self.api.submit_system(system_payload)
+                
+                    if not system_result:
+                        raise Exception("System API returned empty response")
+                
+                    system_id = (
+                        system_result.get("system_id")
+                        or system_result.get("submission_id")
+                        or system_result.get("id")
+                        or (system_result.get("system") or {}).get("id")
+                    )
+                
+                    if not system_id:
+                        raise Exception(f"System creation failed: {system_result}")
+                
+                    return system_result, system_id
 
 # ---------------- DISCOVERY SUBMISSION -----
-    payload = {
-                "system_id": system_id,
-                "discovery_name": discovery_name,
-                "discovery_type": self.discovery_type.lower(),
-                "community_tag": self.community_tag,
-                "notes": self.prefill_notes,
-                "discord_username": interaction.user.name,
-                "discord_tag": self.community_tag
-            }
-
-            result = await self.api.submit_discovery(payload)
-            
-            msg = (
-                f"✅ Discovery submitted!\n"
-                f"System: `{self.system_name or 'Unknown'}`\n"
-                f"Discovery: `{discovery_name}`"
-            )
-            
-            system_xp = process_system_creation_xp( 
-                user_id=self.user_id,
-                system_name=self.system_name,
-              channel_id=interaction.channel.id,
-            )
-            if system_xp:
-                msg += f"\n✨ +{system_xp} XP for system creation"
-            
+        payload = {
+                    "system_id": system_id,
+                    "discovery_name": discovery_name,
+                    "discovery_type": self.discovery_type.lower(),
+                    "community_tag": self.community_tag,
+                    "notes": self.prefill_notes,
+                    "discord_username": interaction.user.name,
+                    "discord_tag": self.community_tag
+                }
+    
+        result = await self.api.submit_discovery(payload)
+                
+        msg = (
+            f"✅ Discovery submitted!\n"
+            f"System: `{self.system_name or 'Unknown'}`\n"
+            f"Discovery: `{discovery_name}`"
+        )
+                
+        system_xp = process_system_creation_xp( 
+            user_id=self.user_id,
+            system_name=self.system_name,
+            channel_id=interaction.channel.id,
+        )
+        if system_xp:
+            msg += f"\n✨ +{system_xp} XP for system creation"
+                
             xp_gained = await         process_system_xp(
             user_id=self.user_id,
-            base_amount=CONFIG["xp_bonus"]["base_discovery_xp"],
-            channel_id=interaction.channel.id,
-            )
+                base_amount=CONFIG["xp_bonus"]["base_discovery_xp"],
+                channel_id=interaction.channel.id,
+                )
             if xp_gained:
                 msg += f"\n✨ +{xp_gained} XP earned"
-         
+             
 # ---------------- BONUS HINT -------------------
         try:
             role = DISCOVERY_TYPE_MAP.get(self.discovery_type.lower())
