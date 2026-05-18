@@ -541,7 +541,7 @@ class DiscoveryConfirmView(discord.ui.View):
                 ephemeral=True
             )
 # ---------------- SYSTEM CREATION -----------
-            async def get_system(self):
+    async def get_system(self):
                 if self.system_exists:
                     system_result = self.system_exists
                     system_id = system_result.get("id")
