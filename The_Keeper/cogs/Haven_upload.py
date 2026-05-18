@@ -488,112 +488,110 @@ class DiscoverySubmissionModal(discord.ui.Modal):
 # XP HOOK
 # =========================
 class DiscoveryConfirmView(discord.ui.View):
-    def __init__(self, glyph, user_id, api, discovery_type,
-                 system_exists=False,
-                 galaxy_name=None,
-                 system_name=None,
-                 system_id=None,
-                 notes=None,
-                 discovery_name=None,
-                 community_tag=None):
-
-        super().__init__(timeout=None)
-
-        self.glyph = glyph
-        self.user_id = user_id
-        self.api = api
-        self.discovery_type = discovery_type
-        self.get_system = get_system
-        self.galaxy_name = galaxy_name
-        self.system_name = system_name
-        self.system_id = system_id
-        self.prefill_notes = notes
-        self.discovery_name = discovery_name
-        self.community_tag = community_tag
-        self.confirm_btn = discord.ui.Button(
-            label="Confirm Submit",
-            style=discord.ButtonStyle.green
-        )
-        self.confirm_btn.callback = self.confirm_callback
-        self.add_item(self.confirm_btn)
-
-    async def confirm_callback(self, interaction: discord.Interaction):
-        try:
-            if interaction.user.id != self.user_id:
-                await interaction.response.send_message(
-                    "This isn't your session.", ephemeral=True
-                )
-                return
-
-            discovery_name = (
-                self.discovery_name
-                or f"{self.discovery_type} {self.glyph}"
-            )
-
-            await interaction.response.defer(ephemeral=True)
-
-            system_result, system_id = await self.get_system()
-
-        except Exception as e:
-            await interaction.followup.send(
-                f"Error: `{e}`",
-                ephemeral=True
-            )
-            system_result, system_id = await self.get_system()
-# ---------------- DISCOVERY SUBMISSION -----
-        payload = {
-                    "system_id": system_id,
-                    "discovery_name": discovery_name,
-                    "discovery_type": self.discovery_type.lower(),
-                    "community_tag": self.community_tag,
-                    "notes": self.prefill_notes,
-                    "discord_username": interaction.user.name,
-                    "discord_tag": self.community_tag
-                }
+        def __init__(self, glyph, user_id, api, discovery_type,
+                     system_exists=False,
+                     galaxy_name=None,
+                     system_name=None,
+                     system_id=None,
+                     notes=None,
+                     discovery_name=None,
+                     community_tag=None):
     
-        result = await self.api.submit_discovery(payload)
-                
-        msg = (
-            f"✅ Discovery submitted!\n"
-            f"System: `{self.system_name or 'Unknown'}`\n"
-            f"Discovery: `{discovery_name}`"
-        )
-                
-        system_xp = process_system_creation_xp( 
-            user_id=self.user_id,
-            system_name=self.system_name,
-            channel_id=interaction.channel.id,
-        )
-        if system_xp:
-            msg += f"\n✨ +{system_xp} XP for system creation"
-                
-            xp_gained = await         process_system_xp(
-            user_id=self.user_id,
-                base_amount=CONFIG["xp_bonus"]["base_discovery_xp"],
-                channel_id=interaction.channel.id,
-                )
-            if xp_gained:
-                msg += f"\n✨ +{xp_gained} XP earned"
-             
-# ---------------- BONUS HINT -------------------
-        try:
-            role = DISCOVERY_TYPE_MAP.get(self.discovery_type.lower())
-            role_channels = CONFIG.get("roles", {}).get(role, {}).get("channels", [])
-
-            if role and interaction.channel.id not in role_channels:
-                msg += "\n\n🧭 Tip: Submit in your department channel for bonus XP"
-
-            await interaction.followup.send(msg, ephemeral=True)
-
-        except Exception as e:
+            super().__init__(timeout=None)
+    
+            self.glyph = glyph
+            self.user_id = user_id
+            self.api = api
+            self.discovery_type = discovery_type       
+            self.galaxy_name = galaxy_name
+            self.system_name = system_name
+            self.system_id = system_id
+            self.prefill_notes = notes
+            self.discovery_name = discovery_name
+            self.community_tag = community_tag
+            self.confirm_btn = discord.ui.Button(
+                label="Confirm Submit",
+                style=discord.ButtonStyle.green
+            )
+            self.confirm_btn.callback = self.confirm_callback
+            self.add_item(self.confirm_btn)
+    
+        async def confirm_callback(self, interaction: discord.Interaction):
             try:
+                if interaction.user.id != self.user_id:
+                    await interaction.response.send_message(
+                        "This isn't your session.", ephemeral=True
+                    )
+                    return
+    
+                discovery_name = (
+                    self.discovery_name
+                    or f"{self.discovery_type} {self.glyph}"
+                )
+    
+                await interaction.response.defer(ephemeral=True)
+    
+                system_result, system_id = await self.get_system()
+                        
+    # ---------------- DISCOVERY SUBMISSION -----
+                payload = {
+                            "system_id": system_id,
+                            "discovery_name": discovery_name,
+                            "discovery_type": self.discovery_type.lower(),
+                            "community_tag": self.community_tag,
+                            "notes": self.prefill_notes,
+                            "discord_username": interaction.user.name,
+                            "discord_tag": self.community_tag
+                        }
+            
+                result = await self.api.submit_discovery(payload)
+                        
+                msg = (
+                    f"✅ Discovery submitted!\n"
+                    f"System: `{self.system_name or 'Unknown'}`\n"
+                    f"Discovery: `{discovery_name}`"
+                )
+                        
+                system_xp = process_system_creation_xp( 
+                    user_id=self.user_id,
+                    system_name=self.system_name,
+                    channel_id=interaction.channel.id,
+                )
+                if system_xp:
+                    msg += f"\n✨ +{system_xp} XP for system creation"
+                        
+                    xp_gained = await         process_system_xp(
+                    user_id=self.user_id,
+                        base_amount=CONFIG["xp_bonus"]["base_discovery_xp"],
+                        channel_id=interaction.channel.id,
+                        )
+                    if xp_gained:
+                        msg += f"\n✨ +{xp_gained} XP earned"
+                     
+        # ---------------- BONUS HINT -------------------
+                try:
+                    role = DISCOVERY_TYPE_MAP.get(self.discovery_type.lower())
+                    role_channels = CONFIG.get("roles", {}).get(role, {}).get("channels", [])
+        
+                    if role and interaction.channel.id not in role_channels:
+                        msg += "\n\n🧭 Tip: Submit in your department channel for bonus XP"
+        
+                    await interaction.followup.send(msg, ephemeral=True)
+        
+                except Exception as e:
+                    try:
+                        await interaction.followup.send(
+                            f"❌ Submission failed: {e}", ephemeral=True
+                        )
+                    except:
+                        await interaction.response.send_message(
+                            f"❌ Submission failed: {e}", ephemeral=True
+                        )
+            except Exception as e:
                 await interaction.followup.send(
-                    f"❌ Submission failed: {e}", ephemeral=True
-                )
-            except:
-                await interaction.response.send_message(
-                    f"❌ Submission failed: {e}", ephemeral=True
-                )
+                    f"Error: `{e}`",
+                    ephemeral=True
+            )
     # ---------------- SYSTEM CREATION -----------
         async def get_system(self):
                     if self.system_exists:
