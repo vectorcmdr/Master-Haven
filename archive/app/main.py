@@ -15,9 +15,11 @@ Edit-friendly notes:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from . import __version__, auth_dev
 from .config import get_settings
@@ -102,6 +104,44 @@ def create_app() -> FastAPI:
     # returns 404. We still mount the router in prod so the OpenAPI
     # doc is consistent across environments.
     app.include_router(auth_dev.router)
+
+    # ---- frontend SPA (Phase 5) -------------------------------------
+    # The built Vite frontend lives at /app/frontend_dist (per the
+    # Dockerfile). We mount it AFTER all /api routes so the API wins.
+    # The fallback handler below serves index.html for any non-/api,
+    # non-asset path so the hash router (#/civs, #/draft/3, ...) works
+    # on direct browser hits even though we don't use path-based
+    # routing.
+    dist_dir = Path("/app/frontend_dist")
+    if dist_dir.exists():
+        # /assets/* are versioned files emitted by `vite build`
+        assets_dir = dist_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        index_html = dist_dir / "index.html"
+
+        @app.get("/", include_in_schema=False)
+        def spa_root() -> Response:
+            return FileResponse(str(index_html))
+
+        @app.get("/{path:path}", include_in_schema=False)
+        def spa_fallback(request: Request, path: str) -> Response:
+            """
+            Catch-all: serve index.html for non-API routes so the hash
+            router can do its thing. API + assets are already matched
+            by earlier routes, so this only fires for things like
+            /favicon.ico or random typed paths.
+            """
+            # First, try a literal file in dist (favicon, manifest, etc.)
+            candidate = dist_dir / path
+            if candidate.is_file():
+                return FileResponse(str(candidate))
+            # Fallback: serve the SPA shell
+            return FileResponse(str(index_html))
+        log.info("serving SPA from %s", dist_dir)
+    else:
+        log.warning("frontend dist not found at %s — backend only", dist_dir)
 
     log.info(
         "archive %s up — env=%s db=%s media=%s",

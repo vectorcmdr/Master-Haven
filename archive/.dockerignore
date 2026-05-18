@@ -1,0 +1,26 @@
+# Don't copy frontend source/node_modules into the Python stage —
+# the multi-stage Dockerfile handles the frontend separately and only
+# copies the built dist/ in.
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+# Python junk
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editor / OS junk
+.DS_Store
+.vscode/
+.idea/
+
+# Secrets / local DB
+.env
+*.db
+*.db-shm
+*.db-wal
+
+# Test outputs
+tests/cookies.txt
