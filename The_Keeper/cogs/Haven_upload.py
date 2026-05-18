@@ -504,7 +504,7 @@ class DiscoveryConfirmView(discord.ui.View):
         self.api = api
         self.discovery_type = discovery_type
         self.system_exists = system_exists
-        self.get_system
+        self.get_system = get_system
         self.galaxy_name = galaxy_name
         self.system_name = system_name
         self.system_id = system_id
