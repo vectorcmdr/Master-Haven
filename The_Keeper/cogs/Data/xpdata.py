@@ -288,7 +288,7 @@ async def add_xp(user_id, role, amount):
             xp -= needed
             level += 1
 
-        old_rank = get_rank(old_level, roles)
+        old_rank = get_rank(old_level, role)
         new_rank = get_rank(level, role)
 
         await db.execute("""
