@@ -19,7 +19,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from . import __version__
+from . import __version__, auth_dev
 from .config import get_settings
 from .routes import (
     admin,
@@ -77,9 +77,7 @@ def create_app() -> FastAPI:
         )
 
     # ---- routes ------------------------------------------------------
-    # Each module exposes a `router` (APIRouter). Most are stubs in
-    # Phase 1 — they exist so import works and so the OpenAPI doc has
-    # the right shape from day one.
+    # Each module exposes a `router` (APIRouter).
     for module in (
         auth,
         admin,
@@ -98,6 +96,12 @@ def create_app() -> FastAPI:
         watchlist,
     ):
         app.include_router(module.router)
+
+    # Dev-only fake login. The endpoints inside this router self-gate
+    # via _ensure_dev_mode() so attempting to hit them in production
+    # returns 404. We still mount the router in prod so the OpenAPI
+    # doc is consistent across environments.
+    app.include_router(auth_dev.router)
 
     log.info(
         "archive %s up — env=%s db=%s media=%s",

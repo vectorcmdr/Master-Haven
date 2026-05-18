@@ -1,11 +1,41 @@
 """
-Auth — shared endpoints (login/logout/me).
+Auth — shared endpoints.
 
-Phase 3 mounts the dev-only fake-login endpoints from app/auth_dev.py
-under this router. Phase 7 adds the Discord OAuth flow from
-app/auth_discord.py.
+  GET  /api/v1/auth/me     current session user (or 401)
+  POST /api/v1/auth/logout clear the session cookie
+
+The dev-login (auth_dev.py) and Discord OAuth (auth_discord.py)
+modules expose their own mount points but both produce the same
+session cookie that this module reads.
 """
 
-from fastapi import APIRouter
+from __future__ import annotations
+
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Response
+
+from ..deps import (
+    SESSION_COOKIE,
+    get_current_user,
+    require_login,
+)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+@router.get("/me")
+def whoami(user: dict = Depends(require_login)):
+    """Return the current user. 401 if no valid session."""
+    # require_login already raised if no user, so user is non-None
+    return {"data": user, "meta": {}}
+
+
+@router.post("/logout")
+def logout(response: Response, user: Optional[dict] = Depends(get_current_user)):
+    """
+    Clear the session cookie. Idempotent — calling without a session
+    still returns 200 (we just delete the cookie either way).
+    """
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return {"data": {"logged_out": True}, "meta": {}}
