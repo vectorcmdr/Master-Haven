@@ -160,7 +160,7 @@ class CommandsRouter(commands.Cog):
 
         await ctx.send("Select the type of discovery to submit:", view=view)
 
-        system_xp(ctx.author.id, 3)
+        await system_xp(ctx.author.id, 3)
 
 # ---------------- Leaderboard ----------------
     @commands.command(name="leaderboard", help="Featured photo leaderboard")
