@@ -202,3 +202,199 @@ class SearchHit(BaseModel):
     slug: str
     title: str                             # headline / title / name
     snippet: Optional[str] = None          # ~120 chars of context
+
+
+# =====================================================================
+# Phase 4: Drafts
+# =====================================================================
+
+class DraftCoauthor(BaseModel):
+    user_id: int
+    slug: str                              # discord_username
+    name: str
+    avatar_letter: Optional[str] = None
+    avatar_color: Optional[str] = None
+
+
+class DraftSummary(BaseModel):
+    id: int
+    doctype: str                           # brief / feature / inquisition
+    headline: Optional[str] = None
+    deck: Optional[str] = None
+    beat: Optional[str] = None
+    numeral: Optional[str] = None          # inquisitions only
+    status: str                            # draft / in_review / returned / ready / published
+    author: Author
+    coauthors: list[DraftCoauthor] = Field(default_factory=list)
+    civs: list[str] = Field(default_factory=list)
+    last_edited_at: str
+    created_at: str
+    reviewed_by_id: Optional[int] = None
+    reviewed_at: Optional[str] = None
+
+
+class DraftDetail(DraftSummary):
+    body: str
+    published_as_story_id: Optional[int] = None
+    published_as_inquisition_id: Optional[int] = None
+
+
+class DraftCreate(BaseModel):
+    doctype: str = Field(..., pattern="^(brief|feature|inquisition)$")
+    headline: Optional[str] = None
+    deck: Optional[str] = None
+    body: Optional[str] = ""
+    beat: Optional[str] = None
+    civs: list[str] = Field(default_factory=list)
+    # numeral: optional for inquisitions; auto-assigned if missing
+    numeral: Optional[str] = None
+
+
+class DraftPatch(BaseModel):
+    """Every field optional — auto-save sends partial updates."""
+    headline: Optional[str] = None
+    deck: Optional[str] = None
+    body: Optional[str] = None
+    beat: Optional[str] = None
+    civs: Optional[list[str]] = None
+
+
+class CoauthorAdd(BaseModel):
+    user_id: int
+
+
+class CommentCreate(BaseModel):
+    body: str = Field(..., min_length=1, max_length=5000)
+    quoted_text: Optional[str] = None
+
+
+class CommentDetail(BaseModel):
+    id: int
+    draft_id: int
+    author: Author
+    body: str
+    quoted_text: Optional[str] = None
+    created_at: str
+
+
+# =====================================================================
+# Phase 4: Notifications
+# =====================================================================
+
+class NotificationDetail(BaseModel):
+    id: int
+    type: str
+    title: str
+    body: Optional[str] = None
+    link: Optional[str] = None
+    related_draft_id: Optional[int] = None
+    related_user_id: Optional[int] = None
+    is_read: bool
+    created_at: str
+
+
+# =====================================================================
+# Phase 4: Watchlist
+# =====================================================================
+
+class WatchlistAdd(BaseModel):
+    target_type: str = Field(..., pattern="^(civilization|person|event|place|inquisition|user)$")
+    target_id: int
+
+
+class WatchlistItem(BaseModel):
+    id: int
+    target_type: str
+    target_id: int
+    created_at: str
+
+
+# =====================================================================
+# Phase 4: Entity writes (civilizations / people / events / places)
+# =====================================================================
+
+class CivilizationWrite(BaseModel):
+    slug: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    name: str = Field(..., min_length=1, max_length=200)
+    status: str = Field("active", pattern="^(active|dormant|archived)$")
+    galaxy: Optional[str] = None
+    founded: Optional[str] = None
+    founded_year: Optional[int] = None
+    ended: Optional[str] = None
+    ended_year: Optional[int] = None
+    tagline: Optional[str] = None
+    description: Optional[str] = None
+    color_primary: str = "#534AB7"
+    color_secondary: str = "#1D9E75"
+
+
+class CivilizationPatch(BaseModel):
+    """All fields optional. slug is immutable — change requires delete+create."""
+    name: Optional[str] = None
+    status: Optional[str] = Field(None, pattern="^(active|dormant|archived)$")
+    galaxy: Optional[str] = None
+    founded: Optional[str] = None
+    founded_year: Optional[int] = None
+    ended: Optional[str] = None
+    ended_year: Optional[int] = None
+    tagline: Optional[str] = None
+    description: Optional[str] = None
+    color_primary: Optional[str] = None
+    color_secondary: Optional[str] = None
+
+
+class PersonWrite(BaseModel):
+    slug: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    name: str = Field(..., min_length=1, max_length=200)
+    discord_username: Optional[str] = None
+    civ_slug: Optional[str] = None
+    role_in_civ: Optional[str] = None
+    bio: Optional[str] = None
+
+
+class PersonPatch(BaseModel):
+    name: Optional[str] = None
+    discord_username: Optional[str] = None
+    civ_slug: Optional[str] = None
+    role_in_civ: Optional[str] = None
+    bio: Optional[str] = None
+
+
+class EventWrite(BaseModel):
+    slug: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    title: str = Field(..., min_length=1, max_length=200)
+    event_date: Optional[str] = None
+    event_year: Optional[int] = None
+    description: Optional[str] = None
+
+
+class EventPatch(BaseModel):
+    title: Optional[str] = None
+    event_date: Optional[str] = None
+    event_year: Optional[int] = None
+    description: Optional[str] = None
+
+
+class PlaceWrite(BaseModel):
+    slug: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    name: str = Field(..., min_length=1, max_length=200)
+    galaxy: Optional[str] = None
+    region: Optional[str] = None
+    coordinates: Optional[str] = None
+    description: Optional[str] = None
+
+
+class PlacePatch(BaseModel):
+    name: Optional[str] = None
+    galaxy: Optional[str] = None
+    region: Optional[str] = None
+    coordinates: Optional[str] = None
+    description: Optional[str] = None
+
+
+class RevisionEntry(BaseModel):
+    id: int
+    changed_by: Author
+    change_summary: Optional[str] = None
+    snapshot: dict[str, Any]
+    created_at: str
