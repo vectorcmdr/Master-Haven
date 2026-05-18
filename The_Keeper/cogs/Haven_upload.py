@@ -539,6 +539,7 @@ class DiscoveryConfirmView(discord.ui.View):
                 f"Error: `{e}`",
                 ephemeral=True
             )
+            system_result, system_id = await self.get_system()
 # ---------------- DISCOVERY SUBMISSION -----
         payload = {
                     "system_id": system_id,
@@ -849,4 +850,4 @@ class HavenSubmission(commands.Cog):
 
 # -------------------- SETUP ----------------
 async def setup(bot):
-    await bot.add_cog(HavenSubmission(bot))    
+    await bot.add_cog(HavenSubmission(bot))    :
