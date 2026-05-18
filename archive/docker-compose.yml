@@ -12,6 +12,19 @@
 #   The container expects /data to be a writable bind-mount holding
 #   archive.db and the media/ subfolder. On the Pi this maps to
 #   ~/docker/archive-data/ (sibling to haven-data, haven-photos, etc.).
+#
+# Networking:
+#   - archive_default (auto-created by compose) — primary network for
+#     this stack
+#   - docker_default (external) — shared with NPM, Haven, Viobot, etc.
+#     so NPM can reach this container as http://archive:8020 without
+#     going through the host. Matches the existing Haven pattern.
+#
+# Phase 6 follow-up:
+#   Once NPM is proxying https://archive.havenmap.online -> archive:8020,
+#   the `ports:` block below can be removed to close port 8020 to the
+#   LAN entirely. Until then we keep it published for direct Tailscale
+#   testing.
 
 services:
   archive:
@@ -19,26 +32,41 @@ services:
     image: travelers-archive:latest
     container_name: archive
     restart: unless-stopped
+    networks:
+      - default              # this is archive_default (compose-managed)
+      - shared               # alias for docker_default below
     ports:
-      # Published on the host as 8020. Phase 6 will put NPM in front;
-      # we keep this published until then so direct curl checks work
-      # from the Tailscale network.
+      # Published on the host as 8020 for Tailscale-side testing.
+      # Remove this block in the Phase 6 follow-up after NPM is wired.
       - "8020:8020"
     volumes:
-      # ARCHIVE_DATA_PATH defaults to ~/docker/archive-data on the Pi.
-      # On other hosts, set ARCHIVE_DATA_PATH in the calling shell or
-      # in a .env file alongside this compose.yml.
       - "${ARCHIVE_DATA_PATH:-/home/pi8gb/docker/archive-data}:/data"
     environment:
       ENV: "${ENV:-dev}"
       DATABASE_PATH: /data/archive.db
       MEDIA_PATH: /data/media
       SESSION_SECRET: "${SESSION_SECRET:-}"
-      # Discord OAuth — only used starting Phase 7. Empty in earlier
-      # phases.
+      # Set to the canonical public host (e.g. archive.havenmap.online)
+      # in production. Used for setting the session cookie's Domain.
+      # Leave blank in dev — the cookie defaults to host-only.
+      PUBLIC_HOST: "${PUBLIC_HOST:-}"
+      # Discord OAuth — only used starting Phase 7.
       DISCORD_CLIENT_ID: "${DISCORD_CLIENT_ID:-}"
       DISCORD_CLIENT_SECRET: "${DISCORD_CLIENT_SECRET:-}"
       DISCORD_REDIRECT_URI: "${DISCORD_REDIRECT_URI:-}"
       DISCORD_BOT_TOKEN: "${DISCORD_BOT_TOKEN:-}"
       DISCORD_VH_GUILD_ID: "${DISCORD_VH_GUILD_ID:-}"
       DISCORD_ARCHIVIST_GUILD_ID: "${DISCORD_ARCHIVIST_GUILD_ID:-}"
+
+networks:
+  # Default network for this compose stack (archive_default).
+  default:
+    driver: bridge
+  # External reference to the shared Pi network NPM lives on. Compose
+  # won't try to create or manage docker_default — it's owned by the
+  # Pi-wide ~/docker/docker-compose.yml. If you bring this stack up
+  # on a machine where docker_default doesn't exist, `docker network
+  # create docker_default` once before `docker compose up`.
+  shared:
+    name: docker_default
+    external: true

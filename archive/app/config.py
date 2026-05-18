@@ -35,6 +35,11 @@ class Settings:
     # local devs aren't forced to set it.
     session_secret: str
 
+    # Public hostname (without scheme) — e.g. "archive.havenmap.online".
+    # When set, the session cookie's Domain is constrained to this host;
+    # when empty (dev), the cookie is host-only.
+    public_host: str
+
     # -- Discord OAuth (Phase 7) --------------------------------------
     discord_client_id: str
     discord_client_secret: str
@@ -70,6 +75,7 @@ def _load() -> Settings:
         database_path=os.environ.get("DATABASE_PATH", "/data/archive.db"),
         media_path=os.environ.get("MEDIA_PATH", "/data/media"),
         session_secret=session_secret,
+        public_host=os.environ.get("PUBLIC_HOST", "").strip(),
         discord_client_id=os.environ.get("DISCORD_CLIENT_ID", ""),
         discord_client_secret=os.environ.get("DISCORD_CLIENT_SECRET", ""),
         discord_redirect_uri=os.environ.get("DISCORD_REDIRECT_URI", ""),
