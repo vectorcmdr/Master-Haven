@@ -504,13 +504,13 @@ class DiscoveryConfirmView(discord.ui.View):
         self.api = api
         self.discovery_type = discovery_type
         self.system_exists = system_exists
+        self.get_system
         self.galaxy_name = galaxy_name
         self.system_name = system_name
         self.system_id = system_id
         self.prefill_notes = notes
         self.discovery_name = discovery_name
         self.community_tag = community_tag
-
         self.confirm_btn = discord.ui.Button(
             label="Confirm Submit",
             style=discord.ButtonStyle.green
@@ -774,7 +774,7 @@ class HexKeypad(discord.ui.View):
                 self.stop()
                 return
 
-        # ------------------ SYSTEM FLOW (!addlog) ------------------
+        # ------------------ SYSTEM FLOW ------------------
             else:
                 if dup.get("exists"):
                     await interaction.followup.send(
