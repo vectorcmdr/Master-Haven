@@ -533,7 +533,8 @@ class DiscoveryConfirmView(discord.ui.View):
 
             await interaction.response.defer(ephemeral=True)
 
-            system_result, system_id = await self.get_system()
+            system_result, system_id = await self. 
+            get_system()
 
         except Exception as e:
             await interaction.followup.send(
@@ -542,42 +543,41 @@ class DiscoveryConfirmView(discord.ui.View):
             )
 # ---------------- SYSTEM CREATION -----------
             async def get_system(self):
-    # CASE 1: existing system already provided
-            if self.system_exists:
-                system_result = self.system_exists
-                system_id = system_result.get("id")
-        
+                if self.system_exists:
+                    system_result = self.system_exists
+                    system_id = system_result.get("id")
+            
+                    if not system_id:
+                        raise Exception("Existing system missing ID")
+            
+                    return system_result, system_id
+            
+                
+                system_payload = {
+                    "glyph_code": self.glyph,
+                    "system_name": self.system_name,
+                    "community_tag": self.community_tag,
+                    "galaxy_name": self.galaxy_name,
+                    "reality": getattr(self, "reality", "Normal"),
+                    "user_id": self.user_id
+                }
+            
+                system_result = await self.api.submit_system(system_payload)
+            
+                if not system_result:
+                    raise Exception("System API returned empty response")
+            
+                system_id = (
+                    system_result.get("system_id")
+                    or system_result.get("submission_id")
+                    or system_result.get("id")
+                    or (system_result.get("system") or {}).get("id")
+                )
+            
                 if not system_id:
-                    raise Exception("Existing system missing ID")
-        
+                    raise Exception(f"System creation failed: {system_result}")
+            
                 return system_result, system_id
-        
-            # CASE 2: create new system
-            system_payload = {
-                "glyph_code": self.glyph,
-                "system_name": self.system_name,
-                "community_tag": self.community_tag,
-                "galaxy_name": self.galaxy_name,
-                "reality": getattr(self, "reality", "Normal"),
-                "user_id": self.user_id
-            }
-        
-            system_result = await self.api.submit_system(system_payload)
-        
-            if not system_result:
-                raise Exception("System API returned empty response")
-        
-            system_id = (
-                system_result.get("system_id")
-                or system_result.get("submission_id")
-                or system_result.get("id")
-                or (system_result.get("system") or {}).get("id")
-            )
-        
-            if not system_id:
-                raise Exception(f"System creation failed: {system_result}")
-        
-            return system_result, system_id
 
 # ---------------- DISCOVERY SUBMISSION -----
             payload = {
