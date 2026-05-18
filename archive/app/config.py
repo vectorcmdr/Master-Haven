@@ -1,0 +1,88 @@
+"""
+Config loaded from environment variables.
+
+Why a tiny dataclass instead of pydantic-settings:
+- Keeps the dependency surface small for Phase 1.
+- All values are strings or simple booleans — no validation gymnastics.
+- The Pi-side .env is loaded by Docker, not Python. We just read
+  os.environ.
+
+Edit-friendly notes for a junior dev:
+- Add a new setting: add a field to `Settings`, set its default in
+  `_load()`, expose it via env var in docker-compose.yml + .env.example.
+"""
+
+from __future__ import annotations
+
+import os
+import secrets
+from dataclasses import dataclass
+from functools import lru_cache
+
+
+@dataclass(frozen=True)
+class Settings:
+    # 'dev' or 'production'
+    env: str
+
+    # Absolute path to the SQLite DB file
+    database_path: str
+
+    # Absolute path to the media folder (uploaded images, etc.)
+    media_path: str
+
+    # Signed-cookie secret. Generated random in dev if not provided so
+    # local devs aren't forced to set it.
+    session_secret: str
+
+    # -- Discord OAuth (Phase 7) --------------------------------------
+    discord_client_id: str
+    discord_client_secret: str
+    discord_redirect_uri: str
+    discord_bot_token: str
+    discord_vh_guild_id: str
+    discord_archivist_guild_id: str
+
+    @property
+    def is_dev(self) -> bool:
+        return self.env.lower() == "dev"
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.lower() == "production"
+
+
+def _load() -> Settings:
+    env = os.environ.get("ENV", "dev")
+
+    session_secret = os.environ.get("SESSION_SECRET", "").strip()
+    if not session_secret:
+        if env.lower() == "production":
+            raise RuntimeError(
+                "SESSION_SECRET must be set in production. Add it to .env."
+            )
+        # Random per-process secret — fine for dev. Sessions invalidate
+        # on each container restart, which is expected in dev.
+        session_secret = secrets.token_urlsafe(32)
+
+    return Settings(
+        env=env,
+        database_path=os.environ.get("DATABASE_PATH", "/data/archive.db"),
+        media_path=os.environ.get("MEDIA_PATH", "/data/media"),
+        session_secret=session_secret,
+        discord_client_id=os.environ.get("DISCORD_CLIENT_ID", ""),
+        discord_client_secret=os.environ.get("DISCORD_CLIENT_SECRET", ""),
+        discord_redirect_uri=os.environ.get("DISCORD_REDIRECT_URI", ""),
+        discord_bot_token=os.environ.get("DISCORD_BOT_TOKEN", ""),
+        discord_vh_guild_id=os.environ.get("DISCORD_VH_GUILD_ID", ""),
+        discord_archivist_guild_id=os.environ.get("DISCORD_ARCHIVIST_GUILD_ID", ""),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """
+    Cached accessor — call from anywhere in the app to get the same
+    Settings instance. lru_cache makes this effectively a singleton.
+    """
+    return _load()

@@ -1,0 +1,31 @@
+# =====================================================================
+# Travelers Archive — Python dependencies
+# =====================================================================
+# Pinned to compatible major.minor ranges (~=) so a future pip install
+# picks up patch fixes but not surprise breakage.
+
+# Web framework + ASGI server
+fastapi~=0.115.0
+uvicorn[standard]~=0.32.0
+
+# ORM + migrations
+sqlalchemy~=2.0.0
+alembic~=1.13.0
+
+# Pydantic v2 (FastAPI's request/response models)
+pydantic~=2.9.0
+
+# Form / file upload parsing
+python-multipart~=0.0.12
+
+# Background job scheduler (used in Phase 7 for Discord role sync)
+apscheduler~=3.10.0
+
+# Image processing (media uploads — thumbnails, resize)
+pillow~=11.0.0
+
+# Outbound HTTP (used in Phase 7 for Discord API calls)
+httpx~=0.27.0
+
+# Signed cookie sessions (auth)
+itsdangerous~=2.2.0

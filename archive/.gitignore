@@ -1,0 +1,37 @@
+# =====================================================================
+# Travelers Archive — .gitignore
+# =====================================================================
+# This file lives inside the Master-Haven repo at archive/.gitignore.
+# The parent Master-Haven .gitignore already covers .env, __pycache__/,
+# .venv/, venv/, node_modules/. We re-assert a few here defensively and
+# add archive-specific patterns.
+
+# Secrets and local environment
+.env
+.env.local
+.env.*.local
+
+# Local SQLite database files (the real DB lives on the Pi, in
+# ~/docker/archive-data/, not in the repo)
+*.db
+*.db-shm
+*.db-wal
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments (defensive)
+.venv/
+venv/
+
+# Frontend build output (created by `vite build` in Phase 5)
+frontend/node_modules/
+frontend/dist/
+
+# Editor / OS junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

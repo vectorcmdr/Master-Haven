@@ -1,0 +1,44 @@
+# =====================================================================
+# Travelers Archive — docker compose
+# =====================================================================
+# Stand-alone compose file. NOT to be merged into the Pi's master
+# ~/docker/docker-compose.yml — the Archive runs as a separate stack
+# so it can be brought up/down without touching Haven, Viobot, or NPM.
+#
+# Run from this directory:
+#   docker compose up -d --build
+#
+# Data persistence:
+#   The container expects /data to be a writable bind-mount holding
+#   archive.db and the media/ subfolder. On the Pi this maps to
+#   ~/docker/archive-data/ (sibling to haven-data, haven-photos, etc.).
+
+services:
+  archive:
+    build: .
+    image: travelers-archive:latest
+    container_name: archive
+    restart: unless-stopped
+    ports:
+      # Published on the host as 8020. Phase 6 will put NPM in front;
+      # we keep this published until then so direct curl checks work
+      # from the Tailscale network.
+      - "8020:8020"
+    volumes:
+      # ARCHIVE_DATA_PATH defaults to ~/docker/archive-data on the Pi.
+      # On other hosts, set ARCHIVE_DATA_PATH in the calling shell or
+      # in a .env file alongside this compose.yml.
+      - "${ARCHIVE_DATA_PATH:-/home/pi8gb/docker/archive-data}:/data"
+    environment:
+      ENV: "${ENV:-dev}"
+      DATABASE_PATH: /data/archive.db
+      MEDIA_PATH: /data/media
+      SESSION_SECRET: "${SESSION_SECRET:-}"
+      # Discord OAuth — only used starting Phase 7. Empty in earlier
+      # phases.
+      DISCORD_CLIENT_ID: "${DISCORD_CLIENT_ID:-}"
+      DISCORD_CLIENT_SECRET: "${DISCORD_CLIENT_SECRET:-}"
+      DISCORD_REDIRECT_URI: "${DISCORD_REDIRECT_URI:-}"
+      DISCORD_BOT_TOKEN: "${DISCORD_BOT_TOKEN:-}"
+      DISCORD_VH_GUILD_ID: "${DISCORD_VH_GUILD_ID:-}"
+      DISCORD_ARCHIVIST_GUILD_ID: "${DISCORD_ARCHIVIST_GUILD_ID:-}"

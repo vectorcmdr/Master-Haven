@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Travelers Archive â v0.7 Full Mockup</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; color-scheme: light; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: #050324; color: #f6fbfc; line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ============================ DEV PANEL ============================ */
+  .ta-dev-panel {
+    position: fixed; bottom: calc(70px + env(safe-area-inset-bottom)); right: 14px; z-index: 200;
+    background: #0d0a30; color: #fff;
+    padding: 8px 12px; border-radius: 100px;
+    font-size: 11px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  }
+  .ta-dev-panel-expanded {
+    position: fixed; bottom: calc(70px + env(safe-area-inset-bottom)); right: 14px; z-index: 200;
+    background: #0d0a30; color: #fff;
+    padding: 14px 16px; border-radius: 12px;
+    font-size: 12px; min-width: 220px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    display: none;
+  }
+  @media (min-width: 769px) {
+    .ta-dev-panel { bottom: 14px; }
+    .ta-dev-panel-expanded { bottom: 14px; }
+  }
+  .ta-dev-panel-expanded.open { display: block; }
+  .ta-dev-panel-expanded label {
+    display: block; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1px; color: #8a98b0; margin-bottom: 6px;
+  }
+  .ta-dev-panel-expanded .role-btns {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px;
+  }
+  .ta-dev-panel-expanded .role-btn {
+    padding: 6px 10px; font-size: 11px; font-family: inherit;
+    background: #1a1a18; color: #a8b5c8; border: 0.5px solid rgba(255,255,255,0.15);
+    border-radius: 6px; cursor: pointer;
+  }
+  .ta-dev-panel-expanded .role-btn.active {
+    background: #3f82c1; color: #fff; border-color: #3f82c1;
+  }
+  .ta-dev-panel-expanded .close-x {
+    position: absolute; top: 8px; right: 10px;
+    cursor: pointer; color: #8a98b0;
+    font-size: 16px; line-height: 1;
+  }
+
+  /* See build prompt attachment for the full v0.9 mockup CSS, HTML body,
+     and inline JS (mock data, hash router, page renderers, etc).
+     This file is intentionally elided to keep the git commit small;
+     the design contract lives in the build prompt itself.
+     Phase 5 will reference the attached mockup directly.
+
+     Key things Phase 5 must preserve from the full mockup:
+     - Dark cosmic palette: bg #050324, surface #0d0a30, text #f6fbfc,
+       accent #FAC775 (gold for inquisitions), per-civ brand colors
+     - Hash routing matching the URLs the JS in the mockup uses:
+       #/, #/civs, #/civ/{slug}, #/inquisitions, #/inquisition/{id},
+       #/beat/{slug}, #/story/{id}, #/profile/{id}, #/timeline,
+       #/dashboard, #/drafts, #/draft/{id}, #/compose/{doctype}
+     - Mobile-first responsive (320px to desktop)
+     - Components: StoryCard, CivCard, InquisitionCard, DraftRow,
+       Avatar, Tag, StatusPill, Toast, Drawer, DevPanel
+     - Pages: Newsroom, Civs index, CivPage, Inquisitions index,
+       InquisitionPage, Story reader, Profile, Timeline, Dashboard,
+       Drafts list, Draft editor, Compose
+     - Auto-save on draft body/headline (800ms debounce)
+     - Inline comment selection: highlight body text -> comment
+       composer attaches the quoted text
+     - Status transitions with optimistic UI + toast confirmation
+     - Dev panel (lower right): role + persona switcher
+  */
+</style>
+</head>
+<body>
+<div style="padding: 60px 20px; text-align: center; color: #a8b5c8; max-width: 680px; margin: 0 auto;">
+  <h1 style="font-family: Georgia, serif; color: #f6fbfc; margin-bottom: 14px; font-size: 28px;">Travelers Archive â v0.9 mockup</h1>
+  <p style="margin-bottom: 14px; font-size: 15px;">
+    Design contract for the live Archive frontend.
+  </p>
+  <p style="font-size: 13px; opacity: 0.75; line-height: 1.55;">
+    The full ~2300-line mockup (CSS, HTML body, inline JS demo with mock data
+    and hash router) lives in the build prompt as the canonical source.
+    Phase 5 rebuilds the live frontend from that reference.
+  </p>
+  <p style="margin-top: 24px; font-size: 12px; opacity: 0.5;">
+    See <code>../README.md</code> for the project overview and
+    <code>discord-roles.md</code> for the Discord role mapping (Phase 7).
+  </p>
+</div>
+</body>
+</html>
