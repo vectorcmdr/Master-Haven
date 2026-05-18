@@ -6,7 +6,10 @@ import { CivCard } from "../components/CivCard";
 export function Civs() {
   const [civs, setCivs] = useState<CivilizationSummary[] | null>(null);
   useEffect(() => {
-    api<CivilizationSummary[]>("/civilizations")
+    // Request a large page so all civs land on one screen. With 172
+    // partner rows today and room to grow, 500 is comfortable; the
+    // backend caps at 500 to bound memory.
+    api<CivilizationSummary[]>("/civilizations", { query: { page_size: 500 } })
       .then(setCivs)
       .catch(() => setCivs([]));
   }, []);

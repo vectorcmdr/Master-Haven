@@ -102,7 +102,7 @@ def _compute_stats(db: Session, civ_slug: str, founded_year: int | None, ended_y
 def list_civilizations(
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=500),
     status: str | None = Query(None, regex="^(active|dormant|archived)$"),
 ):
     """Paginated list of civilizations. Optional status filter."""
