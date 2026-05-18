@@ -503,7 +503,6 @@ class DiscoveryConfirmView(discord.ui.View):
         self.user_id = user_id
         self.api = api
         self.discovery_type = discovery_type
-        self.system_exists = system_exists
         self.get_system = get_system
         self.galaxy_name = galaxy_name
         self.system_name = system_name
@@ -540,44 +539,6 @@ class DiscoveryConfirmView(discord.ui.View):
                 f"Error: `{e}`",
                 ephemeral=True
             )
-# ---------------- SYSTEM CREATION -----------
-        async def get_system(self):
-                    if self.system_exists:
-                        system_result = self.system_exists
-                        system_id = system_result.get("id")
-                
-                        if not system_id:
-                            raise Exception("Existing system missing ID")
-                
-                        return system_result, system_id
-                
-                    
-                    system_payload = {
-                        "glyph_code": self.glyph,
-                        "system_name": self.system_name,
-                        "community_tag": self.community_tag,
-                        "galaxy_name": self.galaxy_name,
-                        "reality": getattr(self, "reality", "Normal"),
-                        "user_id": self.user_id
-                    }
-                
-                    system_result = await self.api.submit_system(system_payload)
-                
-                    if not system_result:
-                        raise Exception("System API returned empty response")
-                
-                    system_id = (
-                        system_result.get("system_id")
-                        or system_result.get("submission_id")
-                        or system_result.get("id")
-                        or (system_result.get("system") or {}).get("id")
-                    )
-                
-                    if not system_id:
-                        raise Exception(f"System creation failed: {system_result}")
-                
-                    return system_result, system_id
-
 # ---------------- DISCOVERY SUBMISSION -----
         payload = {
                     "system_id": system_id,
@@ -632,6 +593,43 @@ class DiscoveryConfirmView(discord.ui.View):
                 await interaction.response.send_message(
                     f"❌ Submission failed: {e}", ephemeral=True
                 )
+    # ---------------- SYSTEM CREATION -----------
+        async def get_system(self):
+                    if self.system_exists:
+                        system_result = self.system_exists
+                        system_id = system_result.get("id")
+                
+                        if not system_id:
+                            raise Exception("Existing system missing ID")
+                
+                        return system_result, system_id
+                
+                    
+                    system_payload = {
+                        "glyph_code": self.glyph,
+                        "system_name": self.system_name,
+                        "community_tag": self.community_tag,
+                        "galaxy_name": self.galaxy_name,
+                        "reality": getattr(self, "reality", "Normal"),
+                        "user_id": self.user_id
+                    }
+                
+                    system_result = await self.api.submit_system(system_payload)
+                
+                    if not system_result:
+                        raise Exception("System API returned empty response")
+                
+                    system_id = (
+                        system_result.get("system_id")
+                        or system_result.get("submission_id")
+                        or system_result.get("id")
+                        or (system_result.get("system") or {}).get("id")
+                    )
+                
+                    if not system_id:
+                        raise Exception(f"System creation failed: {system_result}")
+                
+                    return system_result, system_id
 
 
 # -------------------- HEX KEYBOARD VIEW ----
