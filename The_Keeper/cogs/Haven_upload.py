@@ -579,7 +579,7 @@ class DiscoveryConfirmView(discord.ui.View):
                 return system_result, system_id
 
 # ---------------- DISCOVERY SUBMISSION -----
-            payload = {
+    payload = {
                 "system_id": system_id,
                 "discovery_name": discovery_name,
                 "discovery_type": self.discovery_type.lower(),
@@ -612,7 +612,7 @@ class DiscoveryConfirmView(discord.ui.View):
             )
             if xp_gained:
                 msg += f"\n✨ +{xp_gained} XP earned"
-
+         
 # ---------------- BONUS HINT -------------------
         try:
             role = DISCOVERY_TYPE_MAP.get(self.discovery_type.lower())
