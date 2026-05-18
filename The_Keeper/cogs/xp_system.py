@@ -225,7 +225,7 @@ async def process_message_xp(message):
 
     xp_gain = get_cfg("xp.primary_per_message", 1)
 
-    add_xp(user_id, role, xp_gain)
+    await add_xp(user_id, role, xp_gain)
 
     level, leveled_up, dm = add_global_xp(user_id, xp_gain)
 
@@ -264,7 +264,7 @@ async def process_discovery_xp(user_id, discovery_type, channel_id):
     if office_channels and channel_id == office_channels[0]:
         xp += get_cfg("xp_bonus.channel_match", 5)
 
-    add_xp(user_id, primary_role, xp)
+    await add_xp(user_id, primary_role, xp)
 
     level, leveled_up, dm = add_global_xp(user_id, xp)
 
