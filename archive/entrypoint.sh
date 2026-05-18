@@ -27,6 +27,11 @@ mkdir -p "${MEDIA_PATH:-/data/media}"
 echo "[entrypoint] running alembic upgrade head"
 alembic upgrade head
 
+# Seed mock data (idempotent — each insert is guarded by an existence
+# check, so running on every boot is safe). Phase 2 adds this.
+echo "[entrypoint] running seed"
+python -m app.seed
+
 # Start the ASGI server.
 echo "[entrypoint] starting uvicorn on 0.0.0.0:8020"
 exec uvicorn app.main:app \
