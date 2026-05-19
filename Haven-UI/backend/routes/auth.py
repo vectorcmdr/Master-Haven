@@ -56,7 +56,7 @@ router = APIRouter()
 @router.get('/api/status')
 async def api_status():
     """Health check endpoint. Public. Returns API version for frontend compatibility checks."""
-    return {'status': 'ok', 'version': '1.66.1', 'api': 'Master Haven'}
+    return {'status': 'ok', 'version': '1.67.0', 'api': 'Master Haven'}
 
 
 # ============================================================================
@@ -154,10 +154,14 @@ async def admin_login(credentials: dict, response: Response):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Primary path: look up in user_profiles
+        # Primary path: look up in user_profiles.
+        # theme_settings / region_color used to live here but are now
+        # sourced from civilizations rows via load_memberships_for_profile.
+        # They were selected here for years without ever being written to
+        # the session dict — dropped to make the dead read obvious.
         cursor.execute("""
             SELECT id, username, username_normalized, password_hash, display_name, tier,
-                   partner_discord_tag, enabled_features, theme_settings, region_color,
+                   partner_discord_tag, enabled_features,
                    parent_profile_id, additional_discord_tags, can_approve_personal_uploads,
                    default_civ_tag, default_reality, default_galaxy, is_active,
                    home_civ_id

@@ -302,21 +302,14 @@ export default function UserManagement({ embedded = false }) {
                               Change Tier
                             </button>
                           )}
-                          {/* Demote - super admin only, for partners/sub-admins */}
-                          {isSuperAdmin && p.tier >= 2 && p.tier <= 3 && (
-                            <button
-                              onClick={() => {
-                                if (confirm(`Demote ${p.username} to Member?`)) {
-                                  axios.put(`/api/admin/profiles/${p.id}/tier`, { tier: 4 })
-                                    .then(() => fetchProfiles())
-                                    .catch(err => alert(err.response?.data?.detail || 'Failed'))
-                                }
-                              }}
-                              className="pill pill-amber pill-clickable"
-                            >
-                              Demote
-                            </button>
-                          )}
+                          {/* Demote — removed in v1.58.0. Partner/Sub-Admin tiers
+                              are derived from civilization_members, so a flat
+                              "set tier=4" against this user_profiles row would
+                              be silently reverted on the next civ event by
+                              _recompute_profile_tier. To step them down, open
+                              the Civilizations page → their civ → Remove. The
+                              backend tier endpoint now 409s this exact case
+                              (active_member_count > 0). */}
                           {/* Reset Password */}
                           {(isSuperAdmin || (isPartner && p.tier === 3)) && p.tier > 1 && (
                             <button
@@ -513,9 +506,11 @@ export default function UserManagement({ embedded = false }) {
 
                 {(elevateForm.tier === 4 || elevateForm.tier === 5) && (
                   <div className="haven-card p-3 text-xs" style={{ color: 'var(--muted)' }}>
-                    If this user is currently a leader of any civilization, demoting their tier here
-                    will be overridden the next time their civ membership changes. To fully step them
-                    down, remove their <code>civilization_members</code> row first.
+                    If this user is currently a member of any active civilization, this demotion will
+                    be <strong>rejected with a 409</strong> — their tier is derived from their civ
+                    memberships, so demoting here would be reverted on the next civ event. Remove
+                    them from each of their civilizations first via the{' '}
+                    <a href="/haven-ui/admin/civilizations" className="underline">Civilizations</a> page.
                   </div>
                 )}
               </div>

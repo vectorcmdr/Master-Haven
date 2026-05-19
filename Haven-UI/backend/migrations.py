@@ -6376,3 +6376,66 @@ def migration_1_82_0(conn):
         logger.info("Migration 1.82.0: added pending_systems.discoveries_draft column")
     else:
         logger.info("Migration 1.82.0: discoveries_draft column already present")
+
+
+@register_migration("1.83.0", "Backfill user_profiles.enabled_features from civilization_members so existing leaders get permissions")
+def migration_1_83_0(conn):
+    """Closes the "elevated to leader but has no permissions" gap for
+    users who were added to civilizations before _recompute_profile_features
+    existed. The session reads user_profiles.enabled_features at login;
+    until this migration, that column was only populated by the legacy
+    PUT /api/admin/profiles/{id}/tier path. Members promoted via the new
+    POST /api/civilizations/{id}/members flow had tier=2 in their profile
+    but features=[], so route guards refused them.
+
+    For each profile with at least one ACTIVE civ membership, computes
+    the union of effective features (per-member override if set, else
+    civ default) and writes it back to user_profiles.enabled_features.
+    Mirrors the runtime _recompute_profile_features helper exactly.
+
+    Super admins (tier 1) skipped — their permission comes from user_type
+    check, not the features list. Idempotent — re-running produces the
+    same result and overwrites stale data.
+    """
+    import json as _json
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT DISTINCT cm.profile_id
+        FROM civilization_members cm
+        JOIN civilizations c ON c.id = cm.civ_id
+        JOIN user_profiles up ON up.id = cm.profile_id
+        WHERE c.is_active = 1 AND up.tier != 1
+    """)
+    profile_ids = [r[0] for r in cursor.fetchall()]
+
+    updated = 0
+    for profile_id in profile_ids:
+        cursor.execute("""
+            SELECT cm.enabled_features, c.enabled_features_default
+            FROM civilization_members cm
+            JOIN civilizations c ON c.id = cm.civ_id
+            WHERE cm.profile_id = ? AND c.is_active = 1
+        """, (profile_id,))
+        union = set()
+        for row in cursor.fetchall():
+            per_member_raw, default_raw = row[0], row[1]
+            try:
+                per_member = _json.loads(per_member_raw) if per_member_raw else None
+            except (TypeError, ValueError):
+                per_member = None
+            try:
+                default = _json.loads(default_raw) if default_raw else []
+            except (TypeError, ValueError):
+                default = []
+            effective = per_member if per_member is not None else default
+            if isinstance(effective, list):
+                union.update(effective)
+
+        cursor.execute(
+            "UPDATE user_profiles SET enabled_features = ? WHERE id = ?",
+            (_json.dumps(sorted(union)), profile_id),
+        )
+        updated += 1
+
+    logger.info(f"Migration 1.83.0: backfilled enabled_features for {updated} profiles with active civ memberships")

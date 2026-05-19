@@ -22,6 +22,9 @@ A comprehensive No Man's Sky discovery mapping and archival system for communiti
 ### Current Versions
 | Component | Version | Last Updated | Notes |
 |-----------|---------|--------------|-------|
+| **Master Haven** | 1.69.0 | 2026-05-18 | **Civ-derived permissions actually take effect now + legacy tier endpoint locked down (Option A).** Parker reported that members elevated to civ leader via CivilizationManagement → Add Member ended up with tier=2 but **no permissions** — they could log in but couldn't open the War Room, hit Approvals, or use any feature-gated route. Root cause: `_recompute_profile_tier` in [routes/civilizations.py](Haven-UI/backend/routes/civilizations.py) only synced `tier`, never touched `enabled_features`. The session at login reads `user_profiles.enabled_features` ([auth.py:238](Haven-UI/backend/routes/auth.py#L238)), so a leader added via the new flow had tier=2 + features=[] — right title, zero access. Fix is three-layer: (1) new `_recompute_profile_features(cur, profile_id)` helper computes the UNION of effective features across all active civ memberships (per-member `civilization_members.enabled_features` override wins, else civ `enabled_features_default`), wired into all 4 callsites that touch membership state — `create_civilization` (founder), `add_member`, `update_member` on role-OR-features change, `remove_member`, and `update_civilization` when `enabled_features_default`/`is_active` change (which fans out to every member). (2) Migration v1.83.0 backfills existing leaders/sub-admins so they don't have to wait for the next civ event. (3) `PUT /api/admin/profiles/{id}/tier` ([routes/profiles.py:856](Haven-UI/backend/routes/profiles.py#L856)) now **rejects tier 2/3** with a 400 pointing to the Civilizations endpoint, and **rejects tier 4/5 demotion** with a 409 when the target still has active civ memberships (would be silently reverted by `_recompute_profile_tier` otherwise). Only valid uses now: promote/demote Super Admin, demote a no-civ user to Member/Read-Only. **Cleanup**: dead reads of `theme_settings` and `region_color` dropped from the login SELECT in [auth.py:158](Haven-UI/backend/routes/auth.py#L158) (selected for years, never written to session — superseded by `civilizations.theme_settings`/`region_color`). UserManagement.jsx Demote button removed (would always 409 against the new backend; Civilizations → Remove is the canonical path). Elevate modal's tier-4/5 advisory warning rewritten from "may be overridden" → "will be rejected with 409" to match the new hard guard. **Requires backend restart** on the Pi. |
+| Backend API | 1.67.0 | 2026-05-18 | New `_recompute_profile_features(cur, profile_id)` helper in [routes/civilizations.py](Haven-UI/backend/routes/civilizations.py): unions effective features across active civ memberships (per-member override wins over civ default) and writes to `user_profiles.enabled_features`. Skips super admins (tier 1) and inactive civs. Wired into 5 callsites: `create_civilization` (founder), `add_member`, `update_member` on role-or-features change, `remove_member`, `update_civilization` when `enabled_features_default`/`is_active` changes (fans out to all members). `PUT /api/admin/profiles/{id}/tier` rewritten: allowed tiers reduced to `{TIER_SUPER_ADMIN, TIER_MEMBER, TIER_MEMBER_READONLY}`; tier 2/3 returns 400 with civ-endpoint pointer; tier 4/5 returns 409 when target has any `civilization_members` row joined to an active civ. Dropped `theme_settings`/`region_color` from the login SELECT in [routes/auth.py:158](Haven-UI/backend/routes/auth.py#L158) — verified dead reads via codebase audit (selected but never assigned to session_dict for years). Migration v1.83.0 backfills `user_profiles.enabled_features` for every profile with an active civ membership using the same union logic the runtime helper does. `/api/status` 1.66.1 → 1.67.0 in [routes/auth.py](Haven-UI/backend/routes/auth.py). |
+| Haven-UI | 1.58.6 | 2026-05-18 | Removed the "Demote" pill button from [UserManagement.jsx](Haven-UI/src/pages/UserManagement.jsx) — it called `PUT /api/admin/profiles/{id}/tier` with `tier: 4`, which now always 409s for users with civ memberships and is a no-op-then-revert pattern that misled super admins. Canonical demotion path is the Civilizations page → Remove Member. Elevate modal's tier 4/5 warning text updated from advisory ("may be overridden") to declarative ("will be rejected with 409"). Build state unchanged — no new dependencies, no new pages, two edits to one file. |
 | **Master Haven** | 1.68.1 | 2026-05-18 | Patch: super admin tier elevation was rejected by the backend with `Invalid tier. Must be 2-5.` whenever a super admin tried to promote a user via UserManagement → Change Tier. Root cause: the frontend elevate modal exposes Super Admin (tier 1) as a target tier (correct per the v1.55.0 civ-membership-derived design where partner/sub-admin tiers moved to the Civilizations page), but the validation tuple at [routes/profiles.py:869](Haven-UI/backend/routes/profiles.py#L869) only allowed `{TIER_PARTNER, TIER_SUB_ADMIN, TIER_MEMBER, TIER_MEMBER_READONLY}` — `TIER_SUPER_ADMIN` (=1) was conspicuously absent from the set check, so every tier-1 PUT 400'd. One-line fix: added `TIER_SUPER_ADMIN` to the allowed tuple and updated the error string to "Must be 1-5". All adjacent guards already handle tier 1 correctly with no other changes needed: auth gate requires super_admin session, password gate's `new_tier <= TIER_SUB_ADMIN` already covers tier 1, the else-branch clearing partner/parent fields is the correct behavior for super admin promotion (super admin doesn't need civ-scoped denormalized fields), `_recompute_profile_tier` in civilizations.py uses `WHERE tier != 1` so civ membership changes won't clobber a super admin, and the audit log's `tier_names` dict already has `1: 'Super Admin'`. Trigger context: Parker promoting Watcher (lead diplo) to super admin. **Requires backend restart** on the Pi (uvicorn not running with --reload per CLAUDE.md). |
 | Backend API | 1.66.1 | 2026-05-18 | See Master Haven 1.68.1 above. One-line validation fix at [routes/profiles.py:869](Haven-UI/backend/routes/profiles.py#L869) in `PUT /api/admin/profiles/{id}/tier`: `TIER_SUPER_ADMIN` added to the allowed tier set, error string updated 2-5 → 1-5. `/api/status` 1.66.0 → 1.66.1 in [routes/auth.py](Haven-UI/backend/routes/auth.py). |
 | **Master Haven** | 1.68.0 | 2026-05-16 | **Layered map navigation + cross-layer focus highlighting.** The map was three disjoint static pages with no memory of context across layers — clicking "View on Map" from anywhere dropped you at a leaf with no breadcrumb back. Now: unified `?focus=<type>:<id>` URL contract on all 3 map pages (galaxy / region / system). Each page parses the param, finds the matching entity, applies the existing pulsing-ring + auto-pan (reused from the search-result code path, identical visual). Persistent breadcrumb bar on every map page with `↑ Galaxy` / `↑ Region` up-links that carry the current entity as focus so the parent layer arrives with that entity highlighted. **Down-navigation already worked** (click region → enter region, click system → enter system) — only the up-navigation + the focus-pulse-on-arrival were missing. **Civ / Contributor view-on-map**: galaxy view fetches `/api/map/regions-aggregated?focus_civ=X` (or `focus_user=Y`) — backend returns ALL regions with a new `is_focused: bool` flag, frontend hides non-focused by default and shows their territory only, with a `🎯 civ: ARCH [Show all regions] [✕]` chip overlay that toggles the filter or clears it entirely. **Search popover map buttons**: every result row in `SearchOverlay` now has a small `🗺` icon on the right that opens the matching map page focused on that entity — system → `/map/system/{id}`, region → `/map/region?rx=&ry=&rz=`, civ → `/map/latest?focus=civ:TAG`, contributor → `/map/latest?focus=user:NAME`. Row click stays as-is (navigates to the React detail page). **SystemDetail sister buttons**: the single "Show on Map" button became three side-by-side buttons (`⭐ System Map` / `📍 Region Map` / `🌌 Galaxy Map`), each carrying the right focus param so the user lands at any layer with the smoke-test system pulsing. **Bread-and-butter detail**: discovered mid-implementation that `vite build` copies `public/*.html` → `dist/*.html`, clobbering any edits to the dist copies. The 3 map HTML files live in `public/` as the source of truth; dist is the build output. Edits now made in public/ and propagated to dist/ via cp post-build. **13 live HTTP tests pass** against the running backend: focus param parsing, civ/user filter, unknown-civ false-positive guard, baseline-no-focus correctness, all 4 focus URL shapes on /map/latest, region page accepts focus=system:ID, system page accepts focus=planet:ID, SearchOverlay map buttons wired, SystemDetail sister buttons wired. |
@@ -144,6 +147,100 @@ The auto-updater (`haven_updater.ps1`) looks for assets matching `HavenExtractor
 - **Full distributable** (~112 MB): The entire `NMS-Haven-Extractor/dist/HavenExtractor/` folder. For new users who need the embedded Python runtime, batch scripts, etc. Created manually by zipping the full `dist/HavenExtractor/` directory.
 
 ### Changelog
+
+#### Master Haven 1.69.0 (2026-05-18) - Civ-Derived Permissions Auto-Sync + Legacy Tier Endpoint Lockdown (Option A)
+Parker reported: "when I take a member and elevate them to partner civ or add them while I create the civ they don't get the correct permissions assigned to them." Investigation found two distinct gaps — a real data-flow bug and a half-finished migration — both papering over each other in confusing ways.
+
+**The two gaps**
+
+1. **`_recompute_profile_tier` only synced `tier`, never `enabled_features`.** Migration v1.80.0 made `civilization_members` the source of truth for civ membership and added a helper that re-derives `user_profiles.tier` from the membership set after any add/update/remove. But the session at login reads `user_profiles.enabled_features` ([routes/auth.py:238](Haven-UI/backend/routes/auth.py#L238)) — and nothing populated that column from civ data. So a member added via CivilizationManagement → Add Member as `role='leader'` got `tier=2` (visible as "Partner" in the UI) and `enabled_features=[]` (no actual permissions). They could log in, the navbar said "Partner", and every feature-gated route refused them. The session builder is correct; the auto-sync was just missing on the features axis.
+
+2. **Two parallel write paths for tier still existed.** The v1.55.0 work updated `CivilizationManagement.jsx` to be the new source of truth (Add Member → role → `_recompute_profile_tier` does the rest) and updated `UserManagement.jsx`'s elevate modal to only offer tier 1/4/5 — but the backend `PUT /api/admin/profiles/{id}/tier` still accepted tier 2/3 and still set `partner_discord_tag` + `enabled_features` directly on `user_profiles`, bypassing `civilization_members` entirely. The Demote button at [UserManagement.jsx:310](Haven-UI/src/pages/UserManagement.jsx#L310) still called the legacy path with `{tier: 4}` to demote a partner, which would write `tier=4` to the user profile row, leave their `civilization_members` rows alone, then get silently reverted on the next civ event because `_recompute_profile_tier` re-derived `tier=2` from the still-present leader membership. Two months of "I demoted them, they're still a leader" surprise.
+
+**Fix Layer 1 — auto-sync features from civ memberships**
+
+New helper `_recompute_profile_features(cur, profile_id)` in [routes/civilizations.py](Haven-UI/backend/routes/civilizations.py):
+
+```python
+def _recompute_profile_features(cur, profile_id: int) -> None:
+    cur.execute("""
+        SELECT cm.enabled_features, c.enabled_features_default
+        FROM civilization_members cm
+        JOIN civilizations c ON c.id = cm.civ_id
+        WHERE cm.profile_id = ? AND c.is_active = 1
+    """, (profile_id,))
+    union: set = set()
+    for row in cur.fetchall():
+        per_member_raw, default_raw = row[0], row[1]
+        try:
+            per_member = json.loads(per_member_raw) if per_member_raw else None
+        except (TypeError, json.JSONDecodeError):
+            per_member = None
+        try:
+            default = json.loads(default_raw) if default_raw else []
+        except (TypeError, json.JSONDecodeError):
+            default = []
+        effective = per_member if per_member is not None else default
+        if isinstance(effective, list):
+            union.update(effective)
+    cur.execute(
+        "UPDATE user_profiles SET enabled_features = ? WHERE id = ? AND tier != 1",
+        (json.dumps(sorted(union)), profile_id),
+    )
+```
+
+Semantics: union of effective features across all active civ memberships. Per-member override (`civilization_members.enabled_features`) wins over civ default (`civilizations.enabled_features_default`). Inactive civs skipped — a deactivated civ stops granting its features. Super admin (tier 1) untouched — their permission comes from `user_type` check, not the features list. Zero memberships → features cleared to `[]` (correctly strips access from someone removed from their last civ).
+
+Wired into 5 callsites — every place where membership state changes or could change effective features:
+- `create_civilization` → after founder INSERT (closes the bug where the founder themselves had empty features)
+- `add_member` → after `_recompute_profile_tier`
+- `update_member` → when `role` OR `enabled_features` is in the payload (the existing tier recompute only fired on role change)
+- `remove_member` → after `_recompute_profile_tier`, so removing a leader correctly strips their features
+- `update_civilization` → when `enabled_features_default` OR `is_active` changes, fans out to every member of the affected civ (otherwise civ-default brand changes are stuck behind the next per-member event)
+
+**Fix Layer 2 — lock down the legacy tier endpoint**
+
+[`PUT /api/admin/profiles/{id}/tier`](Haven-UI/backend/routes/profiles.py) rewritten with three guards:
+
+```python
+if new_tier not in (TIER_SUPER_ADMIN, TIER_MEMBER, TIER_MEMBER_READONLY):
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "This endpoint only handles tier 1 (Super Admin), 4 (Member), "
+            "and 5 (Read-Only). Partner and Sub-Admin tiers are derived from "
+            "civilization membership — manage them via the Civilizations page "
+            "(POST /api/civilizations/{civ_id}/members)."
+        ),
+    )
+```
+
+Tier 2/3 hits a 400 with a clear pointer. Tier 4/5 with any active civ membership hits a 409 telling the caller to remove the user from each civ first via the Civilizations page — there's no point in accepting a write that `_recompute_profile_tier` would revert on the next civ event. Tier 1 (super admin promote/demote) keeps the existing password gate from v1.68.1. The legacy `partner_discord_tag` + `enabled_features` write branches for tier 2/3 are gone entirely.
+
+**Fix Layer 3 — migration v1.83.0 backfills existing leaders**
+
+Without a backfill, all existing leaders/sub-admins keep their stale empty `enabled_features` until something triggers a per-user recompute (which might be never). Migration v1.83.0 iterates every profile with at least one active civ membership, runs the same union logic the runtime helper uses, and writes back. Idempotent — re-running produces the same result. Mirrors `_recompute_profile_features` exactly to avoid drift between the migration-time and runtime code paths.
+
+**Cleanup — `theme_settings` and `region_color` dropped from login SELECT**
+
+Audit found these `user_profiles` columns selected in [auth.py:158](Haven-UI/backend/routes/auth.py#L158) but never assigned to `session_dict` (lines 231-248). Verified zero downstream readers consume them from the session. Superseded years ago by `civilizations.theme_settings` and `civilizations.region_color` (loaded via `load_memberships_for_profile` and surfaced per-membership). The columns themselves are kept on `user_profiles` since other readers like `/api/admin/profiles/{id}` still expose them for legacy detail views — only the dead SELECT in the hot login path was removed.
+
+**Frontend changes**
+
+[`UserManagement.jsx`](Haven-UI/src/pages/UserManagement.jsx):
+- Demote button removed entirely. Replaced with a code comment explaining the new model and pointing future-self at the Civilizations page.
+- Elevate modal's tier-4/5 warning rewritten from advisory ("may be overridden") to declarative ("will be rejected with 409") to match the new backend behavior. Generic error handler (`alert(err.response?.data?.detail)`) surfaces the backend's detail messages verbatim, so users see "remove them from N civilization(s) first" without any extra wiring.
+- Edit modal's `enabled_features` checkbox grid intentionally left in place — it still writes to `user_profiles.enabled_features` via `PUT /api/admin/profiles/{id}` (separate endpoint), which is not yet auto-synced from civ memberships. For users with civ memberships those writes will get overwritten on the next civ event; for legacy Haven sub-admins (tier 3 with `parent_profile_id IS NULL` and no civ_members rows) the writes still work normally. This is a known follow-up — eventually the feature editor should move to the Civilizations page → Edit Member.
+
+**What's NOT changed (intentional)**
+
+- `user_profiles.partner_discord_tag`, `parent_profile_id`, `additional_discord_tags`, `can_approve_personal_uploads` still actively read in the session builder for back-compat with the Haven sub-admin multi-tag pattern. Audit confirmed all four are still load-bearing.
+- `civilizations.id` for tier 1 (super admin) — `_recompute_profile_features` and `_recompute_profile_tier` both skip tier 1 explicitly. Super admin permissions come from `user_type` check, not enabled_features.
+- The civ-membership UNION semantics for features (vs. "active civ only" semantics) — chose union so a leader of civ X with `war_room` feature can still open the War Room page when "acting as" sub-admin of civ Y. The page itself then filters to civ X data via `civ_scope_filter`. Per-civ feature semantics would force constant civ-switching.
+
+**Pi deploy**: requires backend restart (uvicorn not running with `--reload`). Migration v1.83.0 runs automatically at startup. Pre-deploy local validation: started backend, observed `Migration 1.83.0: backfilled enabled_features for N profiles with active civ memberships` log line.
+
+---
 
 #### Master Haven 1.68.1 (2026-05-18) - Super Admin Tier Elevation Fix
 Parker tried to promote Watcher (lead diplo) to super admin via UserManagement → Change Tier and the website rejected it with `Invalid tier. Must be 2-5.` This is the second time this corner of the code has been broken — Parker's framing was "you didn't change the variables properly last time we edited this." Investigation traced it to a single missing element in the backend validation tuple.

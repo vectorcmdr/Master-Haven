@@ -856,9 +856,24 @@ async def admin_get_profile(profile_id: int, session: Optional[str] = Cookie(Non
 @router.put('/api/admin/profiles/{profile_id}/tier')
 async def admin_set_profile_tier(profile_id: int, request: Request, session: Optional[str] = Cookie(None)):
     """
-    Elevate or demote a user's tier (super admin only).
-    For tier 2 (partner): must provide partner_discord_tag and enabled_features.
-    For tier 3 (sub-admin): must provide parent_profile_id and enabled_features.
+    Set a user's tier (super admin only). Scope is limited to the non-
+    membership-derived tiers: Super Admin (1), Member (4), Read-Only (5).
+
+    Partner (2) and Sub-Admin (3) are derived from civilization_members and
+    must be managed via POST /api/civilizations/{civ_id}/members. Setting
+    them here used to be the cause of the "elevated user has no
+    permissions" bug — the legacy code wrote tier=2 + partner_discord_tag
+    to user_profiles but never created a civilization_members row, so the
+    session builder (which only reads civ_members) gave them empty
+    civ_tags. The civ-membership flow (POST .../members) handles tier
+    promotion AND feature sync atomically; this endpoint should never
+    have been a parallel write path.
+
+    Tier 4/5 demotion is also blocked when the target still has civ
+    memberships, because _recompute_profile_tier would silently re-derive
+    their tier from those memberships on the next civ event. The caller
+    must remove the user from their civilizations first via the
+    Civilizations page.
     """
     session_data = get_session(session)
     if not session_data or session_data.get('user_type') != 'super_admin':
@@ -866,8 +881,16 @@ async def admin_set_profile_tier(profile_id: int, request: Request, session: Opt
 
     body = await request.json()
     new_tier = body.get('tier')
-    if new_tier not in (TIER_SUPER_ADMIN, TIER_PARTNER, TIER_SUB_ADMIN, TIER_MEMBER, TIER_MEMBER_READONLY):
-        raise HTTPException(status_code=400, detail="Invalid tier. Must be 1-5.")
+    if new_tier not in (TIER_SUPER_ADMIN, TIER_MEMBER, TIER_MEMBER_READONLY):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This endpoint only handles tier 1 (Super Admin), 4 (Member), "
+                "and 5 (Read-Only). Partner and Sub-Admin tiers are derived from "
+                "civilization membership — manage them via the Civilizations page "
+                "(POST /api/civilizations/{civ_id}/members)."
+            ),
+        )
 
     conn = None
     try:
@@ -879,43 +902,45 @@ async def admin_set_profile_tier(profile_id: int, request: Request, session: Opt
         if not row:
             raise HTTPException(status_code=404, detail="Profile not found")
 
-        # Tier 2+ requires password
-        if new_tier <= TIER_SUB_ADMIN and not row['password_hash']:
-            raise HTTPException(status_code=400, detail="User must set a password before being elevated to admin tier")
+        # Super admin requires a password (the gate in the v1.68.1 fix still applies).
+        if new_tier == TIER_SUPER_ADMIN and not row['password_hash']:
+            raise HTTPException(status_code=400, detail="User must set a password before being elevated to Super Admin")
+
+        # Block demotion to member/read-only when the user still has civ
+        # memberships — _recompute_profile_tier would override on the next
+        # civ event, so the demotion would silently revert. The caller
+        # must drop their memberships via the Civilizations page first.
+        if new_tier in (TIER_MEMBER, TIER_MEMBER_READONLY):
+            cursor.execute(
+                """
+                SELECT COUNT(*) AS n
+                FROM civilization_members cm
+                JOIN civilizations c ON c.id = cm.civ_id
+                WHERE cm.profile_id = ? AND c.is_active = 1
+                """,
+                (profile_id,),
+            )
+            active_member_count = cursor.fetchone()['n']
+            if active_member_count > 0:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"This user is still a member of {active_member_count} active "
+                        "civilization(s). Their tier is derived from those memberships, "
+                        "so demoting here would be reverted on the next civ change. "
+                        "Remove them from each civilization first via the Civilizations page."
+                    ),
+                )
 
         updates = {'tier': new_tier, 'updated_at': datetime.now(timezone.utc).isoformat()}
 
-        if new_tier == TIER_PARTNER:
-            partner_tag = (body.get('partner_discord_tag') or '').strip()
-            if not partner_tag:
-                raise HTTPException(status_code=400, detail="partner_discord_tag is required for partner tier")
-            # Check uniqueness
-            cursor.execute("SELECT id FROM user_profiles WHERE partner_discord_tag = ? AND id != ?",
-                           (partner_tag, profile_id))
-            if cursor.fetchone():
-                raise HTTPException(status_code=409, detail=f"partner_discord_tag '{partner_tag}' is already taken")
-            updates['partner_discord_tag'] = partner_tag
-            updates['enabled_features'] = json.dumps(body.get('enabled_features', []))
-            if 'theme_settings' in body:
-                updates['theme_settings'] = json.dumps(body['theme_settings'])
-            if 'region_color' in body:
-                updates['region_color'] = body['region_color']
-            # Clear sub-admin fields
-            updates['parent_profile_id'] = None
-            updates['additional_discord_tags'] = '[]'
-            updates['can_approve_personal_uploads'] = 0
-
-        elif new_tier == TIER_SUB_ADMIN:
-            parent_id = body.get('parent_profile_id')
-            updates['parent_profile_id'] = parent_id  # Can be None for Haven sub-admins
-            updates['enabled_features'] = json.dumps(body.get('enabled_features', []))
-            updates['additional_discord_tags'] = json.dumps(body.get('additional_discord_tags', []))
-            updates['can_approve_personal_uploads'] = 1 if body.get('can_approve_personal_uploads') else 0
-            # Clear partner fields
-            updates['partner_discord_tag'] = None
-
-        else:
-            # Demoting to member - clear admin fields
+        # Clear legacy civ-affiliation fields on demotion to plain member /
+        # read-only — they no longer represent anything meaningful for the
+        # user. Promotion to super admin keeps these fields as-is (a super
+        # admin who was previously a civ member won't be in civ_members
+        # anymore once they reach tier 1, but their legacy partner_discord_tag
+        # is still useful for back-compat session fallback).
+        if new_tier in (TIER_MEMBER, TIER_MEMBER_READONLY):
             updates['partner_discord_tag'] = None
             updates['parent_profile_id'] = None
             updates['enabled_features'] = '[]'

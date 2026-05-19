@@ -272,6 +272,10 @@ async def create_civilization(payload: dict, session: Optional[str] = Cookie(Non
                  joined_at, joined_via)
             VALUES (?, ?, 'leader', NULL, 0, ?, 'founder')
         """, (civ_id, founder_profile_id, now))
+        # Sync founder's features from the civ's enabled_features_default
+        # (per-member override is NULL above, so the helper falls through
+        # to the civ default). Same fix as the add_member path.
+        _recompute_profile_features(cur, founder_profile_id)
 
         conn.commit()
         return {'status': 'ok', 'civ_id': civ_id, 'tag': tag}
@@ -313,6 +317,16 @@ async def update_civilization(civ_id: int, payload: dict, session: Optional[str]
         cur.execute(f"UPDATE civilizations SET {set_clause} WHERE id = ?", params)
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail='Civilization not found')
+
+        # If the civ's default featureset changed OR the civ was deactivated,
+        # every member's user_profiles.enabled_features is now stale. Re-sync
+        # them so the change actually takes effect in their session on next
+        # login. Only fans out when the affected fields are in the update.
+        if 'enabled_features_default' in updates or 'is_active' in updates:
+            cur.execute("SELECT DISTINCT profile_id FROM civilization_members WHERE civ_id = ?", (civ_id,))
+            for (member_id,) in cur.fetchall():
+                _recompute_profile_features(cur, member_id)
+
         conn.commit()
         return {'status': 'ok', 'civ_id': civ_id, 'updated_fields': list(updates.keys())}
     finally:
@@ -384,6 +398,11 @@ async def add_member(civ_id: int, payload: dict, session: Optional[str] = Cookie
         # (was tier 4, now needs promotion) or was already tier 2 on
         # another civ (no demotion when adding them here as sub_admin).
         _recompute_profile_tier(cur, profile_id)
+        # Sync enabled_features from civ memberships so the new member
+        # actually has the access their role implies. Without this they'd
+        # get tier=2 but features=[], which is the "I added them as leader
+        # but they can't do anything" bug.
+        _recompute_profile_features(cur, profile_id)
 
         conn.commit()
         return {'status': 'ok', 'civ_id': civ_id, 'profile_id': profile_id, 'role': role}
@@ -430,6 +449,54 @@ def _recompute_profile_tier(cur, profile_id: int) -> None:
     cur.execute(
         "UPDATE user_profiles SET tier = ? WHERE id = ? AND tier != 1",
         (target_tier, profile_id),
+    )
+
+
+def _recompute_profile_features(cur, profile_id: int) -> None:
+    """Sync user_profiles.enabled_features from civ memberships.
+
+    Why this exists: tier alone isn't a permission — the session reads
+    `user_profiles.enabled_features` (auth.py login query) and route guards
+    check that list. A leader added via the new civ flow used to get
+    tier=2 but features=[], so they had the right title and zero access.
+
+    Semantics: union of effective features across all of the profile's
+    ACTIVE civ memberships. Effective features per civ = per-member
+    override (civilization_members.enabled_features) if set, else civ
+    default (civilizations.enabled_features_default). Inactive civs are
+    skipped so a deactivated civ stops granting features.
+
+    No memberships -> features cleared to [] (they're not a partner/
+    sub-admin of anything; _recompute_profile_tier will set them to tier 4).
+
+    Super admin (tier 1) is never touched — super admin permissions
+    come from `user_type == 'super_admin'`, not the features list.
+    """
+    cur.execute("""
+        SELECT cm.enabled_features, c.enabled_features_default
+        FROM civilization_members cm
+        JOIN civilizations c ON c.id = cm.civ_id
+        WHERE cm.profile_id = ? AND c.is_active = 1
+    """, (profile_id,))
+
+    union: set = set()
+    for row in cur.fetchall():
+        per_member_raw, default_raw = row[0], row[1]
+        try:
+            per_member = json.loads(per_member_raw) if per_member_raw else None
+        except (TypeError, json.JSONDecodeError):
+            per_member = None
+        try:
+            default = json.loads(default_raw) if default_raw else []
+        except (TypeError, json.JSONDecodeError):
+            default = []
+        effective = per_member if per_member is not None else default
+        if isinstance(effective, list):
+            union.update(effective)
+
+    cur.execute(
+        "UPDATE user_profiles SET enabled_features = ? WHERE id = ? AND tier != 1",
+        (json.dumps(sorted(union)), profile_id),
     )
 
 
@@ -495,6 +562,13 @@ async def update_member(civ_id: int, profile_id: int, payload: dict,
         # another civ when we change their role here to sub_admin.
         if 'role' in updates:
             _recompute_profile_tier(cur, profile_id)
+        # Re-sync features whenever role OR enabled_features changes. Role
+        # change can flip them between civ-default and per-member-override
+        # bucket downstream readers care about; explicit features override
+        # has to propagate to user_profiles.enabled_features (the session
+        # source).
+        if 'role' in updates or 'enabled_features' in updates:
+            _recompute_profile_features(cur, profile_id)
 
         conn.commit()
         return {'status': 'ok', 'civ_id': civ_id, 'profile_id': profile_id,
@@ -542,6 +616,9 @@ async def remove_member(civ_id: int, profile_id: int, session: Optional[str] = C
 
         # Recompute tier from remaining memberships.
         _recompute_profile_tier(cur, profile_id)
+        # Recompute features too — removing the row may strip access the
+        # member used to have via this civ. Empty memberships -> features=[].
+        _recompute_profile_features(cur, profile_id)
 
         cur.execute("SELECT COUNT(*) FROM civilization_members WHERE profile_id = ?", (profile_id,))
         remaining = cur.fetchone()[0]
