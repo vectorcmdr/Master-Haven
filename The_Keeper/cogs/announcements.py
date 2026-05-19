@@ -87,10 +87,7 @@ class AnnouncementCog(commands.Cog):
 
     @tasks.loop(minutes=5)
     async def check_milestones(self):
-        print("loop running")
-        print("channel:", self.channel_id)
-        print("systems/planets:", current, planets)
-        print("last:", self.last_milestone, self.last_planet_milestone)
+        
         if not self.channel_id:
             return
 
