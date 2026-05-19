@@ -4,18 +4,22 @@ import discord
 import aiohttp
 from discord.ext import tasks, commands
 import requests, re
+
 MILESTONE_FILE = "milestones.json"
 HAVEN_API = os.getenv("HAVEN_API")
 
-START_MILESTONE = 13000 
+START_MILESTONE = 13000
 PLANET_START_MILESTONE = 25000
 PLANET_STEP = 5000
+SYSTEM_STEP = 1000
+
 
 def load_milestone():
     if not os.path.exists(MILESTONE_FILE):
         return {}
     with open(MILESTONE_FILE, "r") as f:
         return json.load(f)
+
 
 def save_milestone(data):
     with open(MILESTONE_FILE, "w") as f:
@@ -36,6 +40,7 @@ async def fetch_system_count():
     totals = data.get("totals", {})
     return totals.get("total_systems", 0)
 
+
 async def fetch_planet_count():
     if not HAVEN_API:
         raise ValueError("Missing HAVEN_API")
@@ -54,7 +59,7 @@ async def fetch_planet_count():
 class AnnouncementCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        
+
         channel_id = os.getenv("GENERAL_CHANNEL_ID")
         try:
             self.channel_id = int(channel_id)
@@ -67,18 +72,21 @@ class AnnouncementCog(commands.Cog):
 
         data = load_milestone()
 
-        
-        self.last_milestone = max(data.get("systems", 0), START_MILESTONE)
+        self.last_milestone = max(
+            data.get("systems", 0),
+            START_MILESTONE
+        )
 
-        
-        self.last_planet_milestone = max(data.get("planets", 0), PLANET_START_MILESTONE)
+        self.last_planet_milestone = max(
+            data.get("planets", 0),
+            PLANET_START_MILESTONE
+        )
 
         self.check_milestones.start()
 
     def cog_unload(self):
         self.check_milestones.cancel()
 
-   
     async def get_system_count(self):
         return await fetch_system_count()
 
@@ -87,7 +95,7 @@ class AnnouncementCog(commands.Cog):
 
     @tasks.loop(minutes=5)
     async def check_milestones(self):
-        
+
         if not self.channel_id:
             return
 
@@ -96,9 +104,15 @@ class AnnouncementCog(commands.Cog):
             return
 
         try:
-            current = await fetch_system_count()
-            planets = await fetch_planet_count()
-            print("systems/planets:", current, planets)
+            current_systems = await fetch_system_count()
+            current_planets = await fetch_planet_count()
+
+            print(
+                "systems/planets:",
+                current_systems,
+                current_planets
+            )
+
         except Exception as e:
             print(f"API error: {e}")
             return
@@ -106,11 +120,15 @@ class AnnouncementCog(commands.Cog):
         data = load_milestone()
 
         # -------- SYSTEMS --------
-        milestone = (current // 1000) * 1000
+        system_milestone = (
+            current_systems // SYSTEM_STEP
+        ) * SYSTEM_STEP
 
-        if milestone >= START_MILESTONE:
-            while self.last_milestone < milestone:
-                self.last_milestone += 1000
+        if system_milestone >= START_MILESTONE:
+
+            while self.last_milestone < system_milestone:
+
+                self.last_milestone += SYSTEM_STEP
                 data["systems"] = self.last_milestone
 
                 embed = discord.Embed(
@@ -118,15 +136,23 @@ class AnnouncementCog(commands.Cog):
                     description=f"{self.last_milestone:,} systems tracked!",
                     color=0x8A00C4
                 )
-                embed.add_field(name="Current Total", value=f"{current:,}")
+
+                embed.add_field(
+                    name="Current Total",
+                    value=f"{current_systems:,}"
+                )
 
                 await channel.send(embed=embed)
 
         # -------- PLANETS --------
-        planet_milestone = (planets // PLANET_STEP) * PLANET_STEP
+        planet_milestone = (
+            current_planets // PLANET_STEP
+        ) * PLANET_STEP
 
         if planet_milestone >= PLANET_START_MILESTONE:
+
             while self.last_planet_milestone < planet_milestone:
+
                 self.last_planet_milestone += PLANET_STEP
                 data["planets"] = self.last_planet_milestone
 
@@ -135,7 +161,11 @@ class AnnouncementCog(commands.Cog):
                     description=f"{self.last_planet_milestone:,} planets tracked!",
                     color=0x00FFCC
                 )
-                embed.add_field(name="Current Total", value=f"{planets:,}")
+
+                embed.add_field(
+                    name="Current Total",
+                    value=f"{current_planets:,}"
+                )
 
                 await channel.send(embed=embed)
 
@@ -147,7 +177,6 @@ class AnnouncementCog(commands.Cog):
 
 
 DOC_URL = "https://docs.google.com/document/d/1FRfxnmXdhU_O-OGTxG52lM0298zzKnGp7W2Qs5njBPo/export?format=txt"
-
 
 
 class GoogleDocParser:
@@ -197,6 +226,7 @@ class GoogleDocParser:
             chunks.append("\n".join(buffer).strip())
 
         return [c for c in chunks if c]
+
 
 async def setup(bot):
     await bot.add_cog(AnnouncementCog(bot))
