@@ -24,6 +24,7 @@ from fastapi import APIRouter, Cookie, HTTPException
 
 from db import get_db_connection
 from services.auth_service import get_session
+from constants import LEADER_FEATURES
 
 logger = logging.getLogger('control.room')
 router = APIRouter(tags=["civilizations"])
@@ -461,10 +462,21 @@ def _recompute_profile_features(cur, profile_id: int) -> None:
     tier=2 but features=[], so they had the right title and zero access.
 
     Semantics: union of effective features across all of the profile's
-    ACTIVE civ memberships. Effective features per civ = per-member
-    override (civilization_members.enabled_features) if set, else civ
-    default (civilizations.enabled_features_default). Inactive civs are
-    skipped so a deactivated civ stops granting features.
+    ACTIVE civ memberships, where effective features per membership are:
+
+      - leader / co_leader -> the full LEADER_FEATURES set, BY ROLE,
+        regardless of the civ default or any per-member override. Leaders
+        are full-power within their civ ("'leader' and 'co_leader' are
+        functionally identical" — migration 1.80.0); their access must not
+        hinge on whether the founder ticked the (sub-admin-framed,
+        usually-empty) enabled_features_default checkboxes. This is the fix
+        for "added them as leader but they can't see Approvals".
+
+      - sub_admin -> per-member override (civilization_members.enabled_features)
+        if set, else civ default (civilizations.enabled_features_default).
+        Kept delegable/restrictable so a leader can hand a sub-admin a subset.
+
+    Inactive civs are skipped so a deactivated civ stops granting features.
 
     No memberships -> features cleared to [] (they're not a partner/
     sub-admin of anything; _recompute_profile_tier will set them to tier 4).
@@ -473,7 +485,7 @@ def _recompute_profile_features(cur, profile_id: int) -> None:
     come from `user_type == 'super_admin'`, not the features list.
     """
     cur.execute("""
-        SELECT cm.enabled_features, c.enabled_features_default
+        SELECT cm.role, cm.enabled_features, c.enabled_features_default
         FROM civilization_members cm
         JOIN civilizations c ON c.id = cm.civ_id
         WHERE cm.profile_id = ? AND c.is_active = 1
@@ -481,7 +493,11 @@ def _recompute_profile_features(cur, profile_id: int) -> None:
 
     union: set = set()
     for row in cur.fetchall():
-        per_member_raw, default_raw = row[0], row[1]
+        role, per_member_raw, default_raw = row[0], row[1], row[2]
+        if role in ('leader', 'co_leader'):
+            # Full power by role — independent of civ default / override.
+            union.update(LEADER_FEATURES)
+            continue
         try:
             per_member = json.loads(per_member_raw) if per_member_raw else None
         except (TypeError, json.JSONDecodeError):

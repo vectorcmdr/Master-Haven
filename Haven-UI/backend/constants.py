@@ -99,6 +99,37 @@ TIER_TO_USER_TYPE = {
 }
 
 # ============================================================================
+# Civilization Role -> Feature Grants
+# ============================================================================
+#
+# A civilization leader / co-leader is full-power within their civ ("'leader'
+# and 'co_leader' are functionally identical per Parker's spec" — migration
+# 1.80.0). Their access must NOT depend on whoever remembered to tick the
+# civ's `enabled_features_default` checkboxes at founding time — that grid is
+# framed for sub-admins and is usually left empty, which is exactly how a
+# brand-new partner ended up tier=2 with `enabled_features=[]` and no access
+# to Approvals. So leaders are granted this full feature set BY ROLE in
+# `_recompute_profile_features`, regardless of the civ default or any
+# per-member override. Sub-admins keep the per-member-override-else-civ-default
+# behavior so their access stays delegable/restrictable.
+#
+# This mirrors the FEATURE_DEFAULTS list in CivilizationManagement.jsx (the
+# partner-grade granular features). Super-admin-only flags (api_keys,
+# backup_restore, partner_management) are intentionally excluded — those
+# routes gate on user_type == 'super_admin' / RequireSuperAdmin, not on the
+# features list, and a civ leader is not a site super admin.
+LEADER_FEATURES = frozenset({
+    'system_create',
+    'system_edit',
+    'approvals',
+    'batch_approvals',
+    'stats',
+    'settings',
+    'csv_import',
+    'war_room',
+})
+
+# ============================================================================
 # Submission Source Attribution
 # ============================================================================
 #

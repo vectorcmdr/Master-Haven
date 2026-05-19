@@ -56,7 +56,7 @@ router = APIRouter()
 @router.get('/api/status')
 async def api_status():
     """Health check endpoint. Public. Returns API version for frontend compatibility checks."""
-    return {'status': 'ok', 'version': '1.67.0', 'api': 'Master Haven'}
+    return {'status': 'ok', 'version': '1.68.0', 'api': 'Master Haven'}
 
 
 # ============================================================================
@@ -99,6 +99,43 @@ async def admin_status(session: Optional[str] = Cookie(None)):
         elif user_type == 'sub_admin':
             account_id = session_data.get('sub_admin_id')
 
+    # Session freshness: tier + enabled_features are materialized into the
+    # session at login. But a super admin can change a user's civ memberships
+    # (which re-syncs user_profiles.enabled_features via
+    # _recompute_profile_features) WHILE that user is logged in — which used
+    # to leave the user stuck with stale permissions until they logged out and
+    # back in ("I gave them Approvals but they still can't see it"). Re-read
+    # the authoritative columns from user_profiles on every status check so the
+    # change takes effect on the next poll. One indexed PK lookup; also writes
+    # the values back into the live session so route guards (require_feature)
+    # and scoping see them without a re-login.
+    tier = session_data.get('tier')
+    enabled_features = session_data.get('enabled_features', [])
+    if profile_id:
+        conn = None
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT tier, enabled_features FROM user_profiles WHERE id = ?", (profile_id,))
+            row = cur.fetchone()
+            if row:
+                tier = row['tier']
+                try:
+                    enabled_features = json.loads(row['enabled_features'] or '[]')
+                except (TypeError, ValueError):
+                    enabled_features = []
+                session_data['tier'] = tier
+                session_data['enabled_features'] = enabled_features
+                mapped = TIER_TO_USER_TYPE.get(tier)
+                if mapped:
+                    user_type = mapped
+                    session_data['user_type'] = mapped
+        except Exception as e:
+            logger.warning(f"admin_status feature refresh failed for profile {profile_id}: {e}")
+        finally:
+            if conn:
+                conn.close()
+
     # Civ memberships expose only the public-facing fields — internal flags
     # like is_leader_like are derivable client-side from `role`.
     memberships = session_data.get('civ_memberships') or []
@@ -116,10 +153,10 @@ async def admin_status(session: Optional[str] = Cookie(None)):
         'username': session_data.get('username'),
         'discord_tag': session_data.get('discord_tag'),
         'display_name': session_data.get('display_name'),
-        'enabled_features': session_data.get('enabled_features', []),
+        'enabled_features': enabled_features,
         'account_id': account_id,
         'profile_id': profile_id,
-        'tier': session_data.get('tier'),
+        'tier': tier,
         'default_civ_tag': session_data.get('default_civ_tag'),
         'default_reality': session_data.get('default_reality'),
         'default_galaxy': session_data.get('default_galaxy'),

@@ -6439,3 +6439,80 @@ def migration_1_83_0(conn):
         updated += 1
 
     logger.info(f"Migration 1.83.0: backfilled enabled_features for {updated} profiles with active civ memberships")
+
+
+@register_migration("1.84.0", "Role-aware feature backfill: civ leaders/co-leaders get the full leader feature set")
+def migration_1_84_0(conn):
+    """Fixes the deeper gap that v1.83.0 couldn't: a leader's features were
+    still sourced from civilizations.enabled_features_default (or a per-member
+    override the UI never sent). Civs founded via the new "Found new
+    civilization" modal start with an EMPTY default — the feature grid is
+    framed for sub-admins and is usually left unticked — so v1.83.0 faithfully
+    backfilled those leaders with [] (union of empty == empty). Result: brand
+    new partners still showed tier=2 / "Partner" with zero feature access and
+    couldn't see Approvals.
+
+    From now on leader / co_leader access is granted BY ROLE in the runtime
+    helper _recompute_profile_features. This migration re-runs that role-aware
+    union for every profile with at least one ACTIVE civ membership so existing
+    (and freshly-broken) leaders are repaired on deploy without waiting for the
+    next civ event.
+
+    The leader feature set is inlined here on purpose — a migration is a frozen
+    historical record. It mirrors constants.LEADER_FEATURES as of 1.84.0; if
+    that constant later changes, a new migration handles the re-sync.
+
+    Super admins (tier 1) skipped. Idempotent — re-running produces the same
+    result and overwrites stale data.
+    """
+    import json as _json
+    cursor = conn.cursor()
+
+    # Mirrors constants.LEADER_FEATURES at the time of this migration.
+    leader_features = {
+        'system_create', 'system_edit', 'approvals', 'batch_approvals',
+        'stats', 'settings', 'csv_import', 'war_room',
+    }
+
+    cursor.execute("""
+        SELECT DISTINCT cm.profile_id
+        FROM civilization_members cm
+        JOIN civilizations c ON c.id = cm.civ_id
+        JOIN user_profiles up ON up.id = cm.profile_id
+        WHERE c.is_active = 1 AND up.tier != 1
+    """)
+    profile_ids = [r[0] for r in cursor.fetchall()]
+
+    updated = 0
+    for profile_id in profile_ids:
+        cursor.execute("""
+            SELECT cm.role, cm.enabled_features, c.enabled_features_default
+            FROM civilization_members cm
+            JOIN civilizations c ON c.id = cm.civ_id
+            WHERE cm.profile_id = ? AND c.is_active = 1
+        """, (profile_id,))
+        union = set()
+        for row in cursor.fetchall():
+            role, per_member_raw, default_raw = row[0], row[1], row[2]
+            if role in ('leader', 'co_leader'):
+                union.update(leader_features)
+                continue
+            try:
+                per_member = _json.loads(per_member_raw) if per_member_raw else None
+            except (TypeError, ValueError):
+                per_member = None
+            try:
+                default = _json.loads(default_raw) if default_raw else []
+            except (TypeError, ValueError):
+                default = []
+            effective = per_member if per_member is not None else default
+            if isinstance(effective, list):
+                union.update(effective)
+
+        cursor.execute(
+            "UPDATE user_profiles SET enabled_features = ? WHERE id = ?",
+            (_json.dumps(sorted(union)), profile_id),
+        )
+        updated += 1
+
+    logger.info(f"Migration 1.84.0: role-aware re-sync of enabled_features for {updated} profiles with active civ memberships")

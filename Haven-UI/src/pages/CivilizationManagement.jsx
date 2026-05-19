@@ -39,6 +39,17 @@ const FEATURE_DEFAULTS = [
   { id: 'war_room', label: 'War Room' },
 ]
 
+// Sensible starting permission set for sub-admins of a brand-new civ. Leaders
+// and co-leaders ALWAYS get the full set by role (granted server-side in
+// _recompute_profile_features), so this default only governs sub-admins — but
+// seeding it non-empty means a civ founded by a super admin who never touches
+// the grid still has working sub-admins instead of zero-access ones.
+const DEFAULT_SUB_ADMIN_FEATURES = ['approvals', 'system_create', 'system_edit', 'stats']
+
+// Roles whose holders are full-power within the civ (access granted by role,
+// not by the per-civ feature default). Mirrors the backend LEADER_FEATURES rule.
+const LEADER_ROLES = ['leader', 'co_leader']
+
 export default function CivilizationManagement() {
   const navigate = useNavigate()
   const auth = useContext(AuthContext)
@@ -60,7 +71,7 @@ export default function CivilizationManagement() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createDraft, setCreateDraft] = useState({
     tag: '', display_name: '', region_color: '#00C2B3',
-    founder_username: '', enabled_features_default: [],
+    founder_username: '', enabled_features_default: [...DEFAULT_SUB_ADMIN_FEATURES],
   })
 
   useEffect(() => {
@@ -139,6 +150,20 @@ export default function CivilizationManagement() {
     }
   }
 
+  // Set a sub-admin's per-member feature override. Pass a feature-id array to
+  // override the civ default, or null to clear the override (inherit the civ
+  // default again). Leaders/co-leaders ignore this — they're full-power by role.
+  async function setMemberFeatures(profileId, features) {
+    try {
+      await axios.put(`/api/civilizations/${detail.id}/members/${profileId}`, {
+        enabled_features: features,
+      })
+      await openDetail(detail)
+    } catch (err) {
+      alert('Failed: ' + (err.response?.data?.detail || err.message))
+    }
+  }
+
   async function removeMember(profileId, username) {
     if (!confirm(`Remove ${username} from ${detail.display_name}?`)) return
     try {
@@ -196,7 +221,7 @@ export default function CivilizationManagement() {
       })
       setCreateOpen(false)
       setCreateDraft({ tag: '', display_name: '', region_color: '#00C2B3',
-                       founder_username: '', enabled_features_default: [] })
+                       founder_username: '', enabled_features_default: [...DEFAULT_SUB_ADMIN_FEATURES] })
       await loadCivs()
     } catch (err) {
       alert('Failed: ' + (err.response?.data?.detail || err.message))
@@ -302,7 +327,7 @@ export default function CivilizationManagement() {
                     <code className="ml-2 text-xs">{editDraft.region_color}</code>
                   </label>
                   <div>
-                    <span className="opacity-70 text-xs">Default features for new sub-admins:</span>
+                    <span className="opacity-70 text-xs">Default features for sub-admins (leaders &amp; co-leaders always get full access):</span>
                     <div className="grid grid-cols-2 gap-1 mt-1">
                       {FEATURE_DEFAULTS.map(f => (
                         <label key={f.id} className="flex items-center gap-1 text-xs">
@@ -355,8 +380,10 @@ export default function CivilizationManagement() {
                   <MemberRow
                     key={m.profile_id}
                     member={m}
+                    civDefaults={detail.enabled_features_default || []}
                     onChangeRole={r => changeMemberRole(m.profile_id, r)}
                     onToggleCap={() => toggleMemberCap(m.profile_id, m.can_approve_personal_uploads)}
+                    onSetFeatures={features => setMemberFeatures(m.profile_id, features)}
                     onRemove={() => removeMember(m.profile_id, m.username)}
                   />
                 ))}
@@ -440,7 +467,7 @@ export default function CivilizationManagement() {
               />
             </label>
             <div>
-              <span className="opacity-70 text-xs">Default features for sub-admins:</span>
+              <span className="opacity-70 text-xs">Default features for sub-admins (leaders &amp; co-leaders always get full access):</span>
               <div className="grid grid-cols-2 gap-1 mt-1">
                 {FEATURE_DEFAULTS.map(f => (
                   <label key={f.id} className="flex items-center gap-1 text-xs">
@@ -508,37 +535,118 @@ function Stat({ label, value }) {
   )
 }
 
-function MemberRow({ member, onChangeRole, onToggleCap, onRemove }) {
+function MemberRow({ member, civDefaults, onChangeRole, onToggleCap, onSetFeatures, onRemove }) {
+  const isLeader = LEADER_ROLES.includes(member.role)
+  // null/absent enabled_features means "inherit civ default"; an array means
+  // this member has an explicit per-member override.
+  const hasOverride = Array.isArray(member.enabled_features)
+  const [expanded, setExpanded] = useState(false)
+  const [draft, setDraft] = useState(
+    () => new Set(hasOverride ? member.enabled_features : (civDefaults || []))
+  )
+
+  // Re-seed the draft after a save round-trips (member.enabled_features
+  // changes via openDetail) or when the role flips the inheritance source.
+  useEffect(() => {
+    setDraft(new Set(hasOverride ? member.enabled_features : (civDefaults || [])))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member.enabled_features, member.role])
+
+  function toggle(id) {
+    setDraft(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   return (
-    <div className="haven-card flex items-center gap-2 px-3 py-2 text-sm">
-      <div className="flex-1 min-w-0">
-        <div className="font-medium truncate">{member.display_name || member.username}</div>
-        <div className="text-xs opacity-60 truncate">
-          {member.username}
-          {member.last_login_at && ` · last login ${formatDate(member.last_login_at)}`}
+    <div className="haven-card px-3 py-2 text-sm space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="font-medium truncate">{member.display_name || member.username}</div>
+          <div className="text-xs opacity-60 truncate">
+            {member.username}
+            {member.last_login_at && ` · last login ${formatDate(member.last_login_at)}`}
+          </div>
         </div>
+        <select
+          value={member.role}
+          onChange={e => onChangeRole(e.target.value)}
+          className="haven-input px-2 py-1 text-xs"
+        >
+          {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+        </select>
+        <label className="flex items-center gap-1 text-xs" title="Can approve personal-tagged uploads">
+          <input
+            type="checkbox"
+            checked={!!member.can_approve_personal_uploads}
+            onChange={onToggleCap}
+          />
+          <span className="opacity-70">Approve personal</span>
+        </label>
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="pill pill-muted pill-clickable"
+          title="View / edit this member's permissions"
+        >
+          {expanded ? 'Hide perms' : 'Perms'}
+        </button>
+        <button
+          onClick={onRemove}
+          className="pill pill-red pill-clickable"
+        >
+          Remove
+        </button>
       </div>
-      <select
-        value={member.role}
-        onChange={e => onChangeRole(e.target.value)}
-        className="haven-input px-2 py-1 text-xs"
-      >
-        {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-      </select>
-      <label className="flex items-center gap-1 text-xs" title="Can approve personal-tagged uploads">
-        <input
-          type="checkbox"
-          checked={!!member.can_approve_personal_uploads}
-          onChange={onToggleCap}
-        />
-        <span className="opacity-70">Approve personal</span>
-      </label>
-      <button
-        onClick={onRemove}
-        className="pill pill-red pill-clickable"
-      >
-        Remove
-      </button>
+
+      {expanded && (
+        <div className="border-t pt-2" style={{ borderColor: 'var(--border-soft)' }}>
+          {isLeader ? (
+            <div className="text-xs opacity-70">
+              Full access — {member.role === 'co_leader' ? 'co-leader' : 'leader'} role grants every
+              feature within the civ automatically. Demote to Sub-Admin to scope permissions.
+            </div>
+          ) : (
+            <>
+              <div className="text-xs opacity-70 mb-1">
+                {hasOverride
+                  ? 'Custom permissions (per-member override).'
+                  : 'Inheriting the civ default permission set. Saving creates a per-member override.'}
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                {FEATURE_DEFAULTS.map(f => (
+                  <label key={f.id} className="flex items-center gap-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={draft.has(f.id)}
+                      onChange={() => toggle(f.id)}
+                    />
+                    {f.label}
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => onSetFeatures([...draft])}
+                  className="pill pill-emerald pill-clickable"
+                >
+                  Save permissions
+                </button>
+                {hasOverride && (
+                  <button
+                    onClick={() => onSetFeatures(null)}
+                    className="pill pill-muted pill-clickable"
+                    title="Clear the override and inherit the civ default again"
+                  >
+                    Reset to civ default
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
