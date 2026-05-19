@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir \
         "discord.py>=2.3" \
         python-dotenv \
         aiohttp \
+        aiosqlite \
         gspread \
         google-auth
 
