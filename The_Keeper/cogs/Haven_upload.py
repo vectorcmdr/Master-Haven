@@ -274,9 +274,10 @@ import sqlite3
 from cogs import xp_system
 from cogs.xp_system import get_user, process_discovery_xp, DISCOVERY_TYPE_MAP
 from cogs.Data.xpdata import get_level, CONFIG
+import discord
     
 class DiscoveryTypeSelect(discord.ui.View):
-     def __init__(self, api, glyph_emojis, owner_id):
+    def __init__(self, api, glyph_emojis, owner_id):
         super().__init__(timeout=60)
         self.api = api
         self.glyph_emojis = glyph_emojis
@@ -285,20 +286,20 @@ class DiscoveryTypeSelect(discord.ui.View):
         self.selected_type = None
         self.selected_reality = None
     
-            # ---------------- REALITY ----------------
+        # ---------------- REALITY ----------------
         options = [
             discord.SelectOption(label="Normal", value="Normal"),
             discord.SelectOption(label="Permadeath", value="Permadeath")
         ]
         self.reality_dropdown = Select(
-             placeholder="Select Reality",
-             options=options,
+            placeholder="Select Reality",
+            options=options,
             custom_id="reality_select"
         )
         self.reality_dropdown.callback = self.reality_callback
         self.add_item(self.reality_dropdown)
     
-            # ---------------- DISCOVERY TYPE ----------------
+        # ---------------- DISCOVERY TYPE ----------------
         options = [
             discord.SelectOption(label="Starships", value="starship"),
             discord.SelectOption(label="Fauna", value="fauna"),
@@ -306,14 +307,14 @@ class DiscoveryTypeSelect(discord.ui.View):
             discord.SelectOption(label="Multi-tool", value="multitool"),
             discord.SelectOption(label="Bases", value="base")
         ]
-    
+        
         self.select = discord.ui.Select(
             placeholder="Select Discovery Type",
             options=options
         )
         self.select.callback = self.select_callback
         self.add_item(self.select)
-    
+        
         self.next_btn = discord.ui.Button(
             label="Next",
             style=discord.ButtonStyle.green,
@@ -322,11 +323,11 @@ class DiscoveryTypeSelect(discord.ui.View):
         self.next_btn.callback = self.next_callback
         self.add_item(self.next_btn)
     
-        async def reality_callback(self, interaction: discord.Interaction):
-            if interaction.user.id != self.owner_id:
-                await interaction.response.send_message("This isn't your session.", ephemeral=True)
-                return
-    
+    async def reality_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("This isn't your session.", ephemeral=True)
+            return
+
         self.selected_reality = self.reality_dropdown.values[0]
     
         for option in self.reality_dropdown.options:
@@ -336,10 +337,10 @@ class DiscoveryTypeSelect(discord.ui.View):
     
         await interaction.response.edit_message(view=self)
     
-        async def select_callback(self, interaction: discord.Interaction):
-            if interaction.user.id != self.owner_id:
-                await interaction.response.send_message("This isn't your session.", ephemeral=True)
-                return
+    async def select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message("This isn't your session.", ephemeral=True)
+            return
     
         self.selected_type = self.select.values[0]
     
@@ -350,12 +351,12 @@ class DiscoveryTypeSelect(discord.ui.View):
     
         await interaction.response.edit_message(view=self)
     
-        async def next_callback(self, interaction: discord.Interaction):
-            if interaction.user.id != self.owner_id:
-                await interaction.response.send_message(
-                    "This isn't your session.", ephemeral=True
-                )
-                return
+    async def next_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message(
+                "This isn't your session.", ephemeral=True
+            )
+            return
     
         if not (self.selected_type and self.selected_reality):
             await interaction.response.send_message(
@@ -391,7 +392,6 @@ class DiscoveryTypeSelect(discord.ui.View):
         except Exception:
             import traceback
             traceback.print_exc()
-    
     
     # =========================
     # DISCOVERY MODAL
