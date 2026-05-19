@@ -101,6 +101,7 @@ class AnnouncementCog(commands.Cog):
         try:
             current = await fetch_system_count()
             planets = await fetch_planet_count()
+            print("systems/planets:", current, planets)
         except Exception as e:
             print(f"API error: {e}")
             return
