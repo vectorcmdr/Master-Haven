@@ -22,14 +22,11 @@ def save_milestone(data):
         json.dump(data, f)
 
 
-HAVEN_TIMEOUT = aiohttp.ClientTimeout(total=10)
-
-
 async def fetch_system_count():
     if not HAVEN_API:
         raise ValueError("Missing HAVEN_API")
 
-    async with aiohttp.ClientSession(timeout=HAVEN_TIMEOUT) as session:
+    async with aiohttp.ClientSession() as session:
         async with session.get(f"{HAVEN_API}/api/public/community-overview") as resp:
             if resp.status != 200:
                 raise RuntimeError(f"API returned {resp.status}")
@@ -43,7 +40,7 @@ async def fetch_planet_count():
     if not HAVEN_API:
         raise ValueError("Missing HAVEN_API")
 
-    async with aiohttp.ClientSession(timeout=HAVEN_TIMEOUT) as session:
+    async with aiohttp.ClientSession() as session:
         async with session.get(f"{HAVEN_API}/api/db_stats") as resp:
             if resp.status != 200:
                 raise RuntimeError(f"API returned {resp.status}")
@@ -70,10 +67,10 @@ class AnnouncementCog(commands.Cog):
 
         data = load_milestone()
 
-        # systems
+        
         self.last_milestone = max(data.get("systems", 0), START_MILESTONE)
 
-        # ✅ planets
+        
         self.last_planet_milestone = max(data.get("planets", 0), PLANET_START_MILESTONE)
 
         self.check_milestones.start()
@@ -81,7 +78,7 @@ class AnnouncementCog(commands.Cog):
     def cog_unload(self):
         self.check_milestones.cancel()
 
-    # expose for commands
+   
     async def get_system_count(self):
         return await fetch_system_count()
 
@@ -90,6 +87,10 @@ class AnnouncementCog(commands.Cog):
 
     @tasks.loop(minutes=5)
     async def check_milestones(self):
+        print("loop running")
+        print("channel:", self.channel_id)
+        print("systems/planets:", current, planets)
+        print("last:", self.last_milestone, self.last_planet_milestone)
         if not self.channel_id:
             return
 
