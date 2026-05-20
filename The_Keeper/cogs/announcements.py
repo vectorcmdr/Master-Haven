@@ -276,7 +276,7 @@ class GoogleDocParser:
             chunks.append("\n".join(buffer).strip())
 
         return [c for c in chunks if c]
-    @commands.command(name="announce")
+@commands.command(name="announce")
     @commands.has_permissions(administrator=True)
     async def announce(self, ctx):
     
@@ -315,7 +315,7 @@ class GoogleDocParser:
 
         await channel.send(embed=embed)
 
-        await ctx.send("Announcements sent.")
+        await ctx.send("Announcements sent.")    
 
 async def setup(bot):
     await bot.add_cog(AnnouncementCog(bot))
