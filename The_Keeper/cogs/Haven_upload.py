@@ -733,27 +733,17 @@ class HexKeypad(discord.ui.View):
         async def callback(interaction):
             if len(self.input_string) >= 12:
                 return
+        
             self.input_string += key
-
-            if emoji:
-                self.emoji_sequence.append(f"<:{emoji.name}:{emoji.id}>")
-
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.edit_message(
-                        embed=self.build_embed(),
-                        view=self
-                    )
-                else:
-                    await interaction.message.edit(
-                        embed=self.build_embed(),
-                        view=self
-                    )
-            except:
-                await interaction.message.edit(
-                    embed=self.build_embed(),
-                    view=self
-                )
+        
+            await interaction.response.edit_message(
+                embed=self.build_embed(),
+                view=self
+            )
+        
+            if len(self.input_string) == 12:
+                glyph = self.input_string
+                self.emoji_sequence = self.emoji_sequence[:12]
 
             # ---------------- ONLY PROCEED WHEN COMPLETE ----------------
             if len(self.input_string) != 12:
