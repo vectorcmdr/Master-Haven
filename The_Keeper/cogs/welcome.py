@@ -63,9 +63,9 @@ class WelcomeCog(commands.Cog):
         avatar = member.display_avatar.url
 
         embed = discord.Embed(
-            title=f"Welcome, Voyager",
+            title=f"Welcome, Voyager,",
             description=(
-                "Welcome to The Voyager's Haven — a community dedicated to exploration, research, archiving and stellar cartography. We are invested in several projects to chart and connect the universe of No Mans Sky! Stay and watch, or connect with us!\n"
+                "to The Voyager's Haven — a community dedicated to exploration, research, archiving and stellar cartography. We are invested in several projects to chart and connect the universe of No Mans Sky! Stay and watch, or connect with us!\n"
                 "Check out some of our projects here!"
             ),
             color=0x8A00C4
