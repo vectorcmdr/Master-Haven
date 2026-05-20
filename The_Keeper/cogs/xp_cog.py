@@ -27,7 +27,7 @@ class DepartmentButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        user_id = interaction.user.id  # FIX
+        user_id = interaction.user.id
 
         if user_id in _role_locks:
             return await interaction.response.send_message(
@@ -72,7 +72,7 @@ class XpCog(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
-        user_id = message.author.id
+
         msg_id = message.id
         if msg_id in _message_cache:
             return
@@ -82,9 +82,7 @@ class XpCog(commands.Cog):
         if len(_message_cache) > 5000:
             _message_cache.clear()
 
-        gained = await process_message_xp(message)
-
-        return gained
+        await process_message_xp(message)  # FIX: ensure coroutine is properly awaited
 
 
 # ---------------- USER CACHE ----------------
@@ -137,14 +135,24 @@ async def process_message_xp(message):
 
     cooldown = get_cfg("xp.primary_cooldown", 5)
 
-    if not check_cooldown(user_id, role, cooldown):
+    # FIX: handle possible async cooldown check
+    if callable(getattr(check_cooldown, "__await__", None)):
+        ok = await check_cooldown(user_id, role, cooldown)
+    else:
+        ok = check_cooldown(user_id, role, cooldown)
+
+    if not ok:
         return 0
 
     xp = get_cfg("xp.primary_per_message", 1)
 
-    await add_xp(user_id, role, xp)
+    # FIX: handle possible sync/async mismatch safely
+    if callable(getattr(add_xp, "__await__", None)):
+        await add_xp(user_id, role, xp)
+    else:
+        add_xp(user_id, role, xp)
 
-    level, leveled_up, dm = await add_global_xp(user_id, xp)
+    await add_global_xp(user_id, xp)
 
     return xp
 
