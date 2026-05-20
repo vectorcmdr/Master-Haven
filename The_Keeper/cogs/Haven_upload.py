@@ -1,4 +1,4 @@
-    # -------------------- Haven Upload---------------
+# -------------------- Haven Upload---------------
 import discord
 from discord.ext import commands
 import aiohttp
@@ -16,7 +16,7 @@ API_KEY = os.getenv("HAVEN_API_KEY")
 if not API_KEY:
     raise RuntimeError("HAVEN_API_KEY must be set in .env")
     
-    # -------------------- API LAYER ----------------
+#-------------------- API LAYER ----------------
 class HavenAPI:
     def __init__(self):
         self.base = BASE_URL
