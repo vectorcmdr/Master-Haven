@@ -72,7 +72,6 @@ class AnnouncementCog(commands.Cog):
 
         try:
             self.channel_id = int(channel_id)
-
         except (TypeError, ValueError):
             print("⚠️ GENERAL_CHANNEL_ID missing or invalid")
             self.channel_id = None
@@ -112,19 +111,16 @@ class AnnouncementCog(commands.Cog):
             return
 
         try:
-            channel = self.bot.get_channel(self.channel_id)
-        except Exception:
+            channel = await self.bot.fetch_channel(self.channel_id)  # FIX
+        except Exception as e:
+            print(f"Channel fetch error: {e}")
             return
 
         try:
             current_systems = await fetch_system_count()
             current_planets = await fetch_planet_count()
 
-            print(
-                "systems/planets:",
-                current_systems,
-                current_planets
-            )
+            print("systems/planets:", current_systems, current_planets)
 
         except Exception as e:
             print(f"API error: {e}")
@@ -134,9 +130,7 @@ class AnnouncementCog(commands.Cog):
         now = int(time.time())
 
         # -------- SYSTEMS --------
-        system_milestone = (
-            current_systems // SYSTEM_STEP
-        ) * SYSTEM_STEP
+        system_milestone = (current_systems // SYSTEM_STEP) * SYSTEM_STEP
 
         if system_milestone >= START_MILESTONE:
 
@@ -147,14 +141,9 @@ class AnnouncementCog(commands.Cog):
                 data["systems"] = self.last_milestone
                 data["systems_time"] = now
 
-                recent = (
-                    now - self.boot_time
-                ) <= RECENT_WINDOW
+                recent = (now - self.boot_time) <= RECENT_WINDOW
 
-                already_sent = (
-                    self.last_milestone
-                    in data.get("announced_systems", [])
-                )
+                already_sent = self.last_milestone in data.get("announced_systems", [])
 
                 if recent and not already_sent:
 
@@ -171,14 +160,10 @@ class AnnouncementCog(commands.Cog):
 
                     await channel.send(embed=embed)
 
-                    data["announced_systems"].append(
-                        self.last_milestone
-                    )
+                    data["announced_systems"].append(self.last_milestone)
 
         # -------- PLANETS --------
-        planet_milestone = (
-            current_planets // PLANET_STEP
-        ) * PLANET_STEP
+        planet_milestone = (current_planets // PLANET_STEP) * PLANET_STEP
 
         if planet_milestone >= PLANET_START_MILESTONE:
 
@@ -189,14 +174,9 @@ class AnnouncementCog(commands.Cog):
                 data["planets"] = self.last_planet_milestone
                 data["planets_time"] = now
 
-                recent = (
-                    now - self.boot_time
-                ) <= RECENT_WINDOW
+                recent = (now - self.boot_time) <= RECENT_WINDOW
 
-                already_sent = (
-                    self.last_planet_milestone
-                    in data.get("announced_planets", [])
-                )
+                already_sent = self.last_planet_milestone in data.get("announced_planets", [])
 
                 if recent and not already_sent:
 
@@ -213,9 +193,7 @@ class AnnouncementCog(commands.Cog):
 
                     await channel.send(embed=embed)
 
-                    data["announced_planets"].append(
-                        self.last_planet_milestone
-                    )
+                    data["announced_planets"].append(self.last_planet_milestone)
 
         save_milestone(data)
 
@@ -228,9 +206,9 @@ class AnnouncementCog(commands.Cog):
     async def announce(self, ctx):
 
         try:
-            channel = self.bot.get_channel(self.channel_id)
-        except Exception:
-            await ctx.send("Channel not found.")
+            channel = await self.bot.fetch_channel(self.channel_id)  # FIX
+        except Exception as e:
+            await ctx.send(f"Channel not found: {e}")
             return
 
         current_systems = await fetch_system_count()
@@ -286,7 +264,6 @@ class GoogleDocParser:
 
         for m in matches:
             content = m.group(1) or m.group(2)
-
             if content:
                 sections.append(content.strip())
 
@@ -297,7 +274,6 @@ class GoogleDocParser:
 
         chunks = []
         buffer = []
-
         empty_count = 0
 
         for line in lines:
