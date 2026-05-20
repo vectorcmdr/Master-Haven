@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import discord
 import aiohttp
 from discord.ext import tasks, commands
@@ -12,13 +13,21 @@ START_MILESTONE = 13000
 PLANET_START_MILESTONE = 25000
 PLANET_STEP = 5000
 SYSTEM_STEP = 1000
+RECENT_WINDOW = 43200  # 12 hours
 
 
 def load_milestone():
     if not os.path.exists(MILESTONE_FILE):
         return {}
+
     with open(MILESTONE_FILE, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    # auto-add missing keys
+    data.setdefault("announced_systems", [])
+    data.setdefault("announced_planets", [])
+
+    return data
 
 
 def save_milestone(data):
@@ -61,8 +70,10 @@ class AnnouncementCog(commands.Cog):
         self.bot = bot
 
         channel_id = os.getenv("GENERAL_CHANNEL_ID")
+
         try:
             self.channel_id = int(channel_id)
+
         except (TypeError, ValueError):
             print("⚠️ GENERAL_CHANNEL_ID missing or invalid")
             self.channel_id = None
@@ -100,6 +111,7 @@ class AnnouncementCog(commands.Cog):
             return
 
         channel = self.bot.get_channel(self.channel_id)
+
         if not channel:
             return
 
@@ -118,6 +130,7 @@ class AnnouncementCog(commands.Cog):
             return
 
         data = load_milestone()
+        now = int(time.time())
 
         # -------- SYSTEMS --------
         system_milestone = (
@@ -129,20 +142,37 @@ class AnnouncementCog(commands.Cog):
             while self.last_milestone < system_milestone:
 
                 self.last_milestone += SYSTEM_STEP
+
                 data["systems"] = self.last_milestone
+                data["systems_time"] = now
 
-                embed = discord.Embed(
-                    title="🚀 Milestone Achieved!",
-                    description=f"{self.last_milestone:,} systems tracked!",
-                    color=0x8A00C4
+                recent = (
+                    now - data.get("systems_time", 0)
+                ) <= RECENT_WINDOW
+
+                already_sent = (
+                    self.last_milestone
+                    in data.get("announced_systems", [])
                 )
 
-                embed.add_field(
-                    name="Current Total",
-                    value=f"{current_systems:,}"
-                )
+                if recent and not already_sent:
 
-                await channel.send(embed=embed)
+                    embed = discord.Embed(
+                        title="🚀 Milestone Achieved!",
+                        description=f"{self.last_milestone:,} systems tracked!",
+                        color=0x8A00C4
+                    )
+
+                    embed.add_field(
+                        name="Current Total",
+                        value=f"{current_systems:,}"
+                    )
+
+                    await channel.send(embed=embed)
+
+                    data["announced_systems"].append(
+                        self.last_milestone
+                    )
 
         # -------- PLANETS --------
         planet_milestone = (
@@ -154,20 +184,37 @@ class AnnouncementCog(commands.Cog):
             while self.last_planet_milestone < planet_milestone:
 
                 self.last_planet_milestone += PLANET_STEP
+
                 data["planets"] = self.last_planet_milestone
+                data["planets_time"] = now
 
-                embed = discord.Embed(
-                    title="🪐 Planet Milestone Achieved!",
-                    description=f"{self.last_planet_milestone:,} planets tracked!",
-                    color=0x00FFCC
+                recent = (
+                    now - data.get("planets_time", 0)
+                ) <= RECENT_WINDOW
+
+                already_sent = (
+                    self.last_planet_milestone
+                    in data.get("announced_planets", [])
                 )
 
-                embed.add_field(
-                    name="Current Total",
-                    value=f"{current_planets:,}"
-                )
+                if recent and not already_sent:
 
-                await channel.send(embed=embed)
+                    embed = discord.Embed(
+                        title="🪐 Planet Milestone Achieved!",
+                        description=f"{self.last_planet_milestone:,} planets tracked!",
+                        color=0x00FFCC
+                    )
+
+                    embed.add_field(
+                        name="Current Total",
+                        value=f"{current_planets:,}"
+                    )
+
+                    await channel.send(embed=embed)
+
+                    data["announced_planets"].append(
+                        self.last_planet_milestone
+                    )
 
         save_milestone(data)
 
@@ -194,8 +241,10 @@ class GoogleDocParser:
         matches = re.finditer(pattern, text, re.DOTALL)
 
         sections = []
+
         for m in matches:
             content = m.group(1) or m.group(2)
+
             if content:
                 sections.append(content.strip())
 
