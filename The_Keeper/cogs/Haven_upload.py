@@ -656,7 +656,7 @@ class HexKeypad(discord.ui.View):
         hex_keys = [["0","1","2","3"],["4","5","6","7"],["8","9","A","B"],["C","D","E","F"]]
         for row_index, row in enumerate(hex_keys):
             for key in row:
-                emoji = glyph_emojis.get(key)
+                emoji = self.glyph_emojis.get(key)
                 button = discord.ui.Button(
                     style=discord.ButtonStyle.secondary,
                     emoji=emoji,
