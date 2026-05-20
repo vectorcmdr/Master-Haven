@@ -315,7 +315,7 @@ class GoogleDocParser:
 
         await channel.send(embed=embed)
 
-    await ctx.send("Announcements sent.")
+        await ctx.send("Announcements sent.")
 
 async def setup(bot):
     await bot.add_cog(AnnouncementCog(bot))
