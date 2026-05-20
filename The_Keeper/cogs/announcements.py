@@ -23,7 +23,6 @@ def load_milestone():
     with open(MILESTONE_FILE, "r") as f:
         data = json.load(f)
 
-    # auto-add missing keys
     data.setdefault("announced_systems", [])
     data.setdefault("announced_planets", [])
 
@@ -93,6 +92,8 @@ class AnnouncementCog(commands.Cog):
             PLANET_START_MILESTONE
         )
 
+        self.boot_time = int(time.time())
+
         self.check_milestones.start()
 
     def cog_unload(self):
@@ -147,7 +148,7 @@ class AnnouncementCog(commands.Cog):
                 data["systems_time"] = now
 
                 recent = (
-                    now - data.get("systems_time", 0)
+                    now - self.boot_time
                 ) <= RECENT_WINDOW
 
                 already_sent = (
@@ -189,7 +190,7 @@ class AnnouncementCog(commands.Cog):
                 data["planets_time"] = now
 
                 recent = (
-                    now - data.get("planets_time", 0)
+                    now - self.boot_time
                 ) <= RECENT_WINDOW
 
                 already_sent = (
