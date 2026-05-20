@@ -112,7 +112,7 @@ class AnnouncementCog(commands.Cog):
             return
 
         try:
-            channel = await self.bot.fetch_channel(self.channel_id)
+            channel = self.bot.get_channel(self.channel_id)
         except Exception:
             return
 
@@ -228,7 +228,7 @@ class AnnouncementCog(commands.Cog):
     async def announce(self, ctx):
 
         try:
-            channel = await self.bot.fetch_channel(self.channel_id)
+            channel = self.bot.get_channel(self.channel_id)
         except Exception:
             await ctx.send("Channel not found.")
             return
