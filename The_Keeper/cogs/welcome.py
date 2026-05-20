@@ -101,7 +101,7 @@ class WelcomeCog(commands.Cog):
         embed.set_footer(text=f"You are #{position} in the server")
 
         await channel.send(
-            content=f"Welcome {member.mention}!",
+            content=f"Welcome to the Haven, {member.mention}!",
             embed=embed,
             view=DeptView(member.guild.id)
         )
