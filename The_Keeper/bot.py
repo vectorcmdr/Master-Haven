@@ -204,7 +204,6 @@ COGS = [
     "cogs.Haven_upload",
     "cogs.announcements",
     "cogs.hex",
-    "cogs.friend",
     "cmds.exclaim",
     "cmds.list",
     "cmds.slash",
@@ -266,7 +265,6 @@ async def on_ready():
 
     featured_cog = bot.get_cog("FeaturedCog")
     
-    
 
 @bot.event
 async def on_message(message):
@@ -305,7 +303,12 @@ async def main():
         await init_db()
 
         for cog in COGS:
-            await bot.load_extension(cog)
+            try:
+                await bot.load_extension(cog)
+                print(f"[LOADED] {cog}")
+        
+            except Exception as e:
+                print(f"[FAILED] {cog} -> {e}")
 
     bot.setup_hook = setup_hook
 
