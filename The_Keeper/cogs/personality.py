@@ -166,6 +166,8 @@ class PersonalityCog(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
+        if "keeper" in content:
+    await message.add_reaction("👀")
 
         content = message.content.lower().strip()
         user_id = message.author.id
