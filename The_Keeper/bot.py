@@ -293,9 +293,14 @@ async def global_app_command_check(interaction: discord.Interaction):
     if not interaction.guild or not interaction.channel or not interaction.user:
         return True
 
-    command_name = interaction.command.name if interaction.command else None
-    if not command_name:
-        return True
+    command_name = interaction.command.qualified_name
+
+    return await is_command_allowed(
+        interaction.guild.id,
+        command_name,
+        interaction.channel.id,
+        interaction.user
+    )
 
     member = interaction.user
     if not isinstance(member, discord.Member):
