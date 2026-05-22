@@ -436,13 +436,13 @@ class SetupCog(commands.Cog):
             view=CommandSelectView(self.bot),
             ephemeral=True
         )
-    @SetupCog.listener()
+        @SetupCog.listener()
 async def on_command_error(self, ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send(
-            "⛔ You are not allowed to use this command here.",
-            delete_after=5
-        )
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send(
+                "⛔ You are not allowed to use this command here.",
+                delete_after=5
+            )
 
 # ---------------- EXTENSION ENTRYPOINT ----------------
 
