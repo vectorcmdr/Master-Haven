@@ -10,6 +10,9 @@ DB_PATH = "/home/pi8gb/docker/haven-ui/Master-Haven/The_Keeper/Data/guild.db"
 
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
+# Discord select menu limit
+MAX_OPTIONS = 25
+
 # ---------------- DATABASE SETUP ----------------
 
 CREATE_TABLES_SQL = """
@@ -46,6 +49,10 @@ def get_all_commands(bot: commands.Bot):
         desc = cmd.help or "No description"
         cmds.append((name, desc))
 
+    # Remove duplicates + sort
+    cmds = list(dict.fromkeys(cmds))
+    cmds.sort(key=lambda x: x[0])
+
     return cmds
 
 # ---------------- DATABASE HELPERS ----------------
@@ -58,7 +65,7 @@ async def save_command_config(
 ):
     async with aiosqlite.connect(DB_PATH) as db:
 
-        # Remove old config first
+        # Remove existing config
         await db.execute(
             """
             DELETE FROM command_config
@@ -68,7 +75,7 @@ async def save_command_config(
             (guild_id, command_name)
         )
 
-        # Insert new config
+        # Save new config
         for channel_id in channel_ids:
             await db.execute(
                 """
@@ -91,7 +98,10 @@ async def save_command_config(
         await db.commit()
 
 
-async def get_command_config(guild_id: int, command_name: str):
+async def get_command_config(
+    guild_id: int,
+    command_name: str
+):
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """
@@ -108,37 +118,49 @@ async def get_command_config(guild_id: int, command_name: str):
     if not rows:
         return None
 
-    channels = [row[0] for row in rows]
-    role_id = rows[0][1]
-
     return {
-        "channels": channels,
-        "role_id": role_id
+        "channels": [r[0] for r in rows],
+        "role_id": rows[0][1]
     }
 
 # ---------------- UI: COMMAND SELECT ----------------
 
 class CommandSelect(discord.ui.Select):
-    def __init__(self, bot: commands.Bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        page: int = 0
+    ):
         self.bot = bot
+        self.page = page
+
+        all_commands = get_all_commands(bot)
+
+        start = page * MAX_OPTIONS
+        end = start + MAX_OPTIONS
+
+        page_commands = all_commands[start:end]
 
         options = [
             discord.SelectOption(
-                label=name,
+                label=name[:100],
                 value=name,
-                description=desc[:100]
+                description=(desc or "No description")[:100]
             )
-            for name, desc in get_all_commands(bot)
+            for name, desc in page_commands
         ]
 
         super().__init__(
-            placeholder="Select a command to configure...",
+            placeholder=f"Select command page {page + 1}",
             min_values=1,
             max_values=1,
             options=options
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(
+        self,
+        interaction: discord.Interaction
+    ):
         command_name = self.values[0]
 
         await interaction.response.edit_message(
@@ -150,10 +172,86 @@ class CommandSelect(discord.ui.Select):
         )
 
 
+class NextPageButton(discord.ui.Button):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        page: int
+    ):
+        super().__init__(
+            label="Next",
+            style=discord.ButtonStyle.primary
+        )
+
+        self.bot = bot
+        self.page = page
+
+    async def callback(
+        self,
+        interaction: discord.Interaction
+    ):
+        await interaction.response.edit_message(
+            view=CommandSelectView(
+                self.bot,
+                self.page + 1
+            )
+        )
+
+
+class PreviousPageButton(discord.ui.Button):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        page: int
+    ):
+        super().__init__(
+            label="Previous",
+            style=discord.ButtonStyle.secondary
+        )
+
+        self.bot = bot
+        self.page = page
+
+    async def callback(
+        self,
+        interaction: discord.Interaction
+    ):
+        await interaction.response.edit_message(
+            view=CommandSelectView(
+                self.bot,
+                self.page - 1
+            )
+        )
+
+
 class CommandSelectView(discord.ui.View):
-    def __init__(self, bot: commands.Bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        page: int = 0
+    ):
         super().__init__(timeout=180)
-        self.add_item(CommandSelect(bot))
+
+        self.bot = bot
+        self.page = page
+
+        all_commands = get_all_commands(bot)
+
+        self.add_item(CommandSelect(bot, page))
+
+        total_pages = (
+            len(all_commands) - 1
+        ) // MAX_OPTIONS
+
+        if page > 0:
+            self.add_item(
+                PreviousPageButton(bot, page)
+            )
+
+        if page < total_pages:
+            self.add_item(
+                NextPageButton(bot, page)
+            )
 
 # ---------------- UI: CHANNEL SELECT ----------------
 
@@ -168,13 +266,16 @@ class ChannelSelect(discord.ui.ChannelSelect):
             channel_types=[discord.ChannelType.text]
         )
 
-    async def callback(self, interaction: discord.Interaction):
-
+    async def callback(
+        self,
+        interaction: discord.Interaction
+    ):
         selected_channels = self.values
 
         await interaction.response.edit_message(
             content=(
-                f"✅ Channels selected for **{self.command_name}**.\n"
+                f"✅ Channels selected for "
+                f"**{self.command_name}**.\n"
                 f"Now select an optional role restriction."
             ),
             view=RoleSelectView(
@@ -187,7 +288,10 @@ class ChannelSelect(discord.ui.ChannelSelect):
 class ChannelSelectView(discord.ui.View):
     def __init__(self, command_name: str):
         super().__init__(timeout=180)
-        self.add_item(ChannelSelect(command_name))
+
+        self.add_item(
+            ChannelSelect(command_name)
+        )
 
 # ---------------- UI: ROLE SELECT ----------------
 
@@ -201,17 +305,17 @@ class RoleSelect(discord.ui.RoleSelect):
         self.channels = channels
 
         super().__init__(
-            placeholder="Optional: Select a role restriction...",
+            placeholder="Optional role restriction...",
             min_values=0,
             max_values=1
         )
 
-    async def callback(self, interaction: discord.Interaction):
-
+    async def callback(
+        self,
+        interaction: discord.Interaction
+    ):
         if not interaction.guild:
             return
-
-        guild_id = interaction.guild.id
 
         role_id = None
         role_mention = "None"
@@ -221,23 +325,26 @@ class RoleSelect(discord.ui.RoleSelect):
             role_id = role.id
             role_mention = role.mention
 
-        channel_ids = [c.id for c in self.channels]
-
         await save_command_config(
-            guild_id=guild_id,
+            guild_id=interaction.guild.id,
             command_name=self.command_name,
-            channel_ids=channel_ids,
+            channel_ids=[
+                c.id for c in self.channels
+            ],
             role_id=role_id
         )
 
-        mentions = ", ".join(c.mention for c in self.channels)
+        mentions = ", ".join(
+            c.mention for c in self.channels
+        )
 
         await interaction.response.edit_message(
             content=(
                 f"✅ Configuration saved!\n\n"
                 f"**Command:** {self.command_name}\n"
                 f"**Channels:** {mentions}\n"
-                f"**Role Restriction:** {role_mention}"
+                f"**Role Restriction:** "
+                f"{role_mention}"
             ),
             view=None
         )
@@ -261,21 +368,26 @@ class RoleSelectView(discord.ui.View):
 # ---------------- MAIN COG ----------------
 
 class SetupCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(
+        self,
+        bot: commands.Bot
+    ):
         self.bot = bot
 
     @app_commands.command(
         name="setup",
         description="Configure bot commands per server"
     )
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.checks.has_permissions(
+        administrator=True
+    )
     async def setup(
         self,
         interaction: discord.Interaction
     ):
         if not interaction.guild:
             return await interaction.response.send_message(
-                "❌ This command only works inside servers.",
+                "❌ Server only command.",
                 ephemeral=True
             )
 
