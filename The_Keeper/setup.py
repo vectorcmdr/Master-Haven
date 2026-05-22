@@ -415,13 +415,9 @@ class SetupCog(commands.Cog):
         name="setup",
         description="Configure bot commands per server"
     )
-    @app_commands.checks.has_permissions(
-        administrator=True
-    )
-    async def setup(
-        self,
-        interaction: discord.Interaction
-    ):
+    @app_commands.checks.has_permissions(administrator=True)
+    async def setup(self, interaction: discord.Interaction):
+
         if not interaction.guild:
             return await interaction.response.send_message(
                 "❌ Server only command.",
@@ -429,21 +425,18 @@ class SetupCog(commands.Cog):
             )
 
         await interaction.response.send_message(
-            (
-                "🔧 **Setup Wizard**\n"
-                "Select a command to configure:"
-            ),
+            "🔧 **Setup Wizard**\nSelect a command to configure:",
             view=CommandSelectView(self.bot),
             ephemeral=True
         )
-        @SetupCog.listener()
-async def on_command_error(self, ctx, error):
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
             await ctx.send(
                 "⛔ You are not allowed to use this command here.",
                 delete_after=5
             )
-
 # ---------------- EXTENSION ENTRYPOINT ----------------
 
 async def setup(bot: commands.Bot):
