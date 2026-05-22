@@ -288,6 +288,35 @@ async def on_command_error(ctx, error):
     await ctx.send("Something went wrong. The Witness has been notified.")
 
 
+@bot.tree.interaction_check
+async def global_app_command_check(interaction: discord.Interaction):
+    if not interaction.guild or not interaction.channel or not interaction.user:
+        return True
+
+    command_name = interaction.command.name if interaction.command else None
+    if not command_name:
+        return True
+
+    member = interaction.user
+    if not isinstance(member, discord.Member):
+        return True
+
+    allowed = await is_command_allowed(
+        guild_id=interaction.guild.id,
+        command_name=f"/{command_name}",
+        channel_id=interaction.channel.id,
+        member=member
+    )
+
+    if not allowed:
+        await interaction.response.send_message(
+            "⛔ You cannot use this command in this channel or without the required role.",
+            ephemeral=True
+        )
+        return False
+
+    return True
+
 # -------------------- RUN --------------------
 async def main():
     api = TravelersExchangeAPI(
