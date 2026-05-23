@@ -80,7 +80,7 @@ class XpCog(commands.Cog):
             _message_cache.clear()
 
         gained = await process_message_xp(message)
-        await 
+        await self.bot.process_commands(message)
 
         return gained
 
@@ -177,7 +177,7 @@ async def process_message_xp(message):
 
     xp = get_cfg("xp.primary_per_message", 1)
 
-    add_xp(user_id, role, xp)
+    await add_xp(user_id, role, xp)
 
     level, leveled_up, dm = add_global_xp(user_id, xp)
 
