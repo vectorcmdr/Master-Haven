@@ -2,7 +2,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-
+import aiosqlite
 import sys, os
 import json
 from difflib import get_close_matches
