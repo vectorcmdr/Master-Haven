@@ -79,8 +79,7 @@ class XpCog(commands.Cog):
         if len(_message_cache) > 5000:
             _message_cache.clear()
 
-        gained = await process_message_xp(message)
-        await self.bot.process_commands(message)
+        gained = await process_message_xp(message)        
 
         return gained
 
