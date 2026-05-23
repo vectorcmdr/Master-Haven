@@ -27,7 +27,7 @@ class DepartmentButton(discord.ui.Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        user_id = message.author.id
+        user_id = interaction.user.id
 
      
         if user_id in _role_locks:
@@ -80,7 +80,7 @@ class XpCog(commands.Cog):
             _message_cache.clear()
 
         gained = await process_message_xp(message)
-        
+        await self.bot.process_commands(message)
 
         return gained
 
