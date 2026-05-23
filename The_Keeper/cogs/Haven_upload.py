@@ -531,7 +531,7 @@ class DiscoveryConfirmView(discord.ui.View):
                  discovery_name=None,
                  community_tag=None):
 
-        super().__init__(timeout=None)
+        super().__init__(timeout=60)
 
         self.glyph = glyph
         self.user_id = user_id
@@ -567,8 +567,7 @@ class DiscoveryConfirmView(discord.ui.View):
             await interaction.response.defer(ephemeral=True)
 
             system_result, system_id = await self.get_system()
-
-            # ---------------- DISCOVERY SUBMISSION -----
+            
             # ---------------- DISCOVERY SUBMISSION -----
             payload = {
                 "system_id": system_id,
@@ -655,7 +654,7 @@ class DiscoveryConfirmView(discord.ui.View):
 # -------------------- HEX KEYBOARD VIEW ---
 class HexKeypad(discord.ui.View):
     def __init__(self, api, glyph_emojis, owner_id: int, mode="system"):
-        super().__init__(timeout=None)
+        super().__init__(timeout=60)
         self.api = api
         self.owner_id = owner_id
         self.glyph_emojis = glyph_emojis
