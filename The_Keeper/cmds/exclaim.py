@@ -8,7 +8,7 @@ import json
 from difflib import get_close_matches
 import aiohttp
 import traceback
-
+DB_PATH = os.path.join(os.path.dirname(__file__), "Data", "xp.db")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
 
