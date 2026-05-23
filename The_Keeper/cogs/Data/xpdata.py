@@ -7,6 +7,7 @@ import logging
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "Data", "xp.db")
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 # ---------------- CONFIG ----------------
@@ -292,8 +293,8 @@ async def add_xp(user_id, role, amount):
                 xp -= needed
                 level += 1
     
-            old_rank = get_rank(old_level, role)
-            new_rank = get_rank(level, role)
+            old_rank = get_rank_name(old_level, role)
+            new_rank = get_rank_name(level, role)
     
             await db.execute("""
             UPDATE user_roles
@@ -306,7 +307,7 @@ async def add_xp(user_id, role, amount):
         leveled_up = int(level) > int(old_level)
         
         
-        print(f"XP ADD -> user={user_id} role={role} amount={amount}")
+        log.info(f"XP ADD -> user={user_id} role={role} amount={amount}")
     
         return xp, level, leveled_up
     
