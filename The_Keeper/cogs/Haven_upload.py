@@ -619,12 +619,18 @@ class DiscoveryConfirmView(discord.ui.View):
 # ---------------- SYSTEM CREATION -----------
     async def get_system(self):
         if self.system_exists:
-
-            if not self.system_id:
-
-                raise Exception("Existing system missing ID")
-
-            return {"id": self.system_id}, self.system_id                      
+            if self.system_id:
+                return {"id": self.system_id}, self.system_id
+        
+            
+            dup = await self.api.check_duplicate(self.glyph)
+        
+            system_id = dup.get("system_id") or dup.get("id")
+        
+            if not system_id:
+                raise Exception("System exists but API did not return system_id")
+        
+            return {"id": system_id}, system_id                      
         system_payload = {
             "glyph_code": self.glyph,
             "system_name": self.system_name,
