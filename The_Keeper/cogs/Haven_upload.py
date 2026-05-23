@@ -727,7 +727,7 @@ class HexKeypad(discord.ui.View):
                 return
         
             self.input_string += key
-        
+            self.emoji_sequence.append(str(emoji))
             await interaction.response.edit_message(
                 embed=self.build_embed(),
                 view=self
