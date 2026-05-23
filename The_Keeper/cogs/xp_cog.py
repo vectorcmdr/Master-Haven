@@ -80,7 +80,7 @@ class XpCog(commands.Cog):
             _message_cache.clear()
 
         gained = await process_message_xp(message)
-        await self.bot.process_commands(message)
+        
 
         return gained
 
