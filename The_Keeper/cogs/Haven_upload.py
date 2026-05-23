@@ -569,6 +569,7 @@ class DiscoveryConfirmView(discord.ui.View):
             system_result, system_id = await self.get_system()
 
             # ---------------- DISCOVERY SUBMISSION -----
+            # ---------------- DISCOVERY SUBMISSION -----
             payload = {
                 "system_id": system_id,
                 "discovery_name": discovery_name,
@@ -578,43 +579,33 @@ class DiscoveryConfirmView(discord.ui.View):
                 "discord_username": interaction.user.name,
                 "discord_tag": self.community_tag
             }
-
+            
             result = await self.api.submit_discovery(payload)
-
+            
             msg = (
                 f"✅ Discovery submitted!\n"
                 f"System: `{self.system_name or 'Unknown'}`\n"
                 f"Discovery: `{discovery_name}`"
             )
-
-            system_xp = process_discovery_xp(
+            
+            xp_gained = await process_discovery_xp(
                 user_id=self.user_id,
-                system_name=self.system_name,
+                discovery_type=self.discovery_type,
                 channel_id=interaction.channel.id,
             )
-
-            if system_xp:
-                msg += f"\n✨ +{system_xp} XP for system creation"
-
-            xp_gained = await process_discoveryr_xp(
-                user_id=self.user_id,
-                base_amount=CONFIG["xp_bonus"]["base_discovery_xp"],
-                channel_id=interaction.channel.id,
-            )
-
+            
             if xp_gained:
                 msg += f"\n✨ +{xp_gained} XP earned"
-
             
             try:
                 bonus_tip = await get_bonus_tip(system_result)
-
+            
                 if bonus_tip:
                     msg += f"\n\n💡 {bonus_tip}"
-
+            
             except Exception:
                 logger.exception("Bonus hint failed")
-           
+            
             await interaction.followup.send(msg, ephemeral=True)
 
         except Exception as e:
