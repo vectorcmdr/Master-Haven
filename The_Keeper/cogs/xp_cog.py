@@ -81,7 +81,7 @@ class XpCog(commands.Cog):
 
         gained = await process_message_xp(message)
 
-            return gained
+        return gained
 
 
 # ---------------- USER CACHE ----------------
