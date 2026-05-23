@@ -6338,3 +6338,8 @@ Philbert-discord/
 # Kept on disk for reference but not committed.
 docs/2.0-audit/
 docs/code-audit/
+
+# Project Skyscraper — track the tracker site + watcher source, but never
+# the secret webhook config or the watcher's runtime state.
+SkyScraper/watch/config.env
+SkyScraper/watch/state.json

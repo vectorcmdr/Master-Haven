@@ -1,0 +1,2153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Skyscraper · An Investigation by The NMS Community</title>
+<meta name="description" content="A breakdown of project-skyscraper.com — the ongoing No Man's Sky ARG. Built on the work of ETARC and the NMS community.">
+<meta property="og:title" content="Project Skyscraper · An Investigation">
+<meta property="og:description" content="A breakdown of project-skyscraper.com — the ongoing No Man's Sky ARG. Built on the work of ETARC and the NMS community.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://project-skyscraper.com/wp-content/uploads/2026/04/cropped-project-skyscraper.jpg">
+<meta name="theme-color" content="#0a0d10">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Dark space */
+    --void: #06080b;
+    --bg: #0a0d11;
+    --bg-card: #11161c;
+    --bg-elev: #161c24;
+    --line: #1f2832;
+    --line-bright: #2a3540;
+
+    /* Text */
+    --text: #e4e8ed;
+    --text-dim: #a0a8b2;
+    --text-mute: #6b7682;
+    --text-faint: #4a535e;
+
+    /* Signals */
+    --haven: #00c2b3;            /* Voyager's Haven teal */
+    --signal: #f7c948;           /* warning amber, NMS-style */
+    --alert: #ff3a3a;            /* skyscraper red — the mantra */
+    --trace: #7fdbff;            /* trace/cool */
+    --violet: #b88dff;           /* puzzle */
+    --green: #5ddc8a;            /* resolved */
+
+    --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --display: 'Cormorant Garamond', Georgia, serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--void);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14.5px;
+    line-height: 1.7;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Starfield background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1.5px 1.5px at 40% 70%, rgba(255,255,255,0.35), transparent),
+      radial-gradient(1px 1px at 85% 15%, rgba(255,255,255,0.4), transparent),
+      radial-gradient(1px 1px at 15% 85%, rgba(255,255,255,0.25), transparent),
+      radial-gradient(2px 2px at 55% 25%, rgba(127,219,255,0.2), transparent),
+      radial-gradient(1px 1px at 30% 55%, rgba(255,255,255,0.3), transparent),
+      radial-gradient(1.5px 1.5px at 90% 60%, rgba(184,141,255,0.15), transparent);
+    background-size: 600px 600px, 800px 800px, 500px 500px, 700px 700px, 650px 650px, 900px 900px, 550px 550px, 750px 750px;
+    z-index: 0;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(to bottom, transparent 0, transparent 2px, rgba(255,255,255,0.008) 2px, rgba(255,255,255,0.008) 3px);
+    z-index: 1;
+  }
+
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 28px 96px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* ============== HERO ============== */
+  .hero {
+    position: relative;
+    padding: 60px 0 70px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 48px;
+  }
+
+  /* Hexagon corner accent */
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    right: 0;
+    width: 56px; height: 64px;
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 64' fill='none' stroke='%23f7c948' stroke-width='1.2'><polygon points='28,2 54,16 54,48 28,62 2,48 2,16'/><polygon points='28,12 46,22 46,42 28,52 10,42 10,22' opacity='0.5'/></svg>") no-repeat center;
+    opacity: 0.7;
+  }
+
+  .pre-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--haven);
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .pre-title::before, .pre-title::after {
+    content: '';
+    flex: 0 0 24px;
+    height: 1px;
+    background: var(--haven);
+    opacity: 0.5;
+  }
+  .pre-title::after { flex: 1; opacity: 0.2; }
+
+  h1.title {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: clamp(36px, 6.5vw, 64px);
+    line-height: 1.0;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+  h1.title .glitch {
+    color: var(--alert);
+    position: relative;
+    display: inline-block;
+  }
+  h1.title .u {
+    color: var(--alert);
+    animation: blink 1.2s steps(2,end) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0.2; } }
+
+  .tagline {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: clamp(18px, 2.4vw, 24px);
+    font-weight: 400;
+    color: var(--text-dim);
+    max-width: 680px;
+    line-height: 1.45;
+    margin-bottom: 32px;
+  }
+
+  .lede {
+    font-family: var(--display);
+    font-size: 18px;
+    color: var(--text);
+    max-width: 740px;
+    line-height: 1.55;
+    font-weight: 400;
+  }
+  .lede strong { color: var(--alert); font-weight: 500; }
+
+  .byline {
+    margin-top: 40px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px 36px;
+    font-size: 12px;
+    color: var(--text-mute);
+    letter-spacing: 0.04em;
+  }
+  .byline-item .lbl {
+    display: block;
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 3px;
+  }
+  .byline-item .val { color: var(--text); }
+  .byline-item .val .accent { color: var(--haven); }
+
+  /* Universal link styling */
+  a {
+    color: var(--trace);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  a:hover { color: #fff; border-bottom-color: var(--trace); }
+
+  /* ============== BREACH CARD ============== */
+  .breach {
+    position: relative;
+    background: linear-gradient(135deg, rgba(255,58,58,0.06), rgba(255,58,58,0.02));
+    border: 1px solid rgba(255,58,58,0.4);
+    padding: 28px 32px;
+    margin-bottom: 56px;
+    overflow: hidden;
+  }
+  .breach::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: var(--alert);
+    box-shadow: 0 0 16px var(--alert);
+  }
+  .breach-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+  .breach-pulse {
+    width: 10px; height: 10px;
+    background: var(--alert);
+    border-radius: 50%;
+    box-shadow: 0 0 16px var(--alert);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.8); }
+  }
+  .breach-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--alert);
+    font-weight: 500;
+  }
+  .breach-title {
+    font-family: var(--display);
+    font-size: 26px;
+    color: var(--text);
+    margin-bottom: 12px;
+    line-height: 1.25;
+  }
+  .breach-body {
+    font-family: var(--display);
+    font-size: 17px;
+    color: var(--text-dim);
+    line-height: 1.55;
+    max-width: 720px;
+  }
+  .breach-body strong { color: var(--text); font-weight: 500; }
+
+  /* ============== STATS STRIP ============== */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin-bottom: 56px;
+  }
+  .stat {
+    background: var(--bg);
+    padding: 20px 18px;
+    position: relative;
+  }
+  .stat::after {
+    content: '';
+    position: absolute;
+    top: 8px; right: 10px;
+    width: 4px; height: 4px;
+    background: var(--text-faint);
+    border-radius: 50%;
+  }
+  .stat-v {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+  .stat-v.alert { color: var(--alert); }
+  .stat-v.signal { color: var(--signal); }
+  .stat-v.haven { color: var(--haven); }
+  .stat-l {
+    font-size: 10px;
+    color: var(--text-mute);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ============== NAVIGATION ============== */
+  nav.tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-bottom: 1px solid var(--line-bright);
+    margin-bottom: 56px;
+    position: sticky;
+    top: 0;
+    background: var(--void);
+    z-index: 20;
+    backdrop-filter: blur(8px);
+    padding-top: 4px;
+  }
+  .tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-mute);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 16px 22px;
+    cursor: pointer;
+    margin-bottom: -1px;
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active {
+    color: var(--haven);
+    border-bottom-color: var(--haven);
+  }
+  .tab-btn .n {
+    color: var(--text-faint);
+    font-weight: 300;
+    font-size: 10px;
+  }
+  .tab-btn.active .n { color: var(--haven); }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeIn 0.3s ease-out; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============== TYPOGRAPHY ============== */
+  h2 {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 36px;
+    letter-spacing: -0.015em;
+    color: var(--text);
+    margin-bottom: 4px;
+    line-height: 1.1;
+  }
+  h3 {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--haven);
+    margin: 56px 0 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  h3::before {
+    content: '';
+    width: 18px; height: 1px;
+    background: var(--haven);
+    flex-shrink: 0;
+  }
+  h4 {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--text);
+    margin: 28px 0 12px;
+    text-transform: uppercase;
+  }
+
+  .panel-intro {
+    font-family: var(--display);
+    font-size: 19px;
+    color: var(--text-dim);
+    max-width: 740px;
+    line-height: 1.55;
+    margin-bottom: 32px;
+    font-weight: 400;
+  }
+  .panel-intro strong { color: var(--text); font-weight: 500; }
+
+  p { margin-bottom: 16px; color: var(--text-dim); }
+  strong { color: var(--text); font-weight: 500; }
+  em { color: var(--text); font-style: italic; }
+
+  /* INLINE CITATION — quiet italic credit */
+  .by {
+    font-style: italic;
+    font-family: var(--display);
+    color: var(--haven);
+    font-size: 0.92em;
+    font-weight: 400;
+  }
+  .by::before { content: '— '; opacity: 0.6; }
+
+  /* Code & inline emphasis */
+  code, .mono {
+    font-family: var(--mono);
+    color: var(--signal);
+    font-size: 0.92em;
+  }
+
+  /* Lists */
+  ul, ol { margin: 0 0 22px 24px; color: var(--text-dim); }
+  ul li, ol li { margin-bottom: 8px; }
+  ul li::marker { color: var(--haven); }
+
+  /* ============== TIMELINE EVENT ============== */
+  .event {
+    position: relative;
+    padding: 22px 0 22px 38px;
+    border-bottom: 1px solid var(--line);
+  }
+  .event:last-child { border-bottom: none; }
+  .event::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 30px;
+    width: 9px; height: 9px;
+    background: var(--text-mute);
+    transform: rotate(45deg);
+  }
+  .event.warm::before { background: var(--signal); box-shadow: 0 0 12px var(--signal); }
+  .event.cool::before { background: var(--trace); box-shadow: 0 0 12px var(--trace); }
+  .event.violet::before { background: var(--violet); box-shadow: 0 0 12px var(--violet); }
+  .event.alert::before { background: var(--alert); box-shadow: 0 0 14px var(--alert); }
+  .event::after {
+    content: '';
+    position: absolute;
+    left: 12.5px;
+    top: 0;
+    width: 1px;
+    height: 30px;
+    background: var(--line);
+  }
+  .event:first-of-type::after { display: none; }
+  .event-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .event-title {
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 10px;
+    line-height: 1.25;
+  }
+  .event-body {
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1.65;
+  }
+  .event-body p { margin-bottom: 10px; }
+
+  /* ============== LOG BLOCK ============== */
+  .log {
+    background: rgba(6,8,11,0.7);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--alert);
+    padding: 18px 22px;
+    margin: 16px 0;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    overflow-x: auto;
+  }
+  .log .lk { color: var(--alert); font-weight: 500; }
+  .log .vk { color: var(--signal); }
+  .log .ck { color: var(--trace); }
+  .log.violet { border-left-color: var(--violet); }
+  .log.cool { border-left-color: var(--trace); }
+
+  /* ============== POEM ============== */
+  .poem {
+    position: relative;
+    padding: 28px 32px;
+    margin: 24px 0;
+    background: linear-gradient(180deg, rgba(184,141,255,0.06), rgba(184,141,255,0.02));
+    border-left: 2px solid var(--violet);
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 20px;
+    color: var(--text);
+    line-height: 1.6;
+    font-weight: 400;
+  }
+  .poem cite {
+    display: block;
+    font-family: var(--mono);
+    font-style: normal;
+    font-size: 11px;
+    color: var(--text-mute);
+    letter-spacing: 0.1em;
+    margin-top: 16px;
+    text-transform: uppercase;
+    font-weight: 400;
+  }
+
+  /* ============== IMAGE FIGURES ============== */
+  figure {
+    margin: 28px 0;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  figure img {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: #000;
+  }
+  figure figcaption {
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    letter-spacing: 0.04em;
+    border-top: 1px solid var(--line);
+    background: var(--bg-elev);
+  }
+  figure figcaption strong { color: var(--text); }
+
+  .img-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .img-row figure { margin: 0; }
+
+  /* ============== ANOMALY CARDS ============== */
+  .anomaly-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 24px 0 36px;
+  }
+  .anomaly {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-top: 2px solid var(--signal);
+    padding: 18px 20px;
+    position: relative;
+  }
+  .anomaly-date {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-mute);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .anomaly-where {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .anomaly-where code { color: var(--signal); }
+  .anomaly-digit {
+    font-family: var(--display);
+    font-size: 56px;
+    font-weight: 600;
+    color: var(--signal);
+    line-height: 1;
+    margin: 8px 0 6px;
+  }
+  .anomaly-digit.marker { font-size: 28px; font-style: italic; color: var(--text-mute); }
+  .anomaly-note {
+    font-size: 11px;
+    color: var(--text-mute);
+    line-height: 1.5;
+  }
+
+  /* ============== SOCIAL CHANNELS GRID ============== */
+  .channels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    margin: 24px 0 36px;
+  }
+  .channel {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    padding: 18px 22px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .channel:hover {
+    border-color: var(--haven);
+    background: var(--bg-elev);
+  }
+  .channel-icon {
+    width: 28px; height: 28px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    color: var(--haven);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .channel-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+  }
+  .channel-url {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--trace);
+    margin-bottom: 10px;
+    word-break: break-all;
+  }
+  .channel-meta {
+    font-size: 11px;
+    color: var(--text-mute);
+    line-height: 1.5;
+  }
+  .channel-meta .by { font-size: 0.95em; }
+
+  /* ============== LEAD ITEMS ============== */
+  .lead {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 18px;
+    padding: 22px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .lead:last-child { border-bottom: none; }
+  .lead-n {
+    font-family: var(--display);
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--haven);
+    line-height: 0.9;
+  }
+  .lead-t {
+    font-family: var(--display);
+    font-size: 19px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  .lead-d {
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .lead-resolved .lead-n { color: var(--green); }
+  .lead-status {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--green);
+    border: 1px solid rgba(93,220,138,0.35);
+    background: rgba(93,220,138,0.08);
+    padding: 2px 8px;
+    border-radius: 2px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  /* ============== FORENSICS TAB ============== */
+  .forensics-intro {
+    background: linear-gradient(135deg, rgba(0,194,179,0.06) 0%, rgba(127,219,255,0.03) 100%);
+    border: 1px solid rgba(0,194,179,0.2);
+    border-left: 3px solid var(--haven);
+    padding: 22px 26px;
+    margin-bottom: 28px;
+  }
+  .forensics-intro p { margin: 0; color: var(--text-dim); }
+  .forensics-intro .by { color: var(--haven); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .finding-cat {
+    margin: 36px 0 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  .finding-cat-n {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--haven);
+  }
+  .finding-cat-name {
+    font-family: var(--display);
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .finding-cat-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    margin-left: auto;
+  }
+
+  .finding {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 18px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .finding:last-child { border-bottom: none; }
+  .finding-n {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-mute);
+    line-height: 1.4;
+    padding-top: 2px;
+  }
+  .finding-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    padding: 1px 7px;
+    border-radius: 2px;
+    margin-right: 8px;
+    margin-bottom: 6px;
+    vertical-align: middle;
+  }
+  .tag-verified { color: var(--green); border: 1px solid rgba(93,220,138,0.35); background: rgba(93,220,138,0.05); }
+  .tag-spec { color: var(--violet); border: 1px solid rgba(184,141,255,0.35); background: rgba(184,141,255,0.05); }
+  .tag-null { color: var(--text-faint); border: 1px solid var(--line-bright); background: transparent; }
+  .finding-body {
+    font-size: 13.5px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .finding-body em {
+    color: var(--text-dim);
+    font-size: 12.5px;
+    font-style: normal;
+    display: block;
+    margin-top: 4px;
+  }
+
+  .pull-quote {
+    margin: 30px 0;
+    padding: 24px 28px;
+    border-left: 3px solid var(--alert);
+    background: rgba(255,58,58,0.04);
+    font-family: var(--display);
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--text);
+    font-style: italic;
+  }
+  .pull-quote strong { color: var(--alert); font-style: normal; }
+
+  .timeline-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .timeline-table th, .timeline-table td {
+    text-align: left;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .timeline-table th {
+    color: var(--text-mute);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+    border-bottom: 1px solid var(--line-bright);
+  }
+  .timeline-table td.col-time { color: var(--text-dim); white-space: nowrap; }
+  .timeline-table td.col-event { color: var(--text); }
+  .timeline-table tr.tl-anom td { color: var(--signal); }
+  .timeline-table tr.tl-breach td { color: var(--alert); font-weight: 500; }
+  .timeline-table tr.tl-batch td { color: var(--trace); }
+
+  .channel-strip {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin: 18px 0;
+  }
+  .channel-strip figure {
+    margin: 0;
+    border: 1px solid var(--line);
+    background: var(--bg-card);
+  }
+  .channel-strip img {
+    width: 100%;
+    display: block;
+    border-bottom: 1px solid var(--line);
+  }
+  .channel-strip figcaption {
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+  .channel-strip figcaption strong { color: var(--text); font-weight: 500; }
+
+  @media (max-width: 700px) {
+    .channel-strip { grid-template-columns: 1fr; }
+  }
+
+  /* ============== COLLAPSIBLES ============== */
+  details {
+    border: 1px solid var(--line);
+    background: var(--bg-card);
+    margin: 18px 0;
+  }
+  details summary {
+    cursor: pointer;
+    padding: 14px 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    user-select: none;
+    list-style: none;
+    transition: color 0.15s;
+  }
+  details summary:hover { color: var(--text); }
+  details summary::after {
+    content: '+';
+    float: right;
+    color: var(--haven);
+    font-size: 14px;
+    font-weight: 300;
+  }
+  details[open] summary::after { content: '−'; }
+  details[open] { padding-bottom: 18px; }
+  details > *:not(summary) { padding-left: 20px; padding-right: 20px; }
+
+  /* ============== CREDITS ============== */
+  .credit-roll {
+    margin: 24px 0;
+  }
+  .credit-item {
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  .credit-item:last-child { border-bottom: none; }
+  .credit-handle {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--haven);
+    letter-spacing: 0.02em;
+  }
+  .credit-handle .posts {
+    display: block;
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 400;
+  }
+  .credit-body {
+    font-family: var(--display);
+    font-size: 16px;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+
+  /* ============== LINK LIST ============== */
+  .links-list {
+    list-style: none;
+    margin: 18px 0;
+    padding: 0;
+  }
+  .links-list li {
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 14px;
+    align-items: baseline;
+  }
+  .links-list li:last-child { border-bottom: none; }
+  .links-list .ic {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+  }
+  .links-list .lbl { font-family: var(--mono); font-size: 13px; color: var(--text); }
+  .links-list .d { display: block; font-family: var(--display); font-size: 14px; color: var(--text-mute); font-style: italic; margin-top: 4px; }
+
+  /* ============== FOOTER ============== */
+  footer {
+    margin-top: 96px;
+    padding-top: 48px;
+    border-top: 1px solid var(--line);
+    text-align: center;
+    color: var(--text-mute);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+  footer .links { margin-bottom: 28px; display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; }
+  footer .links a { color: var(--text-dim); font-size: 11px; }
+  footer .eot {
+    font-family: var(--mono);
+    color: var(--alert);
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+  }
+  footer .haven-mark {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--text-mute);
+    letter-spacing: 0.02em;
+    margin-top: 16px;
+  }
+  footer .haven-mark .accent { color: var(--haven); }
+
+  /* ============== MOBILE ============== */
+  @media (max-width: 720px) {
+    .wrap { padding: 24px 18px 64px; }
+    .stats { grid-template-columns: repeat(3, 1fr); }
+    .credit-item { grid-template-columns: 1fr; gap: 6px; }
+    .credit-handle { font-size: 13px; }
+    .tab-btn { padding: 12px 14px; font-size: 11px; }
+    .breach { padding: 20px 22px; }
+    .breach-title { font-size: 22px; }
+    .breach-body { font-size: 15px; }
+    h2 { font-size: 28px; }
+    .event { padding-left: 30px; }
+    .event-title { font-size: 18px; }
+  }
+  @media (max-width: 480px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+  /* ============== NOW TAB ============== */
+  .now-status {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 18px 24px;
+    align-items: center;
+    padding: 24px 28px;
+    margin-bottom: 32px;
+    background: linear-gradient(135deg, rgba(255,58,58,0.06), rgba(247,201,72,0.03));
+    border: 1px solid rgba(255,58,58,0.25);
+    border-left: 3px solid var(--alert);
+  }
+  .now-status .now-label {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+  }
+  .now-status .now-value {
+    font-family: var(--display);
+    font-size: 19px;
+    line-height: 1.4;
+    color: var(--text);
+  }
+  .now-status .now-value strong { color: var(--alert); font-weight: 500; }
+
+  .now-watching {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin: 26px 0;
+  }
+  .watch-card {
+    padding: 18px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-top: 2px solid var(--signal);
+  }
+  .watch-card .wc-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin-bottom: 10px;
+  }
+  .watch-card .wc-title {
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+  .watch-card .wc-d {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+
+  /* ============== TIMELINE TAB ============== */
+  .timeline-entry {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 22px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .timeline-entry:last-child { border-bottom: none; }
+  .timeline-date {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-mute);
+    letter-spacing: 0.05em;
+    padding-top: 2px;
+  }
+  .timeline-date .te-y { color: var(--text-faint); display: block; font-size: 10px; }
+  .timeline-body { font-size: 14px; color: var(--text); line-height: 1.65; }
+  .timeline-body .te-t {
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+    line-height: 1.3;
+  }
+  .timeline-body code { font-size: 12.5px; }
+  .timeline-entry.te-major .timeline-date { color: var(--signal); }
+  .timeline-entry.te-major .te-t { color: var(--signal); }
+  .timeline-entry.te-breach .timeline-date { color: var(--alert); }
+  .timeline-entry.te-breach .te-t { color: var(--alert); }
+
+  /* ============== PUZZLES TAB ============== */
+  .puzzle {
+    margin: 26px 0;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .puzzle-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: baseline;
+    padding: 18px 22px;
+    background: var(--bg-elev);
+    border-bottom: 1px solid var(--line);
+  }
+  .puzzle-name {
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .puzzle-status {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 2px;
+  }
+  .status-open { color: var(--alert); border: 1px solid rgba(255,58,58,0.35); background: rgba(255,58,58,0.05); }
+  .status-partial { color: var(--signal); border: 1px solid rgba(247,201,72,0.35); background: rgba(247,201,72,0.05); }
+  .status-solved { color: var(--green); border: 1px solid rgba(93,220,138,0.35); background: rgba(93,220,138,0.05); }
+  .status-active { color: var(--trace); border: 1px solid rgba(127,219,255,0.35); background: rgba(127,219,255,0.05); }
+  .puzzle-body { padding: 20px 22px; }
+  .puzzle-prompt {
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 16px;
+    color: var(--text-dim);
+    border-left: 2px solid var(--line-bright);
+    padding-left: 14px;
+    margin-bottom: 16px;
+    line-height: 1.55;
+  }
+  .puzzle-section { margin-top: 16px; }
+  .puzzle-section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--haven);
+    margin-bottom: 8px;
+  }
+  .puzzle-section ul { margin-left: 18px; }
+  .puzzle-section li { margin-bottom: 6px; font-size: 13.5px; color: var(--text-dim); line-height: 1.55; }
+  .puzzle-section li strong { color: var(--text); font-weight: 500; }
+
+  /* ============== INVESTIGATOR LIST ============== */
+  .investigator-card {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 22px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .investigator-card:last-child { border-bottom: none; }
+  .inv-name {
+    font-family: var(--display);
+    font-size: 19px;
+    font-weight: 500;
+    color: var(--haven);
+    line-height: 1.2;
+  }
+  .inv-name .inv-handle {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-mute);
+    font-weight: 400;
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+  }
+  .inv-body { font-size: 13.5px; color: var(--text-dim); line-height: 1.6; }
+  .inv-body strong { color: var(--text); font-weight: 500; }
+
+  /* ============== NEW HERE STYLES ============== */
+  .briefing {
+    background: linear-gradient(135deg, rgba(0,194,179,0.05), rgba(127,219,255,0.02));
+    border-left: 3px solid var(--haven);
+    padding: 22px 26px;
+    margin: 18px 0 26px;
+  }
+  .briefing p { color: var(--text-dim); margin: 0 0 12px; }
+  .briefing p:last-child { margin-bottom: 0; }
+  .briefing p strong { color: var(--text); }
+
+  /* ============== CHANNELS GRID (override) ============== */
+  .channel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+    margin: 22px 0;
+  }
+  .ch-card {
+    padding: 16px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+  }
+  .ch-card .ch-icon {
+    font-size: 20px;
+    color: var(--haven);
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+  .ch-card .ch-name {
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .ch-card .ch-url {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    word-break: break-all;
+    margin-bottom: 8px;
+  }
+  .ch-card .ch-url a { color: var(--trace); text-decoration: none; }
+  .ch-card .ch-url a:hover { text-decoration: underline; }
+  .ch-card .ch-meta {
+    font-size: 12px;
+    color: var(--text-mute);
+    line-height: 1.5;
+  }
+
+  /* ============== ACK LINE ============== */
+  .ack-line {
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-family: var(--display);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--text-mute);
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+  .ack-line .by { color: var(--text-faint); font-size: 11px; display: block; margin-top: 4px; font-style: normal; font-family: var(--mono); letter-spacing: 0.1em; }
+
+  @media (max-width: 700px) {
+    .timeline-entry { grid-template-columns: 1fr; gap: 4px; }
+    .investigator-card { grid-template-columns: 1fr; gap: 6px; }
+    .puzzle-header { grid-template-columns: 1fr; gap: 8px; }
+    /* --- mobile overflow fixes: long unbreakable code tokens + stacked now-status --- */
+    code { overflow-wrap: anywhere; word-break: break-word; }
+    .now-status { grid-template-columns: 1fr; gap: 6px 0; padding: 20px 18px; align-items: start; }
+    .now-status .now-value, .lead, .finding, .timeline-body, .wc-d,
+    .panel li, .panel p, .breach-body, .briefing p { min-width: 0; overflow-wrap: anywhere; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="pre-title">An investigation by The NMS Community</div>
+
+  <h1 class="title"><span class="glitch">PROJECT</span>_SKYSCRAPER<span class="u">_</span></h1>
+
+  <p class="tagline">Sky is not the limit. Something is waking up — and it has just identified us.</p>
+
+  <p class="lede">
+    A documentation of <a href="https://project-skyscraper.com" target="_blank" rel="noopener">project-skyscraper.com</a>, the No Man's Sky alternate reality game that has been quietly populating posts on WordPress for weeks. The ETARC moderators surfaced it first on May 15. Six days later, the system inside the fiction <strong>named the investigators as the breach</strong>. This page is the record.
+  </p>
+
+  <div class="byline">
+    <div class="byline-item">
+      <span class="lbl">Compiled by</span>
+      <span class="val"><span class="accent">Ekimo1920</span></span>
+    </div>
+    <div class="byline-item">
+      <span class="lbl">For</span>
+      <span class="val">The NMS Community</span>
+    </div>
+    <div class="byline-item">
+      <span class="lbl">Built on the work of</span>
+      <span class="val">the ETARC community</span>
+    </div>
+    <div class="byline-item">
+      <span class="lbl">Last refresh</span>
+      <span class="val">2026-05-21</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ BREACH CARD ============ -->
+<div class="breach">
+  <div class="breach-head">
+    <div class="breach-pulse"></div>
+    <div class="breach-label">Security breach confirmed · Alert level critical</div>
+  </div>
+  <div class="breach-title">The investigators are inside the canon.</div>
+  <p class="breach-body">
+    On <strong>May 18 at 21:19 UTC+1</strong>, project-skyscraper.com published a security log declaring <code>SECURITY_BREACH_CONFIRMED</code>, source vector <code>UNKOWN_EXT3RNAL</code>. That string is a live hyperlink — and it points directly at the ETARC investigation thread, post #180. The Architect is reading. They have made us part of the story.
+  </p>
+</div>
+
+<!-- ============ STATS ============ -->
+<div class="stats">
+  <div class="stat"><div class="stat-v">0 / 365</div><div class="stat-l">Memory blocs</div></div>
+  <div class="stat"><div class="stat-v signal">29</div><div class="stat-l">Site posts</div></div>
+  <div class="stat"><div class="stat-v signal">5</div><div class="stat-l">Anomalies</div></div>
+  <div class="stat"><div class="stat-v haven">6</div><div class="stat-l">Channels found</div></div>
+  <div class="stat"><div class="stat-v">UTC+1</div><div class="stat-l">No DST</div></div>
+  <div class="stat"><div class="stat-v alert">11.3%</div><div class="stat-l">Self-awareness</div></div>
+</div>
+
+<!-- ============ TABS ============ -->
+<nav class="tabs" role="tablist">
+  <button class="tab-btn active" data-tab="now" role="tab"><span class="n">01</span>NOW</button>
+  <button class="tab-btn" data-tab="new" role="tab"><span class="n">02</span>NEW HERE?</button>
+  <button class="tab-btn" data-tab="timeline" role="tab"><span class="n">03</span>TIMELINE</button>
+  <button class="tab-btn" data-tab="puzzles" role="tab"><span class="n">04</span>PUZZLES</button>
+  <button class="tab-btn" data-tab="architect" role="tab"><span class="n">05</span>THE ARCHITECT</button>
+  <button class="tab-btn" data-tab="channels" role="tab"><span class="n">06</span>CHANNELS</button>
+  <button class="tab-btn" data-tab="credits" role="tab"><span class="n">07</span>CREDITS</button>
+</nav>
+
+<!-- ============================================ -->
+<!-- TAB 1 · NOW                                  -->
+<!-- ============================================ -->
+<section class="panel active" id="tab-now">
+
+  <h2>Where the ARG is right now</h2>
+  <p class="panel-intro">
+    Last verified: 2026-05-21. This tab is the lead. Everything else explains what got us here.
+  </p>
+
+  <div class="now-status">
+    <div class="now-label">Latest event</div>
+    <div class="now-value">
+      <strong>2026-05-21 · 17:05 UTC+1.</strong> Project Skyscraper published <code>sec-log-170516</code>: a <code>SECURITY_ALERT</code> reporting <code>MULTIPLE_UNCOORDINATED_CONNECTION_ATTEMPTS</code> from <code>Distributed_sources (1034 IPs)</code> — "<em>Brute force signatures show haphazard attempts. No coherent pattern detected. Threat contained.</em>" — closing with a ten-country list: <code>US-GB-ES-FR-MX-DE-CA-IE-BE-AU</code>.
+    </div>
+
+    <div class="now-label">What it means</div>
+    <div class="now-value">
+      The day before, the community started arriving on the homepage together. The live counter — the number of people <em>currently</em> on the site, each rendered as a node on the page — climbed as the coordination built. The Architect answered the surge <em>in fiction</em>, recasting the investigators as a failed brute-force attack and naming the countries they connect from. The fourth wall, broken at the May 18 breach, stays broken — the system is narrating us back to ourselves. The post's <code>memory bloc</code> timestamp is still 60 minutes ahead of its UTC publish time: the UTC+1 developer tell persists in the newest entry.
+    </div>
+
+    <div class="now-label">The breach that started it</div>
+    <div class="now-value">
+      <strong>2026-05-18 · 21:19 UTC+1.</strong> <code>sec-log-211927</code> declared <code>SECURITY_BREACH_CONFIRMED</code>. Its "Full log" page shows the AI degrading — <code>Self_awareness: 11.3%</code>, <code>Temporal_anchor_system: 28.5%</code>, "<em>Overload consequences unpredictable</em>" — with source vector <code>UNKOWN_EXT3RNAL</code> live-linked to ETARC post #180. The main post's vector field has since been edited to read <code>feeds/178879468</code>. <span class="by">Sir_oops p180</span>
+    </div>
+  </div>
+
+  <h3>What we're watching for next</h3>
+
+  <div class="now-watching">
+
+    <div class="watch-card">
+      <div class="wc-label">prediction · open</div>
+      <div class="wc-title">The countdown's next digit</div>
+      <div class="wc-d">Leet substitutions are descending: <code>TR<strong>4</strong>CE</code>, <code>EXT<strong>3</strong>RNAL</code>. If the read holds, the next anomaly should drop a <strong>2</strong>, then a <strong>1</strong>. Watch the next anomaly-bearing post closely. <span class="by">BoomstickJoe p198</span></div>
+    </div>
+
+    <div class="watch-card">
+      <div class="wc-label">site · staged</div>
+      <div class="wc-title">The second site activating</div>
+      <div class="wc-d"><a href="https://theskyscraperarchitect-ywvhk.wordpress.com/" target="_blank" rel="noopener">theskyscraperarchitect-ywvhk.wordpress.com</a> is set as The Architect's WordPress profile URL. As of 2026-05-21 it holds only the default WordPress starter post — and that post is in <strong>French</strong> ("<em>Bonjour tout le monde !</em>"), so the install locale is French. Still the most likely staging area for the next chapter. <span class="by">Ekimo1920</span></div>
+    </div>
+
+    <div class="watch-card">
+      <div class="wc-label">image · canary holding</div>
+      <div class="wc-title">TR4CE.jpg being silently replaced</div>
+      <div class="wc-d">A different background colour was reported on the <code>/tr4ce/</code> image, suggesting an in-place re-upload. The canary is the image-sitemap last-modified date. As of 2026-05-21 the <code>/tr4ce/</code> entry still reads <code>2026-05-11T09:15:58Z</code> — <strong>not</strong> advanced, so the file has not been swapped. (The image-sitemap index shows May 17, but that reflects the Wallace-Stevens / IMG_00004 uploads, not TR4CE.) <span class="by">toddumptious p217 · verified Ekimo1920</span></div>
+    </div>
+
+    <div class="watch-card">
+      <div class="wc-label">behaviour · monitored</div>
+      <div class="wc-title">Architect activity outside working hours</div>
+      <div class="wc-d">The Architect normally works 09:00–10:00 and 16:00–17:00 UTC+1. Wednesdays are empty across the entire history. The May 18 breach saw them stay up to 23:55. Any subsequent late-night activity signals another live event.</div>
+    </div>
+
+    <div class="watch-card">
+      <div class="wc-label">coordination · proposed</div>
+      <div class="wc-title">The 16-visitor test</div>
+      <div class="wc-d">The live counter has organically reached 16 at least once. If the "16" motif is meaningful (it maps to Loop16/Atlas in canon), a coordinated 16-visitor presence might trigger a state change. Not yet tested deliberately. <span class="by">sheralmyst p174 · William p235</span></div>
+    </div>
+
+    <div class="watch-card">
+      <div class="wc-label">official · unconfirmed</div>
+      <div class="wc-title">NMS sitemap May 18 anomaly</div>
+      <div class="wc-d">ThatBomberBoi posted screenshots showing pre-release-era pages on the official NMS website with May 18 last-modified dates — the same day project-skyscraper had its bulk re-modification. Wayback snapshots needed. If real, this is the strongest signal yet of official involvement. <span class="by">ThatBomberBoi p289</span></div>
+    </div>
+
+    <div class="watch-card">
+      <div class="wc-label">cadence · predicted</div>
+      <div class="wc-title">The next automated transmission</div>
+      <div class="wc-d">@Skyscraper_prj and the Bluesky account post a <code>Connection detected : Access denied</code> quote-repost on a steady ~2-day-11-hour cadence (latest: May 20, quoting @everythingproc on the "Future Unfolding" procedural forest). The next is due roughly <strong>midnight–01:00 UTC, May 23</strong>. <span class="by">yourbasicmaths p604</span></div>
+    </div>
+
+  </div>
+
+  <h3>Live unsolved puzzles</h3>
+  <p>The puzzles below are the active fronts. Full breakdowns are on the <a href="#puzzles" onclick="document.querySelector('[data-tab=puzzles]').click(); return false;">Puzzles tab</a>.</p>
+
+  <ul>
+    <li><strong>The cropped 1,516 pixels.</strong> The master skyscraper composite is saved 2400×2400 but declares 2400×3916 in EXIF — 1,516 pixels of building/foundation continue below the visible frame. The full master PSD is not exposed.</li>
+    <li><strong>The Architect's email.</strong> SHA-256 Gravatar hash captured; 39 obvious candidates tested, no match. A larger wordlist attack is the only remaining path.</li>
+    <li><strong>The specific skyscraper — solved.</strong> It's <strong>The Atlas Building, London</strong> (Make Architects); the exact source photo was found on Unsplash. Full breakdown on the Puzzles tab. <span class="by">DevilinPixy p409 · RustyHarper p628</span></li>
+    <li><strong>The Stevens poem's actual encoding.</strong> The "blue birds / blue sky" decoding pointed to Twitter and Bluesky, but the rest of the pastiche may still encode further channels or coordinates.</li>
+    <li><strong>The shadowcheck spectrogram.</strong> Rotated + colour-filtered, the image reads as distorted spoken numbers. Not yet cleanly transcribed. <span class="by">M1Silencer p281</span></li>
+    <li><strong>The <code>secret</code> parameter.</strong> The homepage counter/graph loads via a WordPress oEmbed iframe, and the graph link carries <code>project-skyscraper.com/#?secret=nIEEt0rspH</code>. The token <code>nIEEt0rspH</code> is unexplained — possible key, anagram, or session handle. <span class="by">Muhaddil p524</span></li>
+    <li><strong>The "one inside" — a French location?</strong> The cleaned-up TR4CE landscape hides a figure ("they see the tower, but not the one inside"). A Google-Maps match to a French sculpture site (parc de Lormoy area) was proposed but disputed; with the French WordPress locale it still points to a French-speaking author near Paris. Location unconfirmed. <span class="by">Gumsk p465 · disputed by William p475</span></li>
+  </ul>
+
+</section>
+
+<!-- ============================================ -->
+<!-- TAB 2 · NEW HERE?                            -->
+<!-- ============================================ -->
+<section class="panel" id="tab-new">
+
+  <h2>New to the ARG?</h2>
+  <p class="panel-intro">
+    Sixty-second catch-up. If you're seeing the words "Project Skyscraper" for the first time, start here.
+  </p>
+
+  <div class="briefing">
+    <p><strong>An alternate reality game is happening in the No Man's Sky community.</strong> A website at <a href="https://project-skyscraper.com/" target="_blank" rel="noopener">project-skyscraper.com</a> has been publishing what look like corrupted system logs since late March 2026. The author calls themselves <strong>The Architect</strong>.</p>
+    <p>The ETARC moderators surfaced the site publicly on May 15. By May 18, the site published a "security breach" log that includes a live hyperlink pointing directly back at the ETARC investigation thread. The fiction has named the investigators as part of the story.</p>
+    <p><strong>"Project Skyscraper"</strong> is also the early codename for No Man's Sky itself, and the name of Hello Games' internal proprietary engine. Whoever The Architect is, they chose a name with very specific studio-internal weight.</p>
+  </div>
+
+  <h3>The shape of it</h3>
+  <p>Two phases so far:</p>
+  <ul>
+    <li><strong>Sleep phase</strong> (Mar 24 – Apr 30) — the site published a uniform "sleep mode" log every 2-3 days. Filler. Routine. Three small anomalies broke the pattern.</li>
+    <li><strong>Breach phase</strong> (May 3 onward) — the logs shift to "security events." Pattern violations escalate. <code>Connect1on</code> (May 8), missing digit in <code>12/5/206</code> (May 12), the breach (May 18). Each anomaly looks deliberate.</li>
+  </ul>
+
+  <h3>The pieces in play</h3>
+  <ul>
+    <li><strong>TR4CE.jpg</strong> — a static-noise image that hides text in the red channel. Recovered phrases: <code>Access denied</code>, <code>Connection detected</code>, <code>Vision</code>, <code>Architect</code>. Surfaced by red-channel isolation.</li>
+    <li><strong>A Wallace Stevens pastiche poem</strong> backdated to 2005 — decoded by toddumptious p210 as instructions to look at "blue birds" (Twitter) and "blue sky" (Bluesky). The Architect maintains both.</li>
+    <li><strong>A second WordPress site</strong> — <code>theskyscraperarchitect-ywvhk.wordpress.com</code>. Reserved but empty. Likely the next chapter's staging area.</li>
+    <li><strong>An anomaly chain</strong> — five deliberate breaks in the site's format, each extracting a single digit. Two readings: <code>1-1-2</code> as the European emergency number, OR a descending countdown (4-3-2-1).</li>
+    <li><strong>"Process ID: 16"</strong> — recurring in every full security log. Maps directly to Loop16 from the Waking Titan ARG (2017). The Loop16 AI is canonically an older version of the Atlas. This ARG is continuing established NMS canon.</li>
+  </ul>
+
+  <h3>Why this matters</h3>
+  <p>The previous large NMS ARG, <em>Waking Titan</em>, set up much of what's now considered foundational lore — Atlas as a simulation, Loop16/Emily as a precursor AI, the Travellers as digitised brain scans. Project Skyscraper is engaging with the same canonical material at a level of detail that suggests either official involvement, or a creator with very deep familiarity with the franchise's deepest cuts.</p>
+  <p>The active investigation is on the <a href="https://forums.atlas-65.com/t/project-skyscraper-no-mans-sky-arg/9095" target="_blank" rel="noopener">ETARC forum thread</a>. This page documents the work — it does not replace it.</p>
+
+</section>
+
+<!-- ============================================ -->
+<!-- TAB 3 · TIMELINE                             -->
+<!-- ============================================ -->
+<section class="panel" id="tab-timeline">
+
+  <h2>Timeline</h2>
+  <p class="panel-intro">
+    Every published event and behind-the-scenes operation in chronological order. Times in UTC+1 (The Architect's local timezone). Inline credit on the first investigator to surface each finding.
+  </p>
+
+  <h3>Pre-launch · the build phase</h3>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>Mar 03 · 20:14</div>
+    <div class="timeline-body">
+      <div class="te-t">Master image exported</div>
+      The composite skyscraper image (<code>project-skyscraper.jpg</code>) is exported from Photoshop. EXIF DateTime captured. Seven full weeks before the site goes live. The master is 2400×3916; only the top 2400×2400 is uploaded.
+    </div>
+  </div>
+
+  <h3>Sleep phase · uniform filler with three small breaks</h3>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>Mar 24</div>
+    <div class="timeline-body">
+      <div class="te-t">First sleep-mode post</div>
+      <code>sleep-mode-46105</code> publishes. Format established: numeric slug counting down by 2-3 per post, uniform body content. The "sleep mode" pattern.
+    </div>
+  </div>
+
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>Apr 01</div>
+    <div class="timeline-body">
+      <div class="te-t">Anomaly #1 · Missing digit</div>
+      <code>sleep-mode-4613</code> publishes. Should have been <code>46113</code>. A digit dropped from the slug. First deliberate break in the format. Extracted: <strong>1</strong>.
+    </div>
+  </div>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>Apr 25 · 09:31</div>
+    <div class="timeline-body">
+      <div class="te-t">Site goes live</div>
+      Three image uploads in 28 minutes: the master composite, the hexagon logo, the auto-generated WordPress thumbnail. The site's public face appears. Saturday morning, UTC+1.
+    </div>
+  </div>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>Apr 28 · 15:02</div>
+    <div class="timeline-body">
+      <div class="te-t">Bulk-edit operation</div>
+      Six sleep-mode posts modified within a single second. The Architect ran a script or bulk update across the existing post catalogue. The first behavioural evidence of bulk-batched content management.
+    </div>
+  </div>
+
+  <h3>Breach phase · the pattern escalates</h3>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>May 01 · 16:32</div>
+    <div class="timeline-body">
+      <div class="te-t">Five sec-log posts pre-loaded</div>
+      In a five-minute window, The Architect creates five routine sec-log posts and schedules them for May 3, 5, 10, 13, 15. The puzzle posts are NOT pre-scheduled — only the filler. Two operating modes confirmed.
+    </div>
+  </div>
+
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>May 03 · 08:04</div>
+    <div class="timeline-body">
+      <div class="te-t">First plot beat · WoL packet</div>
+      <code>sec-log-080413</code> publishes. The first major plot post — describes a Wake-on-LAN packet from an unknown source. <strong>Five revisions</strong> in the WP version history; the most-rewritten post on the site. The Architect tuned this wording four separate times.
+    </div>
+  </div>
+
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>May 08 · 06:52</div>
+    <div class="timeline-body">
+      <div class="te-t">Anomaly #2 · Connect1on</div>
+      <code>sec-log-061119</code> publishes with the body containing <code>Connect1on</code> — letter <em>i</em> replaced with <em>1</em>. Slug encodes 06:11:19 but actual publish is 05:52 — narrative time and real time diverge. Extracted: <strong>1</strong>.
+    </div>
+  </div>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>May 10 · 17:14</div>
+    <div class="timeline-body">
+      <div class="te-t">Anomaly #3 · Format break</div>
+      Two posts publish within one minute. The first uses normal <code>sec-log-</code> prefix. The second uses <code>security-log-</code> — the only post on the site with the extended prefix. A formatting marker, not a digit. Extracted: <strong>marker</strong>.
+    </div>
+  </div>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>May 11 · 10:15</div>
+    <div class="timeline-body">
+      <div class="te-t">TR4CE.jpg uploaded</div>
+      The static-noise image goes live on the <code>/tr4ce/</code> page. Red-channel isolation reveals four hidden phrases. The image declares "Memory_bloc_restoration: 0/365" — the puzzle's scope.
+    </div>
+  </div>
+
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>May 12 · 12:00</div>
+    <div class="timeline-body">
+      <div class="te-t">Anomaly #4 · Missing year digit</div>
+      <code>sec-log-120000</code> publishes. The body contains the date string <code>12/5/206</code> — should be <code>2026</code>. A digit dropped from the year. Extracted: <strong>2</strong>.
+    </div>
+  </div>
+
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>May 14 · 17:28</div>
+    <div class="timeline-body">
+      <div class="te-t">shadowcheck-1912 publishes</div>
+      <code>sec-log-172832</code> publishes containing the slug fragment <code>shadowcheck-1912</code>. Three revisions. The post is edited again 13 minutes after going live. Spectrogram analysis of the embedded image surfaces faint spoken-number audio when rotated and colour-filtered. <span class="by">M1Silencer p281</span>
+    </div>
+  </div>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>May 15</div>
+    <div class="timeline-body">
+      <div class="te-t">ETARC discovers the site</div>
+      The ETARC moderators surface project-skyscraper.com publicly on the forum. The investigation begins.
+    </div>
+  </div>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>May 17 · 10:49</div>
+    <div class="timeline-body">
+      <div class="te-t">Two images uploaded back-to-back</div>
+      <code>Wallace-Stevens.jpg</code> and <code>IMG_00004.jpg</code> uploaded ten seconds apart. Both feature on the Wallace Stevens quote post that publishes the same day — <strong>backdated to 2005-04-13</strong> in the site's display, but actually published May 17, 2026. Decoded by toddumptious as instructions to look at "blue birds" (Twitter / <a href="https://x.com/Skyscraper_prj" target="_blank" rel="noopener">@Skyscraper_prj</a>) and "blue sky" (Bluesky). <span class="by">toddumptious p210</span> The IMG_00004 EXIF Artist field is set to the literal letter <code>"A"</code> — ASCII 65, same character <code>atlas-65</code> decodes to. The 2005-04-13 narrative date is one day before the Titanic sank in 1912.
+    </div>
+  </div>
+
+  <div class="timeline-entry te-breach">
+    <div class="timeline-date"><span class="te-y">2026</span>May 18 · 21:19</div>
+    <div class="timeline-body">
+      <div class="te-t">SECURITY BREACH CONFIRMED</div>
+      <code>sec-log-211927</code> publishes. <code>SECURITY_BREACH_CONFIRMED</code>. Source vector: <code>UNKOWN_EXT3RNAL</code> — letter <em>E</em> replaced with <em>3</em>. Extracted: <strong>3</strong>. The string is a live hyperlink pointing directly at ETARC post #180. <span class="by">Sir_oops p180</span>
+    </div>
+  </div>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>May 18 · 23:55</div>
+    <div class="timeline-body">
+      <div class="te-t">Late-night sitemap edit</div>
+      Sitemap modified again. The Architect, normally signing off by 17:00 UTC+1, stays up to 23:55 — three hours past their usual stop — to monitor the breach reveal as the community reacts.
+    </div>
+  </div>
+
+  <div class="timeline-entry">
+    <div class="timeline-date"><span class="te-y">2026</span>May 20 · 13:29</div>
+    <div class="timeline-body">
+      <div class="te-t">A log posted in lockstep with the socials</div>
+      <code>sec-log-132904</code> publishes — <code>memory bloc 1779283740: Connection detected / Access denied</code> — at the same moment @Skyscraper_prj posts its <code>Connection detected : Access denied</code> quote-repost, this time quoting @everythingproc on the procedural forest of "Future Unfolding." Site and socials fire together. <span class="by">ThatBomberBoi p338</span>
+    </div>
+  </div>
+
+  <div class="timeline-entry te-breach">
+    <div class="timeline-date"><span class="te-y">2026</span>May 21 · 17:05</div>
+    <div class="timeline-body">
+      <div class="te-t">The Architect answers the crowd</div>
+      With the community coordinating mass-visits — the live visitor counter and its nodes climbing through the day — <code>sec-log-170516</code> publishes: <code>SECURITY_ALERT</code>, <code>MULTIPLE_UNCOORDINATED_CONNECTION_ATTEMPTS</code>, <code>Distributed_sources (1034 IPs)</code>, "<em>haphazard attempts… No coherent pattern detected. Threat contained.</em>", and a ten-country list of where the investigators connect from: <code>US-GB-ES-FR-MX-DE-CA-IE-BE-AU</code>. The system is now reacting to us in near real time.
+    </div>
+  </div>
+
+</section>
+
+<!-- ============================================ -->
+<!-- TAB 4 · PUZZLES                              -->
+<!-- ============================================ -->
+<section class="panel" id="tab-puzzles">
+
+  <h2>The puzzles</h2>
+  <p class="panel-intro">
+    Each puzzle stated, what's been tried, where it stands. Status: <span class="puzzle-status status-open">open</span> still no traction · <span class="puzzle-status status-partial">partial</span> some progress · <span class="puzzle-status status-active">active</span> being chased now · <span class="puzzle-status status-solved">solved</span> resolved.
+  </p>
+
+  <!-- TR4CE -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">TR4CE.jpg · the hidden-text image</div>
+      <div class="puzzle-status status-solved">solved</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">A static-noise image at <code>/tr4ce/</code> with the caption "Memory_bloc_restoration: 0/365 Completed."</div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">What surfaced</div>
+        <ul>
+          <li>Isolating the red channel and pushing contrast reveals four phrases: <code>denied</code>, <code>Connection detected</code>, <code>Vision</code> (partial), <code>Architect</code> (partial). <span class="by">community consensus · ETARC pp. 10-12</span></li>
+          <li>The green channel renders <code>Access denied</code> more prominently than red — both channels carry text.</li>
+          <li>R-G channel difference reveals each phrase rendered <strong>twice</strong>, with the left rendering destroyed by overlay glitch and the right intact. Matches Sir_oops's earlier hypothesis. <span class="by">Sir_oops</span></li>
+          <li>The phrase <code>Architect</code> recovered from the image confirms the WordPress author's display name is the in-canon system identity, not a fan handle.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">What was ruled out</div>
+        <ul>
+          <li>LSB / bit-plane steganography — only JPEG quantization artifacts present, no hidden bit-level encoding.</li>
+          <li>The bottom-strip dot/dash pattern — irregular spacing, doesn't follow Morse timing. Probably decorative artifact.</li>
+          <li>2D FFT for hidden periodic content.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Still open</div>
+        <ul>
+          <li><strong>Has TR4CE.jpg been silently re-uploaded?</strong> Toddumptious flagged a possible change in background colour. The image-sitemap last-modified date is the canary. <span class="by">toddumptious p217</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANOMALY CHAIN -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The anomaly chain</div>
+      <div class="puzzle-status status-partial">partial</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">Five deliberate breaks in the site's otherwise-uniform format. Each one extracts a single character.</div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The chain</div>
+        <ul>
+          <li>Apr 01 · <code>sleep-mode-4613</code> · slug missing digit → <strong>1</strong></li>
+          <li>May 08 · <code>Connect1on</code> · letter <em>i</em> as <em>1</em> → <strong>1</strong></li>
+          <li>May 10 · <code>security-log-</code> · format prefix break → <strong>marker</strong></li>
+          <li>May 12 · <code>12/5/206</code> · year missing digit → <strong>2</strong></li>
+          <li>May 18 · <code>EXT3RNAL</code> · letter <em>E</em> as <em>3</em> → <strong>3</strong></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Reading A · 1-1-2 emergency call</div>
+        <ul>
+          <li>The first three extracted digits read <strong>1-1-2</strong> — Europe's emergency number, France's police/fire/ambulance line. Matches the French-language site origin. The original reading; cleanest fit for the first three anomalies.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Reading B · descending countdown</div>
+        <ul>
+          <li>The leet substitutions are descending: <code>TR<strong>4</strong>CE</code>, <code>EXT<strong>3</strong>RNAL</code>. If the read holds, the next anomaly drops a <strong>2</strong>, then a <strong>1</strong>. Predicts two more events. <span class="by">BoomstickJoe p198</span></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Status</div>
+        <ul>
+          <li>Both readings remain alive. They're not mutually exclusive — the first reading covered the historical anomalies; the second predicts future ones. The next anomaly post will decide which (or whether they overlap).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEVENS POEM -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The Wallace Stevens pastiche</div>
+      <div class="puzzle-status status-partial">partial</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">A poem in the Stevens style, posted with a backdated 2005-04-13 timestamp. The post that anchors the entire ARG.</div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">What's decoded</div>
+        <ul>
+          <li>"Blue birds" → Twitter, "blue sky" → Bluesky. The Architect maintains both — @Skyscraper_prj posts in parallel to the WP site. <span class="by">toddumptious p210</span></li>
+          <li>The Wallace-Stevens.jpg portrait used on the post has had ALL EXIF metadata stripped — deliberate scrubbing, possibly to hide the source publication.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Open questions</div>
+        <ul>
+          <li><strong>Why April 13?</strong> Not Stevens' birth (Oct 2) or death (Aug 2). One candidate read: April 13 is the day before the Titanic sank, April 14-15 1912. The slug <code>shadowcheck-1912</code> pairs date and year as a "day before catastrophe" reading. Speculation only.</li>
+          <li><strong>Does the rest of the pastiche encode more?</strong> Polyphemus proposed an alternate reading mapping "bluebird" to telecommunications satellites. Other layers may still be present. <span class="by">Polyphemus p207</span></li>
+          <li><strong>The panopticon reading.</strong> The line "they can see the tower… but not the one inside" maps onto Bentham's panopticon: the watched cannot see the watcher. <span class="by">Sir_oops p285 · Polyphemus p293</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHADOWCHECK -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">shadowcheck-1912</div>
+      <div class="puzzle-status status-active">active</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">A slug fragment buried in the May 14 sec-log. <code>shadow_integrity: unknown</code>. The post was edited three times after going live.</div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Reads on the table</div>
+        <ul>
+          <li><strong>1912 = Titanic year.</strong> Combined with the April 13 backdating ("day before"), the pairing reads as "day before catastrophe." <em>Speculation</em>.</li>
+          <li><strong>A1Z26 decoding: 19/12 = SL.</strong> The opening of <code>SLEEP</code>, matching the canonical sleep-mode posts. Surprisingly clean read for an arbitrary-looking number. <em>Speculation</em>.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Active work</div>
+        <ul>
+          <li>The embedded image in the post produces faint spoken-number audio when rotated and run through colour-filtered spectrogram analysis. Numbers not yet cleanly transcribed. <span class="by">M1Silencer p281 · BoomstickJoe p89</span></li>
+          <li>The May 14 post has three revisions in the WP version history. The admin endpoint is 401, but the predecessor-version ID is exposed. Recovery of pre-edit content may still be possible.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 16 MOTIF -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The "16" motif</div>
+      <div class="puzzle-status status-solved">solved</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">The number sixteen recurs across the project unusually often. Toddumptious flagged the pattern on page 9. <span class="by">toddumptious p173</span></div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Instances</div>
+        <ul>
+          <li>The X account reposts a NASA 16-years-in-ISS post.</li>
+          <li>A Heavy Rain 16th-anniversary post on May 18.</li>
+          <li>A Gothalion tweet referencing "16 years."</li>
+          <li>Every full-log Windows Event lists <code>Process ID: 16</code>.</li>
+          <li>The live-counter has been observed reaching exactly 16 simultaneous visitors. <span class="by">William p235</span></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The resolution</div>
+        <ul>
+          <li><strong>16 = Loop16 = The Atlas.</strong> Loop16 is canonical, from the original Waking Titan ARG (2017). The NMS Wiki lore page states: <em>"The AI known through the ARG as Emily or Loop16 is an older version of the current Atlas."</em></li>
+          <li>Process ID 16 in every full security log = The Atlas's own process running on the system. The "breach" the site documents is a breach <em>of the Atlas itself</em>.</li>
+          <li>The Tesseract image on the X account fits — a 4D hypercube projected to 3D is exactly what the Atlas does to its simulated universes.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Still untested</div>
+        <ul>
+          <li>The 16-visitor homepage test. The counter has reached 16 organically; whether 16 simultaneous coordinated visitors trigger a state change has not been deliberately tested. <span class="by">sheralmyst p174</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE CROPPED PIXELS -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The cropped 1,516 pixels</div>
+      <div class="puzzle-status status-open">open</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">The master skyscraper composite is saved 2400×2400 but declares 2400×3916 in EXIF. The composition continues below the visible frame.</div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">What we know</div>
+        <ul>
+          <li>The cropped 1,516 pixels are from the bottom — the building's lower floors and ground level. Verified by examining the bottom row of the visible image; the building continues downward without resolving.</li>
+          <li>The master EXIF DateTime is 2026-03-03 20:14:40 — 53 days before the site went live.</li>
+          <li>The cropped region is in the master PSD only. Not exposed via the web upload.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Why it might matter</div>
+        <ul>
+          <li>The visible building has its top obscured by clouds. The cropped base — possibly with foundation, ground level, or a hidden message — is what The Architect chose to remove. Whatever's there is something they didn't want public.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE EMAIL -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The Architect's email</div>
+      <div class="puzzle-status status-open">open</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">A SHA-256 Gravatar hash <code>84513ff0788f96a8…</code> identifies The Architect's email. We cannot reverse a hash, but we can brute-force common candidates.</div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Tested · no match</div>
+        <ul>
+          <li>39 obvious candidates: <code>architect@</code>, <code>atlas-65@</code>, <code>theskyscraperarchitect@</code> + common providers including French ones (laposte.net, orange.fr, free.fr, mailo.com, gmx.com).</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">What's needed</div>
+        <ul>
+          <li>A large wordlist attack (millions of candidates). The email isn't an obvious alias of the username — The Architect is using a dedicated, non-guessable address.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE BUILDING -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The specific skyscraper</div>
+      <div class="puzzle-status status-solved">solved</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">The composite is a real photograph of a real building. Which one?</div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Visible features</div>
+        <ul>
+          <li>Green-tinted curtain-wall glass.</li>
+          <li>White concrete vertical frames between window columns.</li>
+          <li>Balconies on the outer columns; visible patio furniture in some.</li>
+          <li>Setback design with multiple horizontal divisions.</li>
+          <li>Mid-2010s residential high-rise styling. Not a famous landmark silhouette.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The answer</div>
+        <ul>
+          <li><strong>The Atlas Building, London</strong> — a 40-storey residential tower by <strong>Make Architects</strong>, beside Old Street station in "Tech City." The <em>"Atlas"</em> in the name is almost certainly the point. <span class="by">RustyHarper p628</span></li>
+          <li>The exact source image is on Unsplash — a photo <strong>by Viktor Forgacs</strong> (3133×5112 px). Scaled to 2400 px wide and cropped to the top 2400×2400, it matches the glitched composite precisely. <span class="by">DevilinPixy p409</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ============================================ -->
+<!-- TAB 5 · THE ARCHITECT                        -->
+<!-- ============================================ -->
+<section class="panel" id="tab-architect">
+
+  <h2>The Architect</h2>
+  <p class="panel-intro">
+    A profile assembled from the artifact metadata, the WordPress REST API, behavioural patterns over six weeks of activity, and a typing tell. Nothing here identifies them by name — but the silhouette is sharp.
+  </p>
+
+  <h3>Identity within the fiction</h3>
+  <p>
+    The author's WordPress display name is <strong>The Architect</strong>. Slug <code>theskyscraperarchitect</code>. User ID <code>279180095</code>. ETARC forum account <code>@the_architect</code>. The WordPress profile <code>first_name</code> field is set to the literal string <code>"The Architect"</code> — they intentionally populated the alias.
+  </p>
+  <p>
+    <strong>The Architect is atlas-65.</strong> The EXIF Artist field of IMG_00004.jpg is the single letter <code>"A"</code>. ASCII 65 = "A". The in-canon system identifier <code>atlas-65</code> resolves to <code>atlas-A</code>. The image-author signature matches the in-canon system identity. The author and the system speak with one voice.
+  </p>
+  <p>
+    They are reading the ETARC thread. Toddumptious caught them logged in four minutes before he posted on page 11. Polyphemus on page 12: <em>"They spend a lot of time here. They obviously like it. They don't say much, but they never leave a mess in the toilets."</em> <span class="by">toddumptious p218 · Polyphemus p223</span>
+  </p>
+
+  <h3>Geographic and linguistic fingerprint</h3>
+  <ul>
+    <li><strong>Site is written in French.</strong> Default category is <code>Non classé</code>; non-breaking spaces appear before punctuation in published copy.</li>
+    <li><strong>Timezone is UTC+1 with no DST.</strong> Confirmed by a developer error: the first two sleep-mode posts (148 and 150) have <code>memory_bloc</code> values exactly 60 minutes ahead of their <code>date_gmt</code> — The Architect entered the bloc as a UTC+1 local timestamp, realized the mistake, fixed the workflow from post 152 onward. Hard evidence.</li>
+    <li><strong>The candidate locations</strong> are Morocco, Algeria, Tunisia, or a French speaker with DST manually disabled. The latter is most consistent with European working hours.</li>
+    <li><strong>WordPress install is configured in English-US locale.</strong> og:locale = <code>en_US</code> on the author page. The Architect's tooling is in English; their content output is in French. Common pattern for a European tech worker.</li>
+  </ul>
+
+  <h3>Working pattern</h3>
+  <ul>
+    <li><strong>Two work clusters daily:</strong> 09:00–10:00 UTC+1 (7 logged events) and 16:00–17:00 UTC+1 (5 logged events). Professional office hours.</li>
+    <li><strong>Wednesdays are completely empty</strong> across the entire history of 16 logged operations. May be coincidence; more likely a fixed schedule. Wednesdays were traditionally school-free days in France until 2013, and many parents still take them as their family/work-from-home day.</li>
+    <li><strong>Two operating modes:</strong> routine content is bulk-batched (six sleep-mode posts modified in one second on April 28; five sec-logs pre-loaded on May 1 and scheduled across two weeks). Puzzle and plot posts are written live, often re-edited 13–90 minutes after going live. <strong>The Architect responds to the forum in real time.</strong></li>
+    <li><strong>Late-night exception:</strong> May 18 at 23:55 UTC+1 — three hours past their usual stop time — coinciding with the breach reveal. They stayed up to watch us react.</li>
+  </ul>
+
+  <h3>Tooling fingerprint</h3>
+  <ul>
+    <li><strong>Adobe Photoshop</strong>, possibly older — all uploaded images use the HP-branded sRGB IEC61966-2.1 ICC profile, which is the default on older HP devices and Photoshop CS6-era Windows installs.</li>
+    <li><strong>The master skyscraper composite was exported on 2026-03-03</strong> — seven weeks of preparation before site launch.</li>
+    <li><strong>Site analytics is WP Statistics</strong> (self-hosted, privacy-focused). The Architect can see every visitor's geographic location, referring URL, browser, and search terms.</li>
+  </ul>
+
+  <h3>Typing tells</h3>
+  <ul>
+    <li>The Architect uses <strong>zero-with-a-dot</strong> (<code>0̇</code>) instead of zero-with-slash (<code>Ø</code>) when distinguishing zero from O in code-like content. Uncommon — a small thing that's specific to a person. <span class="by">sheralmyst p224</span></li>
+    <li>Windows Event IDs in the security logs are <strong>accurate</strong>. <code>5157</code> is the real Windows event for "filtering platform connection blocked"; <code>6276</code> is the real audit-success event. They researched real codes rather than inventing them.</li>
+  </ul>
+
+  <h3>The lurker fingerprint</h3>
+  <ul>
+    <li>The Architect's WordPress profile is a default identicon — Gravatar hash <code>84513ff0788f96a88caf0ae6a040875340dea2067305fc2b2b95e4a89d5d940e</code>. SHA-256 (the post-2024 Gravatar transition standard), not MD5.</li>
+    <li>The hash doesn't appear anywhere else on the indexed web — the email is dedicated to this project. They didn't reuse a personal address.</li>
+    <li>The reserved second site (<code>theskyscraperarchitect-ywvhk.wordpress.com</code>) is fetch-blocked, un-indexed by Google, and set as their profile URL. Staged. Empty. Waiting.</li>
+  </ul>
+
+  <h3>What "Project Skyscraper" actually meant to Hello Games</h3>
+  <p>
+    Two readings have surfaced and they aren't mutually exclusive.
+  </p>
+  <p>
+    Sean Murray and Grant Duncan, during Hello Games' Joe Danger years, framed their indie path as building "Swedish houses" before they could build a "Skyscraper." Sean used <em>Project Skyscraper</em> in early interviews to describe what would eventually become No Man's Sky. Clemm confirmed the framing on page 10. <span class="by">Clemm p199 · toddumptious p301</span>
+  </p>
+  <p>
+    But ThatBomberBoi added on page 15: <strong>Skyscraper is also the actual name of Hello Games' proprietary engine</strong>, visible in a leaked debug build, and used in both No Man's Sky and Light No Fire. <span class="by">ThatBomberBoi p289</span>
+  </p>
+  <p>
+    The codename is real. The engine is real. Choosing this name for an ARG is choosing a very specific, very studio-internal artifact.
+  </p>
+
+  <h3>Solo, or team?</h3>
+  <p>
+    The earliest reading was a single author. The multi-platform coordination — site, X, Bluesky, Twitch, second site, Reddit, ETARC presence — has made several investigators reconsider. William: <em>"I don't think it's only one person behind it."</em> Polyphemus: <em>"It also reduces the chances we're dealing with a single individual."</em> <span class="by">William p181 · Polyphemus p185</span>
+  </p>
+  <p>
+    The evidence cuts both ways. The bulk-batched filler is consistent with one person managing routine; the live-written puzzles, the late-night monitoring, and the active forum lurking are all behaviours one person can sustain. But the breadth of platforms suggests delegation. Honest answer: <em>we don't know</em>.
+  </p>
+
+</section>
+
+<!-- ============================================ -->
+<!-- TAB 6 · CHANNELS                             -->
+<!-- ============================================ -->
+<section class="panel" id="tab-channels">
+
+  <h2>Channels</h2>
+  <p class="panel-intro">
+    Every confirmed surface The Architect operates on, plus the reserved spaces they haven't yet activated. The 2005 Stevens pastiche is the index — "blue birds" pointed at X, "blue sky" pointed at Bluesky, and the community walked outward from there.
+  </p>
+
+  <div class="channel-grid">
+
+    <div class="ch-card">
+      <div class="ch-icon">●</div>
+      <div class="ch-name">project-skyscraper.com</div>
+      <div class="ch-url"><a href="https://project-skyscraper.com/" target="_blank" rel="noopener">project-skyscraper.com</a></div>
+      <div class="ch-meta">The primary site. Verified live with a connection counter. <span class="by">Polyphemus p1</span></div>
+    </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">𝕏</div>
+      <div class="ch-name">@Skyscraper_prj on X</div>
+      <div class="ch-url"><a href="https://x.com/Skyscraper_prj" target="_blank" rel="noopener">x.com/Skyscraper_prj</a></div>
+      <div class="ch-meta">Posting in parallel with the site since March 24. Tweet timestamps align with sleep-mode publication times to the second on most posts, with four minor drifts. <span class="by">DevilinPixy p160 · William p181</span></div>
+    </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">🦋</div>
+      <div class="ch-name">Bluesky</div>
+      <div class="ch-url">handle pending re-surface</div>
+      <div class="ch-meta">Sheralmyst saw the Bluesky presence organically before the ARG was public. <span class="by">sheralmyst p141</span></div>
+    </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">▶</div>
+      <div class="ch-name">Twitch</div>
+      <div class="ch-url"><a href="https://m.twitch.tv/project_skyscraper/home" target="_blank" rel="noopener">m.twitch.tv/project_skyscraper</a></div>
+      <div class="ch-meta">Channel exists. Content not yet observed. <span class="by">Sir_oops p184</span></div>
+    </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">↺</div>
+      <div class="ch-name">u/Project_Skyscraper · Reddit</div>
+      <div class="ch-url">admin-removed</div>
+      <div class="ch-meta">The trigger post that brought the ARG to wider attention. Removed by Reddit admins; account invisible. <span class="by">William p20</span></div>
+    </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">𝕎</div>
+      <div class="ch-name">WordPress Reader feed</div>
+      <div class="ch-url"><a href="https://wordpress.com/reader/feeds/178879468" target="_blank" rel="noopener">wordpress.com/reader/feeds/178879468</a></div>
+      <div class="ch-meta">Matches the breach log's <code>Vector</code> field exactly. <span class="by">Sir_oops p180</span></div>
+    </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">○</div>
+      <div class="ch-name">Reserved second site</div>
+      <div class="ch-url"><a href="https://theskyscraperarchitect-ywvhk.wordpress.com/" target="_blank" rel="noopener">theskyscraperarchitect-ywvhk.wordpress.com</a></div>
+      <div class="ch-meta">Set as The Architect's WordPress profile URL. Currently un-indexed by Google AND fetch-blocked through public APIs. Reserved. Empty. The most likely next staging area.</div>
+    </div>
+
+  </div>
+
+  <h3>What the X account is posting</h3>
+  <p>
+    William catalogued the X feed on page 10. Reposts include: NASA's 16-year ISS anniversary post (Nov 2016); a Gothalion (NMS streamer) tweet from June 2016 referencing 16 years; a photo of the Athens Parthenon; a Tesseract — a 4D cube's shadow projected onto 2D; a Heavy Rain 16-year anniversary post from The Game Awards on May 18.
+  </p>
+  <p>
+    The Heavy Rain reference matters because of the game's famous <em>"Press X to Shaun"</em> mistranslation — parsed by readers as "Press X to <strong>SEAN</strong>" — a likely Sean Murray nod. <span class="by">William p181</span>
+  </p>
+
+  <h3>Platforms checked · no presence</h3>
+  <p>
+    Instagram, YouTube, Substack, TikTok, and LinkedIn have all been checked. No Project Skyscraper presence on any. <span class="by">Sir_oops p197</span>
+  </p>
+
+</section>
+
+<!-- ============================================ -->
+<!-- TAB 7 · CREDITS                              -->
+<!-- ============================================ -->
+<section class="panel" id="tab-credits">
+
+  <h2>The investigators</h2>
+  <p class="panel-intro">
+    Every finding on this page was first surfaced on the <a href="https://forums.atlas-65.com/t/project-skyscraper-no-mans-sky-arg/9095" target="_blank" rel="noopener">ETARC investigation thread</a>. This site documents the community's work — it does not replace it. If your name is missing or your contribution is mis-credited, that's a defect of this page, not of your work; flag it and it'll be corrected.
+  </p>
+
+  <div class="investigator-card">
+    <div class="inv-name">toddumptious<span class="inv-handle">ETARC · pp. 9, 11, 173, 210, 217, 218, 290, 301</span></div>
+    <div class="inv-body"><strong>Decoded the Stevens pastiche</strong> as instructions to Twitter and Bluesky. Identified the <code>M3MORY</code> and <code>DR1FT1NG</code> labels on the hexagon logo's CSS animation. Flagged the "16" motif. Caught The Architect logged into ETARC. Surfaced the Hello Games "skyscraper" codename framing. Flagged TR4CE.jpg as possibly being silently re-uploaded.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Sir_oops<span class="inv-handle">ETARC · pp. 180, 184, 197, 209, 285</span></div>
+    <div class="inv-body"><strong>Surfaced the May 18 breach</strong> — confirmed that <code>UNKOWN_EXT3RNAL</code> is a live hyperlink pointing at ETARC post #180. Catalogued the "left rendering destroyed, right intact" pattern in the TR4CE image's hidden text. Confirmed Twitch presence. Identified the panopticon reading of the poem. Recalled an early "heartbeats" page that has since been taken down.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">William<span class="inv-handle">ETARC · pp. 20, 181, 235</span></div>
+    <div class="inv-body"><strong>Discovered the Reddit trigger post</strong> that brought the ARG to wider attention. Catalogued the X account's full repost history. Identified the tweet-vs-site timestamp drift pattern across all sleep-mode posts, including the April 28 +7-second outlier. Observed the live counter reaching 16 simultaneous visitors. Surfaced the Heavy Rain "Press X to SEAN" reading.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Polyphemus<span class="inv-handle">ETARC · pp. 1, 12, 185, 207, 223, 293</span></div>
+    <div class="inv-body"><strong>Verified the site is live</strong> with a connection counter. Proposed the alternate "bluebird telecom satellites" reading of the poem. Confirmed The Architect's active forum presence: <em>"They don't say much, but they never leave a mess in the toilets."</em> Identified the panopticon reading. Argued for a multi-person team based on platform breadth.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">DevilinPixy<span class="inv-handle">ETARC · pp. 11, 160</span></div>
+    <div class="inv-body"><strong>Discovered the @Skyscraper_prj X account</strong> and confirmed it has been posting in parallel with the site since March 24. Catalogued all leet substitutions on the site, including the ones outside the dated anomaly posts.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">sheralmyst<span class="inv-handle">ETARC · pp. 141, 174, 224</span></div>
+    <div class="inv-body"><strong>Saw the Bluesky presence organically</strong> before the ARG was public. Wondered whether something happens when 16 visitors are simultaneously on the homepage — the open coordination test. Caught The Architect's typing tell: zero-with-a-dot, not zero-with-slash.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">BoomstickJoe<span class="inv-handle">ETARC · pp. 89, 198</span></div>
+    <div class="inv-body"><strong>Proposed the descending-countdown reading</strong> of the leet anomalies: TR<strong>4</strong>CE, EXT<strong>3</strong>RNAL, predicting a future 2-then-1. Originally identified the spoken-number content in the shadowcheck image's spectrogram.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">ThatBomberBoi<span class="inv-handle">ETARC · pp. 15, 289, 297</span></div>
+    <div class="inv-body"><strong>Surfaced the Hello Games "Skyscraper" engine name</strong> — visible in a leaked debug build, used in both No Man's Sky and Light No Fire. Posted screenshots of NMS sitemap May 18 anomalies suggesting possible official involvement. Caught the <code>C0nnect1ng_d0ts.jpg</code> filename on The Architect's ETARC forum banner.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">M1Silencer<span class="inv-handle">ETARC · pp. 270, 281</span></div>
+    <div class="inv-body"><strong>Built the RGB channel-layering technique</strong> on the main composite image, finding that different elements appear in different channels. The "lady reading" element vanishes under green. Extended the technique to the shadowcheck image's spectrogram analysis — rotated and colour-filtered, the image renders as distorted spoken-number audio.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Clemm<span class="inv-handle">ETARC · p. 199</span></div>
+    <div class="inv-body">Confirmed the "Project Skyscraper" framing from Sean Murray's early interviews — Hello Games' indie-to-major arc described as building "Swedish houses" before they could build a "Skyscraper."</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Mad-Hatter<span class="inv-handle">ETARC · p. 266</span></div>
+    <div class="inv-body">Asked the question that prompted the IMG_00004.jpg investigation — whether it might be a Google Streetview match near the fake WHOIS address. Led to the discovery that the image's EXIF Artist field is signed with the letter "A".</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">PRXTXTYPE<span class="inv-handle">ETARC · p. 290</span></div>
+    <div class="inv-body">Catalogued the <code>M3MORY</code> and <code>DR1FT1NG</code> stylesheet labels as the leet substitutions in the site's CSS comments — outside the dated anomaly posts.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">EchoUndead<span class="inv-handle">ETARC · p. 288</span></div>
+    <div class="inv-body">Proposed the Wallace Stevens biographical hypothesis around <code>shadowcheck-1912</code> — Stevens' age 33 in 1912 — opening the door to the eventual Titanic-year reading.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Ekimo1920<span class="inv-handle">Voyager's Haven · this site's compiler</span></div>
+    <div class="inv-body">Compiled and maintains this page. The forensic-pass work (EXIF Artist = "A", the 60-minute UTC+1 developer error, the bulk-edit operation timing, the Loop16/Atlas cross-canon mapping, the HP-sRGB tooling fingerprint, the Gravatar SHA-256 capture, the master image's cropped 1,516 pixels) was conducted as part of building this tracker. All such findings are presented in support of the ongoing ETARC investigation, not as a replacement for it.</div>
+  </div>
+
+  <div class="ack-line">
+    We know you're reading.
+    <span class="by">— the investigators</span>
+  </div>
+
+</section>
+<!-- ============================== -->
+<!-- FOOTER -->
+<!-- ============================== -->
+<footer>
+  <div class="links">
+    <a href="https://project-skyscraper.com/" target="_blank" rel="noopener">project site</a>
+    <a href="https://forums.atlas-65.com/t/project-skyscraper-no-mans-sky-arg/9095" target="_blank" rel="noopener">etarc investigation</a>
+    <a href="https://theskyscraperarchitect-ywvhk.wordpress.com/" target="_blank" rel="noopener">reserved second site</a>
+    <a href="https://havenmap.online/" target="_blank" rel="noopener">havenmap.online</a>
+  </div>
+  <div class="eot">█ end of transmission</div>
+  <div class="haven-mark">
+    <em>To witness is to remember.</em> <br>
+    Compiled for <span class="accent">the NMS community</span> · in honour of ETARC.
+  </div>
+</footer>
+
+</div>
+
+<script>
+  const tabs = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.panel');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      tabs.forEach(t => t.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + target).classList.add('active');
+      history.replaceState(null, '', '#' + target);
+      window.scrollTo({ top: document.querySelector('.tabs').offsetTop - 8, behavior: 'smooth' });
+    });
+  });
+  const hash = window.location.hash.replace('#', '');
+  if (hash && document.getElementById('tab-' + hash)) {
+    document.querySelector(`.tab-btn[data-tab="${hash}"]`).click();
+  }
+</script>
+</body>
+</html>
