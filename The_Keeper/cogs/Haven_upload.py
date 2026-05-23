@@ -797,7 +797,7 @@ class HexKeypad(discord.ui.View):
                             system_name=system_name,
                             system_id=system_id,
                             notes=None,
-                            realit=self.outer.reality
+                            reality=self.outer.reality
                         )
 
                         await interaction2.response.send_modal(modal)
