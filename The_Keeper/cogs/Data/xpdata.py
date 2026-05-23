@@ -282,7 +282,7 @@ async def add_xp(user_id, role, amount):
             xp, old_level = row
             level=int(old_level)
             if level == 0:
-            level = 1
+                level = 1
     
             xp += amount
     
