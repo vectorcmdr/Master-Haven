@@ -433,7 +433,8 @@ class DiscoverySubmissionModal(discord.ui.Modal):
                  system_exists=False,
                  system_name=None,
                  system_id=None,
-                 notes=None):
+                 notes=None,
+                 reality=None):
         super().__init__(title="Submit Discovery")
     
         self.glyph = glyph
@@ -604,7 +605,7 @@ class DiscoveryConfirmView(discord.ui.View):
             if xp_gained:
                 msg += f"\n✨ +{xp_gained} XP earned"
 
-            # OPTIONAL BONUS HINT
+            
             try:
                 bonus_tip = await get_bonus_tip(system_result)
 
@@ -795,7 +796,8 @@ class HexKeypad(discord.ui.View):
                             system_exists=system_exists,
                             system_name=system_name,
                             system_id=system_id,
-                            notes=None
+                            notes=None,
+                            realit=self.outer.reality
                         )
 
                         await interaction2.response.send_modal(modal)
