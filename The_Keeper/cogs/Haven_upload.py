@@ -544,7 +544,7 @@ class DiscoveryConfirmView(discord.ui.View):
         self.prefill_notes = notes
         self.discovery_name = discovery_name
         self.community_tag = community_tag
-
+        self.system_exists = system_exists
         self.confirm_btn = discord.ui.Button(
             label="Confirm Submit",
             style=discord.ButtonStyle.green
