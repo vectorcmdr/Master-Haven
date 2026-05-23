@@ -51,7 +51,7 @@ class DepartmentView(discord.ui.View):
 
     async def update_panel(self, guild: discord.Guild):
 
-        data = get_panel(guild.id)
+        data = await get_panel(guild.id)
         if not data:
             return
 
@@ -201,7 +201,7 @@ class ReactionRoles(commands.Cog):
 
         embed = build_main_embed(ctx.guild)
 
-        existing = get_panel(ctx.guild.id)
+        existing = await get_panel(ctx.guild.id)
 
         if existing:
 
