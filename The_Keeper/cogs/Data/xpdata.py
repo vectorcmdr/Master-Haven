@@ -280,7 +280,7 @@ async def add_xp(user_id, role, amount):
         xp += amount
 
         while level < CONFIG["leveling"]["max_level"]:
-            needed = (await get_rank(level, role))["xp_per_level"]
+            needed = get_rank(level, role)["xp_per_level"]
 
             if xp < needed:
                 break
