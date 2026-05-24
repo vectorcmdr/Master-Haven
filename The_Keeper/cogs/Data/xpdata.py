@@ -142,13 +142,16 @@ def get_conn():
         timeout=30,
         check_same_thread=False
     )
+async def migrate(db):
+    await db.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, primary_role TEXT)")
 
 async def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("PRAGMA journal_mode=WAL;")
-
+        await migrate(db)
+        await db.commit()
         await db.execute("""
         CREATE TABLE IF NOT EXISTS panels (
             guild_id INTEGER PRIMARY KEY,
