@@ -149,6 +149,7 @@ async def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
     async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, primary_role TEXT)")
         await db.execute("PRAGMA journal_mode=WAL;")
         await migrate(db)
         await db.commit()
