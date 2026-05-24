@@ -115,32 +115,6 @@ def make_progress_bar(current: int, total: int, length: int = 12, role: str = No
 
     return level
 
-def get_rank(level):
-    """
-    Returns the rank dict that matches the user's level.
-    Falls back to highest valid rank if level exceeds defined ranges.
-    """
-
-    ranks = CONFIG.get("ranks", [])
-
-    for rank in ranks:
-        min_level = rank.get("min_level")
-        max_level = rank.get("max_level")
-
-        if min_level is None and max_level is None:
-            if rank.get("level") == level:
-                return rank
-            continue
-
-        if min_level <= level <= max_level:
-            return rank
-
-    fallback = None
-    for rank in ranks:
-        if rank.get("min_level", 0) <= level:
-            fallback = rank
-
-    return fallback
 
 # ---------------- ROLE ASSIGN ----------------
 async def set_primary_role(member, role_name, bot):
