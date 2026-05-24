@@ -343,6 +343,39 @@ def merge_system_data(existing_data: dict, new_data: dict) -> dict:
 
 
 # ============================================================================
+# Archived Civilization Filter (shared across public endpoints)
+# ============================================================================
+
+# SQL fragment that excludes rows whose discord_tag belongs to an archived
+# (is_active=0) civilization.  Works for any table aliased as `s` (systems),
+# `d` (discoveries), or `r` (regions) — pass the alias.
+# Returns (clause_str, params_list).  Caller appends to its WHERE chain.
+# Super-admin callers should skip this entirely.
+
+ARCHIVED_CIV_FILTER_SQL = (
+    "NOT EXISTS ("
+    "  SELECT 1 FROM civilizations _ac"
+    "  WHERE _ac.tag = {alias}.discord_tag AND _ac.is_active = 0"
+    ")"
+)
+
+
+def archived_civ_filter(alias: str = 's') -> str:
+    """Return a SQL clause that hides rows belonging to archived civilizations.
+
+    The subquery checks if the row's discord_tag matches any civ with
+    is_active = 0.  Rows with NULL/empty discord_tag or tags that don't
+    have a civilizations entry pass through (they're personal or
+    unregistered — not archived).
+
+    Usage:
+        if not is_super_admin:
+            where_clauses.append(archived_civ_filter('s'))
+    """
+    return ARCHIVED_CIV_FILTER_SQL.format(alias=alias)
+
+
+# ============================================================================
 # Advanced Filter SQL Builder (shared by systems, regions, galaxies endpoints)
 # ============================================================================
 

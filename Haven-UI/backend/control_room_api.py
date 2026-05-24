@@ -3533,6 +3533,45 @@ async def get_region_map(rx: int = 0, ry: int = 0, rz: int = 0,
         return HTMLResponse(f'<h1>Region Map Error: {e}</h1>')
 
 
+@app.get('/map/cartographer')
+async def get_cartographer_map():
+    """Serve the Cartographer v10 galaxy map (static HTML).
+
+    Self-contained: it fetches all of its data from /api/map/snapshot at runtime,
+    so unlike /map/latest there is NO server-side data injection here. Served at
+    a dedicated route so it can be evaluated side-by-side with the current
+    /map/latest map — flipping /map/latest to point at VH-Cartographer.html is
+    the one-line lock-in step once the new map is approved.
+
+    Declared before the /map/{page} catch-all so the literal path wins.
+    """
+    mapfile = HAVEN_UI_DIR / 'dist' / 'VH-Cartographer.html'
+    if not mapfile.exists():
+        # public/ is the source of truth; dist/ is the build output (vite copies
+        # public/*.html -> dist/*.html on build). Fall back to public in dev.
+        mapfile = HAVEN_UI_DIR / 'public' / 'VH-Cartographer.html'
+
+    if not mapfile.exists():
+        return HTMLResponse('<h1>Cartographer Map Not Available</h1>')
+
+    try:
+        html = mapfile.read_text(encoding='utf-8')
+        # No-cache so iteration on the HTML is always reflected (same headers as
+        # /map/latest and /map/region).
+        return HTMLResponse(
+            html,
+            media_type='text/html',
+            headers={
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+            }
+        )
+    except Exception as e:
+        logger.error('Failed to render cartographer map: %s', e)
+        return HTMLResponse(f'<h1>Cartographer Map Error: {e}</h1>')
+
+
 @app.get('/map/VH-Map.html')
 async def redirect_map_vh():
     return RedirectResponse(url='/map/latest')

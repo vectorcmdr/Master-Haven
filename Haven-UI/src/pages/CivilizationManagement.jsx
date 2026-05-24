@@ -68,11 +68,16 @@ export default function CivilizationManagement() {
   const [addRole, setAddRole] = useState('sub_admin')
 
   // Create-civ modal
+  // Create-civ modal
   const [createOpen, setCreateOpen] = useState(false)
   const [createDraft, setCreateDraft] = useState({
     tag: '', display_name: '', region_color: '#00C2B3',
     founder_username: '', enabled_features_default: [...DEFAULT_SUB_ADMIN_FEATURES],
   })
+
+  // Archive confirmation modal
+  const [archiveTarget, setArchiveTarget] = useState(null)  // civ object to archive/unarchive
+  const [archiving, setArchiving] = useState(false)
 
   useEffect(() => {
     if (!auth.isSuperAdmin) {
@@ -108,7 +113,6 @@ export default function CivilizationManagement() {
         enabled_features_default: r.data.enabled_features_default || [],
         default_reality: r.data.default_reality || '',
         default_galaxy: r.data.default_galaxy || '',
-        is_active: r.data.is_active,
       })
     } catch (err) {
       alert('Failed to load civilization detail: ' + (err.response?.data?.detail || err.message))
@@ -228,13 +232,35 @@ export default function CivilizationManagement() {
     }
   }
 
+  async function toggleArchive(civ) {
+    setArchiving(true)
+    try {
+      await axios.put(`/api/civilizations/${civ.id}`, { is_active: !civ.is_active })
+      setArchiveTarget(null)
+      // If we're in the detail modal for the same civ, refresh it
+      if (detail && detail.id === civ.id) {
+        await openDetail({ ...civ, is_active: !civ.is_active })
+      }
+      await loadCivs()
+    } catch (err) {
+      alert('Failed: ' + (err.response?.data?.detail || err.message))
+    } finally {
+      setArchiving(false)
+    }
+  }
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return civs
-    return civs.filter(c =>
-      c.tag.toLowerCase().includes(q) ||
-      c.display_name.toLowerCase().includes(q)
-    )
+    const filtered = q
+      ? civs.filter(c =>
+          c.tag.toLowerCase().includes(q) ||
+          c.display_name.toLowerCase().includes(q)
+        )
+      : civs
+    return {
+      active: filtered.filter(c => c.is_active),
+      archived: filtered.filter(c => !c.is_active),
+    }
   }, [civs, search])
 
   return (
@@ -263,14 +289,33 @@ export default function CivilizationManagement() {
 
       {loading && <div className="opacity-60">Loading…</div>}
       {!loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {visible.map(civ => (
-            <CivCard key={civ.id} civ={civ} onClick={() => openDetail(civ)} />
-          ))}
-          {visible.length === 0 && (
-            <div className="opacity-60 col-span-full">No civilizations match.</div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {visible.active.map(civ => (
+              <CivCard key={civ.id} civ={civ} onClick={() => openDetail(civ)} />
+            ))}
+            {visible.active.length === 0 && visible.archived.length === 0 && (
+              <div className="opacity-60 col-span-full">No civilizations match.</div>
+            )}
+          </div>
+
+          {visible.archived.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold opacity-60 mb-3 flex items-center gap-2">
+                <span>Archived Civilizations</span>
+                <span className="text-xs font-normal px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                  {visible.archived.length}
+                </span>
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {visible.archived.map(civ => (
+                  <CivCard key={civ.id} civ={civ} onClick={() => openDetail(civ)} />
+                ))}
+              </div>
+            </div>
           )}
-        </div>
+        </>
       )}
 
       {/* Detail modal */}
@@ -303,7 +348,38 @@ export default function CivilizationManagement() {
                     <code>{detail.region_color || '—'}</code>
                   </p>
                   <p><strong>Default features:</strong> {(detail.enabled_features_default || []).join(', ') || '—'}</p>
-                  <p><strong>Status:</strong> {detail.is_active ? 'Active' : 'Inactive'}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <strong>Status:</strong>
+                    {detail.is_active ? (
+                      <>
+                        <span className="text-xs px-2 py-0.5 rounded-full"
+                              style={{ backgroundColor: 'rgba(0,194,179,0.15)', color: '#00C2B3' }}>
+                          Active
+                        </span>
+                        <button
+                          className="text-xs px-2 py-1 rounded border cursor-pointer"
+                          style={{ borderColor: '#ef4444', color: '#ef4444', background: 'transparent' }}
+                          onClick={() => setArchiveTarget(detail)}
+                        >
+                          Archive Civilization
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs px-2 py-0.5 rounded-full"
+                              style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                          Archived
+                        </span>
+                        <button
+                          className="text-xs px-2 py-1 rounded border cursor-pointer"
+                          style={{ borderColor: '#00C2B3', color: '#00C2B3', background: 'transparent' }}
+                          onClick={() => setArchiveTarget(detail)}
+                        >
+                          Unarchive Civilization
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="text-sm space-y-2">
@@ -345,14 +421,8 @@ export default function CivilizationManagement() {
                       ))}
                     </div>
                   </div>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={editDraft.is_active}
-                      onChange={e => setEditDraft(d => ({ ...d, is_active: e.target.checked }))}
-                    />
-                    <span className="opacity-70">Active</span>
-                  </label>
+                  {/* is_active is now controlled via the Archive/Unarchive buttons below,
+                      not through the edit form — too impactful for an unceremonious checkbox */}
                 </div>
               )}
             </div>
@@ -492,6 +562,68 @@ export default function CivilizationManagement() {
           </div>
         </Modal>
       )}
+
+      {/* Archive / Unarchive confirmation modal */}
+      {archiveTarget && (
+        <Modal
+          title={archiveTarget.is_active ? 'Archive Civilization' : 'Unarchive Civilization'}
+          onClose={() => setArchiveTarget(null)}
+        >
+          <div className="space-y-4 text-sm">
+            {archiveTarget.is_active ? (
+              <>
+                <p>
+                  You are about to <strong>archive</strong> the civilization{' '}
+                  <strong>{archiveTarget.display_name}</strong> ({archiveTarget.tag}).
+                </p>
+                <div className="p-3 rounded text-xs space-y-1"
+                     style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+                  <p><strong>This will:</strong></p>
+                  <p>- Sever all member connections (members drop to basic access)</p>
+                  <p>- Hide all systems, discoveries, and regions from public view</p>
+                  <p>- Remove the civ from all dropdowns, stats, and the 3D map</p>
+                  <p>- Region colors will no longer render on the map</p>
+                  <p className="mt-2 opacity-80">
+                    Members and data are preserved — this is reversible by unarchiving.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p>
+                  You are about to <strong>unarchive</strong> the civilization{' '}
+                  <strong>{archiveTarget.display_name}</strong> ({archiveTarget.tag}).
+                </p>
+                <div className="p-3 rounded text-xs space-y-1"
+                     style={{ backgroundColor: 'rgba(0,194,179,0.1)', border: '1px solid rgba(0,194,179,0.3)' }}>
+                  <p><strong>This will:</strong></p>
+                  <p>- Restore all member connections and recompute their permissions</p>
+                  <p>- Make all systems, discoveries, and regions publicly visible again</p>
+                  <p>- Re-add the civ to dropdowns, stats, and the 3D map</p>
+                </div>
+              </>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setArchiveTarget(null)} disabled={archiving}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => toggleArchive(archiveTarget)}
+                disabled={archiving}
+                style={archiveTarget.is_active
+                  ? { backgroundColor: '#ef4444', borderColor: '#ef4444' }
+                  : { backgroundColor: '#00C2B3', borderColor: '#00C2B3' }
+                }
+              >
+                {archiving
+                  ? 'Processing…'
+                  : archiveTarget.is_active ? 'Archive' : 'Unarchive'
+                }
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -520,7 +652,8 @@ function CivCard({ civ, onClick }) {
         <Stat label="Systems" value={civ.system_count} />
       </div>
       {!civ.is_active && (
-        <div className="mt-2 text-[10px] uppercase tracking-wider opacity-60">Inactive</div>
+        <div className="mt-2 text-[10px] uppercase tracking-wider"
+             style={{ color: '#ef4444' }}>Archived</div>
       )}
     </button>
   )

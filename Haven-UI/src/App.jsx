@@ -53,6 +53,7 @@ const AdminTools = lazy(() => import('./pages/AdminTools'))
 // Heavy components with Three.js - load separately for better code splitting
 const WarRoom = lazy(() => import('./pages/WarRoom'))
 const WarRoomAdmin = lazy(() => import('./pages/WarRoomAdmin'))
+const ArchivedNotice = lazy(() => import('./pages/ArchivedNotice'))
 
 // Loading fallback component
 function PageLoader() {
@@ -150,6 +151,7 @@ function AppShell() {
               <Route path="/changelog" element={<Changelog />} />
               <Route path="/docs" element={<Docs />} />
               <Route path="/docs/:slug" element={<DocPage />} />
+              <Route path="/archived-notice" element={<ArchivedNotice />} />
               <Route path="/profile" element={<Profile />} />
 
               {/* Super admin only routes */}

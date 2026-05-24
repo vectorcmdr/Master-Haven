@@ -327,6 +327,11 @@ async def update_civilization(civ_id: int, payload: dict, session: Optional[str]
             cur.execute("SELECT DISTINCT profile_id FROM civilization_members WHERE civ_id = ?", (civ_id,))
             for (member_id,) in cur.fetchall():
                 _recompute_profile_features(cur, member_id)
+                # When archiving/unarchiving, tier must also be recomputed so
+                # members drop to member/read-only (archive) or regain their
+                # civ-derived tier (unarchive).
+                if 'is_active' in updates:
+                    _recompute_profile_tier(cur, member_id)
 
         conn.commit()
         return {'status': 'ok', 'civ_id': civ_id, 'updated_fields': list(updates.keys())}

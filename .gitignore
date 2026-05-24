@@ -6343,3 +6343,4 @@ docs/code-audit/
 # the secret webhook config or the watcher's runtime state.
 SkyScraper/watch/config.env
 SkyScraper/watch/state.json
+AUDIT_REPORT_2026-05-21.md

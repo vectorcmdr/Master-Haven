@@ -1,0 +1,5 @@
+# Pi Monitor agent dependencies.
+# Preferred install on the Pi is the system package (no venv needed for systemd):
+#   sudo apt install python3-psutil
+# This file is here for pip-based installs / dev environments.
+psutil>=5.9

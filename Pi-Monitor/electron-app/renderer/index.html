@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Pi Monitor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="ident">
+      <span id="status-dot" class="dot dot-idle"></span>
+      <div class="ident-text">
+        <div id="hostname" class="hostname">Pi Monitor</div>
+        <div id="ipaddr" class="ipaddr">—</div>
+      </div>
+    </div>
+    <button id="gear-btn" class="gear" title="Settings">⚙</button>
+  </header>
+
+  <div class="subbar">
+    <span id="uptime">uptime —</span>
+    <span id="platform" class="muted"></span>
+  </div>
+
+  <main id="content">
+    <!-- CPU -->
+    <section class="metric">
+      <div class="metric-head">
+        <span class="label">CPU</span>
+        <span id="cpu-pct" class="value">—</span>
+      </div>
+      <div class="bar"><div id="cpu-bar" class="bar-fill"></div></div>
+      <canvas id="cpu-spark" class="spark"></canvas>
+      <div class="sub muted">
+        <span id="cpu-freq">— MHz</span>
+        <span id="cpu-load">load —</span>
+      </div>
+      <div id="cpu-cores" class="cores"></div>
+    </section>
+
+    <!-- RAM -->
+    <section class="metric">
+      <div class="metric-head">
+        <span class="label">Memory</span>
+        <span id="ram-pct" class="value">—</span>
+      </div>
+      <div class="bar"><div id="ram-bar" class="bar-fill"></div></div>
+      <canvas id="ram-spark" class="spark"></canvas>
+      <div class="sub muted">
+        <span id="ram-detail">—</span>
+        <span id="swap-detail"></span>
+      </div>
+    </section>
+
+    <!-- Temp -->
+    <section class="metric">
+      <div class="metric-head">
+        <span class="label">Temp</span>
+        <span id="temp-val" class="value">—</span>
+      </div>
+      <canvas id="temp-spark" class="spark spark-tall"></canvas>
+      <div class="sub">
+        <span id="throttle-chip" class="chip hidden"></span>
+      </div>
+    </section>
+
+    <!-- Storage -->
+    <section class="metric">
+      <div class="metric-head">
+        <span class="label">Storage</span>
+        <span class="value muted" id="disk-count"></span>
+      </div>
+      <div id="disk-list" class="disk-list"></div>
+    </section>
+
+    <!-- Network -->
+    <section class="metric metric-net">
+      <div class="metric-head">
+        <span class="label">Network</span>
+      </div>
+      <div class="net-row">
+        <span class="net-item">↓ <b id="net-down">—</b></span>
+        <span class="net-item">↑ <b id="net-up">—</b></span>
+        <span class="net-item muted">proc <b id="proc-count">—</b></span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footbar">
+    <span id="updated">never</span>
+  </footer>
+
+  <!-- Settings overlay -->
+  <div id="settings-panel" class="overlay hidden">
+    <div class="panel">
+      <h2>Settings</h2>
+      <label>Pi host / IP
+        <input id="cfg-host" type="text" placeholder="10.0.0.229" />
+      </label>
+      <label>Port
+        <input id="cfg-port" type="number" placeholder="8080" />
+      </label>
+      <label>Poll interval (ms)
+        <input id="cfg-interval" type="number" placeholder="2000" />
+      </label>
+      <label>Token (optional)
+        <input id="cfg-token" type="text" placeholder="leave blank if none" />
+      </label>
+      <label class="check">
+        <input id="cfg-aot" type="checkbox" /> Always on top
+      </label>
+      <label class="check">
+        <input id="cfg-login" type="checkbox" /> Start when Windows starts
+      </label>
+      <div class="panel-actions">
+        <button id="cfg-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="cfg-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

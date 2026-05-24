@@ -1,11 +1,14 @@
 """Systems browsing, search, galaxy, glyph, and stats endpoints."""
 
 import asyncio
+import base64
+import json
 import logging
 import re
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Header, HTTPException
+from fastapi.responses import Response
 
 from constants import (
     GALAXY_BY_INDEX,
@@ -52,7 +55,7 @@ router = APIRouter()
 # ============================================================================
 
 # _build_advanced_filter_clauses lives in db.py (shared across systems, regions, galaxies)
-from db import _build_advanced_filter_clauses
+from db import _build_advanced_filter_clauses, archived_civ_filter
 
 
 # ============================================================================
@@ -262,6 +265,9 @@ async def api_map_regions_aggregated(
             where_clauses.append("s.galaxy = ?")
             params.append(galaxy)
 
+        # Hide systems from archived civilizations (public endpoint)
+        where_clauses.append(archived_civ_filter('s'))
+
         where_sql = " AND ".join(where_clauses)
 
         # Pre-compute the set of focused region coord tuples so the per-row
@@ -362,6 +368,315 @@ async def api_map_regions_aggregated(
     except Exception as e:
         logger.error(f"Map aggregation error: {e}")
         return {'regions': [], 'total_systems': 0, 'total_regions': 0}
+    finally:
+        if conn:
+            conn.close()
+
+
+# ============================================================================
+# Map snapshot — single bulk bundle for the Cartographer v10 galaxy map
+# ============================================================================
+
+# In-memory cache for the built snapshot. Keyed on (reality, galaxy, token)
+# where token = systems row count + newest modified_at, so any approval/edit
+# invalidates it on the next request without a manual bust. v1 cache per the
+# integration dispatch — see docs/cartographer-integration-notes.md.
+_SNAPSHOT_CACHE: dict = {}
+
+# Canonical star-type order — matches the mockup's `star_types` pool and the
+# in-page legend / shader palette. NULL or unmapped star types fall into an
+# 'Unknown' bucket appended on demand so unscanned systems still render.
+_STAR_TYPE_ORDER = ['Yellow', 'Red', 'Green', 'Blue', 'Purple']
+
+# Canonical planet-size order, pre-seeded so common sizes get low stable indices
+# (mockup pool was ['', 'Small', 'Medium', 'Large']).
+_SIZE_ORDER = ['Small', 'Medium', 'Large', 'Giant', 'Moon']
+
+
+@router.get('/api/map/snapshot')
+async def api_map_snapshot(reality: str = None, galaxy: str = None):
+    """Bulk galaxy snapshot for the Cartographer v10 map.
+
+    Replaces the mockup's baked `<script id="snapshot">` blob — the response
+    shape matches the mockup's parseSnapshot() exactly, so the only client
+    change is `JSON.parse(scriptTag)` -> `fetch('/api/map/snapshot')`.
+
+    Public, no auth — matches the existing /map/latest + /api/map/regions-aggregated
+    surface. Per-system hot data is base64-packed little-endian typed arrays;
+    categorical fields are string pools indexed by Uint8/Uint16 arrays; the
+    detail panel reads a sparse planets_by_idx. Optional reality/galaxy filters
+    mirror /api/map/regions-aggregated.
+
+    Field contract documented in docs/cartographer-integration-notes.md.
+    """
+    import numpy as np
+
+    # Empty-DB envelope keeps the shape stable so parseSnapshot() never NPEs.
+    empty = {
+        'n': 0, 'pos': '', 'st': '', 'ti': '', 'hp': '', 'hs': '',
+        'rpos': '', 'rcount': '', 'rn': 0, 'regions': [], 'names': [],
+        'glyphs': [], 'star_types': list(_STAR_TYPE_ORDER), 'tag_pool': [''],
+        'tag_colors': {}, 'biomes': [''], 'sizes': [''], 'sentinel': [''],
+        'planets_by_idx': {},
+    }
+
+    conn = None
+    try:
+        db_path = get_db_path()
+        if not db_path.exists():
+            return empty
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # --- Cache token: row count + newest write. Cheap, index-friendly. ---
+        cursor.execute("SELECT COUNT(*), COALESCE(MAX(modified_at), '') FROM systems")
+        meta = cursor.fetchone()
+        token = f"{meta[0]}::{meta[1]}"
+        cache_key = (reality or '', galaxy or '', token)
+        if cache_key in _SNAPSHOT_CACHE:
+            # Cached value is the already-serialized JSON string, so a warm hit
+            # skips both the DB build and re-serialization of a ~2 MB payload.
+            return Response(content=_SNAPSHOT_CACHE[cache_key],
+                            media_type='application/json')
+
+        # --- Optional reality/galaxy scope (same filters as regions-aggregated) ---
+        where = ["s.x IS NOT NULL AND s.y IS NOT NULL AND s.z IS NOT NULL"]
+        params = []
+        if reality:
+            where.append("s.reality = ?")
+            params.append(reality)
+        if galaxy:
+            where.append("s.galaxy = ?")
+            params.append(galaxy)
+        where.append(archived_civ_filter('s'))
+        where_sql = " AND ".join(where)
+
+        # --- Systems in stable id order. The row position IS the snapshot
+        #     index that every per-system array and planets_by_idx key uses. ---
+        cursor.execute(f"""
+            SELECT s.id, s.name, s.x, s.y, s.z, s.star_type, s.discord_tag,
+                   s.glyph_code, s.region_x, s.region_y, s.region_z
+            FROM systems s
+            WHERE {where_sql}
+            ORDER BY s.id
+        """, params)
+        systems = cursor.fetchall()
+        n = len(systems)
+        if n == 0:
+            return empty
+
+        # --- hasPlanets / hasStation as set lookups (one query each, not n) ---
+        cursor.execute("SELECT DISTINCT system_id FROM planets")
+        planet_systems = {r[0] for r in cursor.fetchall()}
+        cursor.execute("SELECT DISTINCT system_id FROM space_stations")
+        station_systems = {r[0] for r in cursor.fetchall()}
+
+        # --- Per-system arrays + categorical pools (built while walking rows) ---
+        star_index = {name: i for i, name in enumerate(_STAR_TYPE_ORDER)}
+        star_types = list(_STAR_TYPE_ORDER)
+        unknown_star_idx = None
+        tag_index = {'': 0}   # '' = untagged, index 0 (matches mockup pool)
+        tag_pool = ['']
+
+        positions = np.empty(n * 3, dtype='<f4')  # little-endian f32, JS-compatible
+        st = np.zeros(n, dtype=np.uint8)
+        ti = np.zeros(n, dtype=np.uint8)
+        hp = np.zeros(n, dtype=np.uint8)
+        hs = np.zeros(n, dtype=np.uint8)
+        names = []
+        glyphs = []
+        id_to_idx = {}
+
+        for i, s in enumerate(systems):
+            sid = s['id']
+            id_to_idx[sid] = i
+            positions[i * 3]     = s['x'] or 0.0
+            positions[i * 3 + 1] = s['y'] or 0.0
+            positions[i * 3 + 2] = s['z'] or 0.0
+
+            stype = s['star_type']
+            if stype in star_index:
+                st[i] = star_index[stype]
+            else:
+                # NULL / unmapped star type -> lazily-created 'Unknown' bucket
+                if unknown_star_idx is None:
+                    unknown_star_idx = len(star_types)
+                    star_types.append('Unknown')
+                st[i] = unknown_star_idx
+
+            tag = s['discord_tag'] or ''
+            if tag not in tag_index:
+                tag_index[tag] = len(tag_pool)
+                tag_pool.append(tag)
+            ti[i] = tag_index[tag]
+
+            hp[i] = 1 if sid in planet_systems else 0
+            hs[i] = 1 if sid in station_systems else 0
+            names.append(s['name'] or '(unnamed)')
+            glyphs.append(s['glyph_code'] or '')
+
+        # --- planets_by_idx + biome / size / sentinel pools ---
+        biome_index = {'': 0}
+        biomes = ['']
+        size_index = {'': 0}
+        sizes = ['']
+        sent_index = {'': 0}
+        sentinel = ['']
+
+        def pool_idx(value, index_map, pool):
+            """Intern a categorical string into its pool, returning its index."""
+            v = value or ''
+            if v not in index_map:
+                index_map[v] = len(pool)
+                pool.append(v)
+            return index_map[v]
+
+        # Pre-seed sizes so common values keep low, stable indices.
+        for sz in _SIZE_ORDER:
+            pool_idx(sz, size_index, sizes)
+
+        # Single LEFT JOIN + GROUP BY for moon counts — avoids one correlated
+        # subquery per planet row (~30k) which is slow on the Pi's SD-card I/O.
+        cursor.execute("""
+            SELECT p.id, p.system_id, p.name, p.biome, p.planet_size,
+                   p.sentinel_level, p.planet_index, p.is_moon,
+                   p.has_rings, p.is_gas_giant, p.water_world, p.is_bubble,
+                   p.is_floating_islands, p.is_dissonant, p.is_infested,
+                   p.extreme_weather,
+                   COUNT(m.id) AS moon_count
+            FROM planets p
+            LEFT JOIN moons m ON m.planet_id = p.id
+            GROUP BY p.id
+            ORDER BY p.system_id, p.planet_index
+        """)
+        planets_by_idx = {}
+        for p in cursor.fetchall():
+            idx = id_to_idx.get(p['system_id'])
+            if idx is None:
+                continue  # planet of a system outside the filtered / archived set
+            # Pack special features into the bitfield the mockup decodes.
+            flags = 0
+            if p['has_rings']:           flags |= 1
+            if p['is_gas_giant']:        flags |= 2
+            if p['water_world']:         flags |= 4
+            if p['is_bubble']:           flags |= 8
+            if p['is_floating_islands']: flags |= 16
+            if p['is_dissonant']:        flags |= 32
+            if p['is_infested']:         flags |= 64
+            if p['extreme_weather']:     flags |= 128
+            planet_tuple = [
+                p['name'] or '',
+                pool_idx(p['biome'], biome_index, biomes),
+                pool_idx(p['planet_size'], size_index, sizes),
+                pool_idx(p['sentinel_level'], sent_index, sentinel),
+                flags,
+                p['moon_count'] or 0,
+                p['planet_index'] or 0,
+                1 if p['is_moon'] else 0,
+            ]
+            planets_by_idx.setdefault(str(idx), []).append(planet_tuple)
+
+        # --- Region aggregation: centroid (avg) position, count, dominant tag,
+        #     custom name. Same join shape as /api/map/regions-aggregated. ---
+        rwhere = ["s.region_x IS NOT NULL AND s.region_y IS NOT NULL AND s.region_z IS NOT NULL"]
+        rparams = []
+        if reality:
+            rwhere.append("s.reality = ?"); rparams.append(reality)
+        if galaxy:
+            rwhere.append("s.galaxy = ?"); rparams.append(galaxy)
+        rwhere.append(archived_civ_filter('s'))
+        rwhere_sql = " AND ".join(rwhere)
+
+        cursor.execute(f"""
+            SELECT s.region_x, s.region_y, s.region_z,
+                   r.custom_name AS region_name,
+                   COUNT(*) AS system_count,
+                   AVG(s.x) AS cx, AVG(s.y) AS cy, AVG(s.z) AS cz,
+                   GROUP_CONCAT(DISTINCT s.discord_tag) AS tags
+            FROM systems s
+            LEFT JOIN regions r ON s.region_x = r.region_x
+                AND s.region_y = r.region_y AND s.region_z = r.region_z
+                AND COALESCE(s.reality, 'Normal') = COALESCE(r.reality, 'Normal')
+                AND COALESCE(s.galaxy, 'Euclid') = COALESCE(r.galaxy, 'Euclid')
+            WHERE {rwhere_sql}
+            GROUP BY s.region_x, s.region_y, s.region_z
+            ORDER BY system_count DESC
+        """, rparams)
+        region_rows = cursor.fetchall()
+        rn = len(region_rows)
+        rpos = np.empty(rn * 3, dtype='<f4')
+        rcount = np.empty(rn, dtype='<u2')  # little-endian uint16
+        regions = []
+        for i, r in enumerate(region_rows):
+            rpos[i * 3]     = r['cx'] or 0.0
+            rpos[i * 3 + 1] = r['cy'] or 0.0
+            rpos[i * 3 + 2] = r['cz'] or 0.0
+            cnt = r['system_count'] or 0
+            rcount[i] = min(cnt, 65535)  # clamp to Uint16 range
+            # Dominant tag = first non-null tag in the region (matches the
+            # existing regions-aggregated convention).
+            dom_tag = None
+            if r['tags']:
+                for t in r['tags'].split(','):
+                    if t and t != 'None':
+                        dom_tag = t
+                        break
+            regions.append({
+                'rx': r['region_x'], 'ry': r['region_y'], 'rz': r['region_z'],
+                'name': r['region_name'] or '',
+                'count': cnt,
+                'tag': dom_tag,
+            })
+
+        # --- tag_colors: reuse the canonical /api/discord_tag_colors source so
+        #     the map tints match the rest of the site. Lazy import avoids any
+        #     module-load circular dependency between route modules. ---
+        try:
+            from routes.partners import get_discord_tag_colors
+            tag_colors = (await get_discord_tag_colors()).get('colors', {})
+        except Exception as e:
+            logger.warning("snapshot: tag_colors lookup failed: %s", e)
+            tag_colors = {}
+
+        def b64(arr):
+            return base64.b64encode(arr.tobytes()).decode('ascii')
+
+        result = {
+            'n': n,
+            'pos': b64(positions),
+            'st': b64(st),
+            'ti': b64(ti),
+            'hp': b64(hp),
+            'hs': b64(hs),
+            'rpos': b64(rpos),
+            'rcount': b64(rcount),
+            'rn': rn,
+            'regions': regions,
+            'names': names,
+            'glyphs': glyphs,
+            'star_types': star_types,
+            'tag_pool': tag_pool,
+            'tag_colors': tag_colors,
+            'biomes': biomes,
+            'sizes': sizes,
+            'sentinel': sentinel,
+            'planets_by_idx': planets_by_idx,
+        }
+
+        # Serialize once and cache the JSON string (not the dict) so warm hits
+        # are a straight byte return. Keep only the most recent few keys so the
+        # cache can't grow unbounded across reality/galaxy/token combinations.
+        payload = json.dumps(result, ensure_ascii=True)
+        _SNAPSHOT_CACHE[cache_key] = payload
+        if len(_SNAPSHOT_CACHE) > 6:
+            for k in list(_SNAPSHOT_CACHE.keys())[:-6]:
+                _SNAPSHOT_CACHE.pop(k, None)
+        return Response(content=payload, media_type='application/json')
+
+    except Exception as e:
+        logger.error("Map snapshot error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="snapshot build failed")
     finally:
         if conn:
             conn.close()
@@ -586,12 +901,13 @@ async def api_recent_systems(limit: int = 10):
         cursor = conn.cursor()
 
         # Fast query using index on created_at, returns only essential fields
-        cursor.execute('''
-            SELECT id, name, galaxy, glyph_code, region_x, region_y, region_z,
-                   created_at, star_type,
-                   (SELECT COUNT(*) FROM planets WHERE system_id = systems.id) as planet_count
-            FROM systems
-            ORDER BY created_at DESC NULLS LAST, id DESC
+        cursor.execute(f'''
+            SELECT s.id, s.name, s.galaxy, s.glyph_code, s.region_x, s.region_y, s.region_z,
+                   s.created_at, s.star_type,
+                   (SELECT COUNT(*) FROM planets WHERE system_id = s.id) as planet_count
+            FROM systems s
+            WHERE {archived_civ_filter('s')}
+            ORDER BY s.created_at DESC NULLS LAST, s.id DESC
             LIMIT ?
         ''', (limit,))
 
@@ -972,6 +1288,10 @@ async def api_systems(
             'is_complete': is_complete,
         }, where_clauses, params)
 
+        # Hide systems from archived civilizations for non-super-admins
+        if not (session_data and session_data.get('user_type') == 'super_admin'):
+            where_clauses.append(archived_civ_filter('s'))
+
         where_sql = ""
         if where_clauses:
             where_sql = "WHERE " + " AND ".join(where_clauses)
@@ -1279,6 +1599,10 @@ async def api_search(
         if rx is not None and ry is not None and rz is not None:
             adv_where_clauses.append("s.region_x = ? AND s.region_y = ? AND s.region_z = ?")
             adv_params.extend([rx, ry, rz])
+
+        # Hide systems from archived civilizations for non-super-admins
+        if not (session_data and session_data.get('user_type') == 'super_admin'):
+            adv_where_clauses.append(archived_civ_filter('s'))
 
         adv_sql = ""
         if adv_where_clauses:
@@ -1640,6 +1964,11 @@ async def api_unified_search(
         if rx is not None and ry is not None and rz is not None:
             adv_where.append("s.region_x = ? AND s.region_y = ? AND s.region_z = ?")
             adv_params.extend([rx, ry, rz])
+
+        # Hide systems from archived civilizations for non-super-admins
+        if not (session_data and session_data.get('user_type') == 'super_admin'):
+            adv_where.append(archived_civ_filter('s'))
+
         adv_sql = (" AND " + " AND ".join(adv_where)) if adv_where else ""
 
         if parsed['kind'] == 'glyph_full':
@@ -1778,6 +2107,10 @@ async def api_systems_by_region(rx: int = 0, ry: int = 0, rz: int = 0,
             if galaxy:
                 where_clauses.append("s.galaxy = ?")
                 params.append(galaxy)
+
+            # Hide systems from archived civilizations for non-super-admins
+            if not (session_data and session_data.get('user_type') == 'super_admin'):
+                where_clauses.append(archived_civ_filter('s'))
 
             where_sql = " AND ".join(where_clauses)
 

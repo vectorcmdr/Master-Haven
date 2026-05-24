@@ -1272,7 +1272,11 @@ async def public_community_overview():
         # Orphan tags — submissions whose discord_tag has no matching civilizations row.
         # Surface them so they're not silently dropped (and so an admin notices they
         # need to either create the civ or migrate the data). Sorted to the bottom.
-        known_tags = {civ['tag'] for civ in civ_rows} | {'Personal'}
+        # Also exclude tags that belong to archived civs — those are intentionally
+        # hidden, not "unregistered".
+        cursor.execute("SELECT tag FROM civilizations WHERE is_active = 0")
+        archived_tags = {r['tag'] for r in cursor.fetchall()}
+        known_tags = {civ['tag'] for civ in civ_rows} | {'Personal'} | archived_tags
         orphans = []
         for tag, stats in sys_rows.items():
             if tag not in known_tags and stats.get('total_systems', 0) > 0:

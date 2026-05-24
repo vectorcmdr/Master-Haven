@@ -1,0 +1,18 @@
+[Unit]
+Description=Pi Monitor agent (system metrics for desktop widget)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# install.sh fills in the User= / port at install time; this file is a reference.
+User=pi8gb
+ExecStart=/usr/bin/python3 /opt/pi-monitor/pi_monitor.py
+Restart=always
+RestartSec=3
+Environment=MONITOR_PORT=8080
+# Optional shared secret — uncomment and set to require a token on /metrics:
+# Environment=MONITOR_TOKEN=change-me
+
+[Install]
+WantedBy=multi-user.target

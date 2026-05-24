@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Cookie, Header, HTTPException, R
 from fastapi.responses import HTMLResponse
 
 from constants import normalize_discord_username, normalize_reality, resolve_source
-from db import get_db_connection, get_db_path, add_activity_log
+from db import get_db_connection, get_db_path, add_activity_log, archived_civ_filter
 from planet_atlas_wrapper import generate_planet_html
 from services.auth_service import (
     get_session,
@@ -134,6 +134,10 @@ async def api_regions_grouped(include_systems: bool = False, page: int = 1, limi
             'resource': resource, 'has_moons': has_moons,
             'min_planets': min_planets, 'max_planets': max_planets, 'is_complete': is_complete,
         }, filter_clauses, filter_params)
+
+        # Hide systems from archived civilizations for non-super-admins
+        if not (session_data and session_data.get('user_type') == 'super_admin'):
+            filter_clauses.append(archived_civ_filter('s'))
 
         # Combine filters
         combined_filter = ""
@@ -648,20 +652,25 @@ async def api_region_systems(
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        where_clauses = ['region_x = ?', 'region_y = ?', 'region_z = ?']
+        where_clauses = ['s.region_x = ?', 's.region_y = ?', 's.region_z = ?']
         params: list = [rx, ry, rz]
         if reality:
-            where_clauses.append('COALESCE(reality, ?) = ?')
+            where_clauses.append('COALESCE(s.reality, ?) = ?')
             params.extend(['Normal', normalize_reality(reality)])
         if galaxy:
-            where_clauses.append('COALESCE(galaxy, ?) = ?')
+            where_clauses.append('COALESCE(s.galaxy, ?) = ?')
             params.extend(['Euclid', galaxy])
+
+        # Hide systems from archived civilizations for non-super-admins
+        if not (session_data and session_data.get('user_type') == 'super_admin'):
+            where_clauses.append(archived_civ_filter('s'))
+
         where_sql = ' AND '.join(where_clauses)
 
         cursor.execute(f'''
-            SELECT * FROM systems
+            SELECT s.* FROM systems s
             WHERE {where_sql}
-            ORDER BY created_at ASC NULLS FIRST, id ASC
+            ORDER BY s.created_at ASC NULLS FIRST, s.id ASC
         ''', params)
 
         all_systems = [dict(row) for row in cursor.fetchall()]

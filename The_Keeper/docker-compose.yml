@@ -33,6 +33,7 @@ services:
       - ./xp.db:/app/xp.db
       - ./friendcodes.db:/app/friendcodes.db
       - ./milestones.json:/app/milestones.json
+      - ./Data:/app/Data
     networks:
       - haven-net
 

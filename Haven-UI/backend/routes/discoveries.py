@@ -14,7 +14,7 @@ from constants import (
     get_discovery_type_slug,
     resolve_source, SOURCE_MANUAL,
 )
-from db import get_db_connection, get_db_path, add_activity_log
+from db import get_db_connection, get_db_path, add_activity_log, archived_civ_filter
 from services.auth_service import (
     get_session,
     verify_session,
@@ -78,14 +78,16 @@ async def get_discoveries(q: str = '', user_id: str = '', limit: int = 100):
             # So we do a simple query here
             conn = get_db_connection()
             cursor = conn.cursor()
+            _acf = archived_civ_filter('d')
             if q:
-                cursor.execute('''
-                    SELECT * FROM discoveries
-                    WHERE discovery_name LIKE ? OR description LIKE ? OR location_name LIKE ?
-                    ORDER BY submission_timestamp DESC LIMIT 200
+                cursor.execute(f'''
+                    SELECT * FROM discoveries d
+                    WHERE (discovery_name LIKE ? OR description LIKE ? OR location_name LIKE ?)
+                      AND {_acf}
+                    ORDER BY d.submission_timestamp DESC LIMIT 200
                 ''', (f'%{q}%', f'%{q}%', f'%{q}%'))
             else:
-                cursor.execute('SELECT * FROM discoveries ORDER BY submission_timestamp DESC LIMIT 200')
+                cursor.execute(f'SELECT * FROM discoveries d WHERE {_acf} ORDER BY d.submission_timestamp DESC LIMIT 200')
             discoveries = [dict(row) for row in cursor.fetchall()]
             return {'results': discoveries}
 
@@ -330,11 +332,15 @@ async def browse_discoveries(
             where_clauses.append("discovered_by LIKE ?")
             params.append(f"%{discoverer}%")
 
-        # Build base query
+        # Hide discoveries from archived civilizations (public endpoint)
+        where_clauses.append(archived_civ_filter('d'))
+
+        # Build base query — note: count query aliases the table as d to match
+        # the archived_civ_filter subquery alias.
         where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
         # Get total count
-        count_sql = f"SELECT COUNT(*) FROM discoveries{where_sql}"
+        count_sql = f"SELECT COUNT(*) FROM discoveries d{where_sql}"
         cursor.execute(count_sql, params)
         total = cursor.fetchone()[0]
 
@@ -410,14 +416,17 @@ async def get_discovery_stats():
         conn = get_db_connection()
         cursor = conn.cursor()
 
+        _acf = archived_civ_filter('d')
+
         # Total count
-        cursor.execute("SELECT COUNT(*) FROM discoveries")
+        cursor.execute(f"SELECT COUNT(*) FROM discoveries d WHERE {_acf}")
         total = cursor.fetchone()[0]
 
         # Count by type_slug
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT COALESCE(type_slug, 'other') as slug, COUNT(*) as cnt
-            FROM discoveries
+            FROM discoveries d
+            WHERE {_acf}
             GROUP BY type_slug
         ''')
         by_type = {slug: 0 for slug in DISCOVERY_TYPE_SLUGS}
@@ -427,11 +436,11 @@ async def get_discovery_stats():
 
         # This week's count
         week_ago = (datetime.now() - timedelta(days=7)).isoformat()
-        cursor.execute("SELECT COUNT(*) FROM discoveries WHERE submission_timestamp > ?", (week_ago,))
+        cursor.execute(f"SELECT COUNT(*) FROM discoveries d WHERE d.submission_timestamp > ? AND {_acf}", (week_ago,))
         this_week = cursor.fetchone()[0]
 
         # Featured count
-        cursor.execute("SELECT COUNT(*) FROM discoveries WHERE is_featured = 1")
+        cursor.execute(f"SELECT COUNT(*) FROM discoveries d WHERE d.is_featured = 1 AND {_acf}")
         featured_count = cursor.fetchone()[0]
 
         return {
@@ -469,7 +478,7 @@ async def get_recent_discoveries(limit: int = 8):
 
         # Get recent discoveries, prioritizing those with photos
         limit = min(limit, 20)
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT d.*, s.name as system_name, s.galaxy as system_galaxy,
                    s.is_stub as system_is_stub,
                    p.name as planet_name, m.name as moon_name
@@ -477,6 +486,7 @@ async def get_recent_discoveries(limit: int = 8):
             LEFT JOIN systems s ON d.system_id = s.id
             LEFT JOIN planets p ON d.planet_id = p.id
             LEFT JOIN moons m ON d.moon_id = m.id
+            WHERE {archived_civ_filter('d')}
             ORDER BY
                 CASE WHEN d.photo_url IS NOT NULL AND d.photo_url != '' THEN 0 ELSE 1 END,
                 d.submission_timestamp DESC

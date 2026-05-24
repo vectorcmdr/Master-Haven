@@ -1,0 +1,14 @@
+{
+  "name": "pi-monitor-widget",
+  "version": "1.0.0",
+  "description": "Desktop widget showing live Raspberry Pi system metrics (CPU, RAM, temp, storage).",
+  "main": "main.js",
+  "author": "Parker",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}
