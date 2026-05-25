@@ -106,34 +106,64 @@ def load_config():
     return webhooks
 
 
-def fetch(url, as_json=True, timeout=25):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
+def _bust(url):
+    """Append a unique throwaway query param so WordPress.com's edge cache
+    treats every poll as a fresh URL → forces a cache MISS → reads origin.
+
+    project-skyscraper.com is on WordPress.com Atomic (a8c CDN). It caches each
+    REST URL as its own bucket; a post-edit purge doesn't reliably hit every
+    parametrized variant, so repeatedly polling the SAME url gets served a stale
+    cached snapshot (cache;desc=HIT) for ~8-13 min after an edit even though
+    origin already has the change. A unique _cb nonce sidesteps the HIT entirely.
+    """
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}_cb={time.time_ns()}"
+
+
+def fetch(url, as_json=True, timeout=25, nocache=False):
+    if nocache:
+        url = _bust(url)
+    headers = {"User-Agent": UA, "Accept": "*/*"}
+    if nocache:
+        headers["Cache-Control"] = "no-cache"
+        headers["Pragma"] = "no-cache"
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         raw = r.read()
     return json.loads(raw.decode("utf-8", "replace")) if as_json else raw.decode("utf-8", "replace")
 
 
-def fetch_bytes(url, timeout=30):
+def fetch_bytes(url, timeout=30, nocache=True):
     """Raw-bytes fetch (for hashing images — fetch() would mangle binary)."""
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
+    if nocache:
+        url = _bust(url)
+    headers = {"User-Agent": UA, "Accept": "*/*"}
+    if nocache:
+        headers["Cache-Control"] = "no-cache"
+        headers["Pragma"] = "no-cache"
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
 
-def fetch_all(url_base, per_page=100, max_pages=25, timeout=25):
+def fetch_all(url_base, per_page=100, max_pages=25, timeout=25, nocache=True):
     """Fetch a WP REST collection across ALL pages.
 
     Returns (items, complete). `complete` is True only if we walked the whole
     collection without a network/parse error — callers use it to decide whether
     'missing now' can be trusted as a deletion. A page past the end returns WP's
     400 rest_post_invalid_page_number, which we treat as a clean stop.
+
+    nocache=True (default) busts the edge cache per request so the modified-desc
+    feed reflects an edit on the very next poll instead of lagging the WP.com
+    cache TTL — see _bust().
     """
     items, page = [], 1
     while page <= max_pages:
         sep = "&" if "?" in url_base else "?"
         url = f"{url_base}{sep}per_page={per_page}&page={page}"
         try:
-            batch = fetch(url, timeout=timeout)
+            batch = fetch(url, timeout=timeout, nocache=nocache)
         except urllib.error.HTTPError as e:
             if e.code in (400, 404):   # past last page → done
                 return items, True
@@ -187,7 +217,7 @@ def verify_item(kind, item_id, timeout=20):
     removed), or False if the check itself was inconclusive (network error)."""
     url = f"{SITE}/wp-json/wp/v2/{kind}/{item_id}"
     try:
-        return fetch(url, timeout=timeout)
+        return fetch(url, timeout=timeout, nocache=True)
     except urllib.error.HTTPError as e:
         if e.code in (404, 410):
             return None
@@ -261,6 +291,8 @@ def snapshot():
         log(f"WARN media fetch failed: {e}")
     # --- sitemaps (incl. /tr4ce/ canary) ---
     try:
+        # NOTE: sitemap XML is a virtual WP route that 404s on an extra query
+        # param, so it can't be _cb-busted; left on the normal cached fetch.
         idx = fetch(f"{SITE}/sitemap.xml", as_json=False)
         s["sitemap_lastmods"] = dict(re.findall(r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", idx))
         img = fetch(f"{SITE}/image-sitemap-1.xml", as_json=False)
@@ -286,7 +318,7 @@ def snapshot():
         log(f"WARN image-hash stage failed: {e}")
     # --- homepage (digit-normalized hash + key phrases) ---
     try:
-        home = fetch(f"{SITE}/", as_json=False)
+        home = fetch(f"{SITE}/", as_json=False, nocache=True)
         body = re.search(r"<body.*?</body>", home, re.S)
         body = body.group(0) if body else home
         # Hash VISIBLE TEXT only: strip scripts/styles/tags so per-request markup
@@ -303,7 +335,7 @@ def snapshot():
         log(f"WARN homepage fetch failed: {e}")
     # --- reserved 2nd site ---
     try:
-        p2 = fetch(f"https://public-api.wordpress.com/wp/v2/sites/{SITE2}/posts?per_page=20")
+        p2 = fetch(f"https://public-api.wordpress.com/wp/v2/sites/{SITE2}/posts?per_page=20", nocache=True)
         non_default = [x for x in p2 if x.get("slug") != "hello-world"]
         s["site2"] = {"count": len(p2), "non_default": len(non_default),
                       "latest": (re.sub("<[^>]+>", "", p2[0]["title"]["rendered"]).strip() if p2 else "")}
@@ -311,7 +343,7 @@ def snapshot():
         log(f"WARN site2 fetch failed: {e}")
     # --- Bluesky latest post ---
     try:
-        feed = fetch(f"https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor={BSKY_ACTOR}&limit=5")
+        feed = fetch(f"https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor={BSKY_ACTOR}&limit=5", nocache=True)
         items = feed.get("feed", [])
         if items:
             top = items[0]["post"]
