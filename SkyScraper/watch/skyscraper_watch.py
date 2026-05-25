@@ -4,15 +4,24 @@ skyscraper_watch.py — change notifier for the Project Skyscraper NMS ARG.
 
 Polls the Architect's public surfaces, diffs against the last snapshot, and
 posts a Discord webhook alert describing exactly what changed. Stdlib only
-(urllib/json/hashlib) so it runs on the Pi with no pip installs.
+(urllib/json/hashlib/difflib) so it runs on the Pi with no pip installs.
 
 Monitored:
-  - project-skyscraper.com WP REST: posts (new + EDITED via modified_gmt), pages, media
+  - project-skyscraper.com WP REST: posts + pages (new, EDITED with old→new
+    text diff, and REMOVED) and media (new + removed). Lists are paginated to
+    completion every run, so nothing is ever treated as deleted just because it
+    rolled off a capped feed — a disappearance is verified with a direct
+    GET /{id} and only reported on a real 404/410.
+  - key phrases (waking / Self_awareness / Overload / …) scanned across the
+    homepage AND every post/page body; alerts when one newly appears anywhere.
   - sitemap index + image-sitemap <lastmod> (incl. the /tr4ce/ "canary")
+  - tr4ce image BYTES (sha256) — catches an in-place pixel/stego edit even when
+    the upload date / lastmod doesn't move.
   - homepage HTML (digit-normalized hash, so the live visitor counter doesn't
     cause false alerts, but new text/structure does) + key-phrase presence
-  - the reserved 2nd site theskyscraperarchitect-ywvhk.wordpress.com (posts count
-    + latest title — fires loud when it finally goes live)
+  - the reserved 2nd site theskyscraperarchitect-ywvhk.wordpress.com — alerts on
+    ANY change (post count, non-placeholder count, or latest title), loudly when
+    it first gets real content.
   - Bluesky @skyscraper-prj.bsky.social latest post (clean public API)
 
 Config: reads webhook URLs from ./config.env (KEY=VALUE lines) or the
@@ -24,8 +33,13 @@ one dead webhook won't stop the rest. If none set, changes are logged only.
 Run: python3 skyscraper_watch.py            (normal poll)
      python3 skyscraper_watch.py --seed     (snapshot now, never alert)
      python3 skyscraper_watch.py --test      (send a test webhook and exit)
+
+NOTE: after deploying a version that adds new tracked fields, run once with
+--seed so the baseline includes them (otherwise the first real poll could
+fire a burst of "newly appeared" phrase alerts against an old-format state).
 """
-import json, os, sys, time, hashlib, re, urllib.request, urllib.error, datetime
+import json, os, sys, time, hashlib, re, urllib.request, urllib.error, datetime, difflib
+from html import unescape
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(HERE, "state.json")
@@ -34,6 +48,18 @@ UA = "Mozilla/5.0 (skyscraper-watch; +havenmap.online)"
 SITE = "https://project-skyscraper.com"
 SITE2 = "theskyscraperarchitect-ywvhk.wordpress.com"
 BSKY_ACTOR = "skyscraper-prj.bsky.social"
+
+# Key phrases scanned across the homepage AND every post/page body. A phrase
+# going from absent→present anywhere is high signal (ARG state words).
+KEY_PHRASES = ["System Filtering Platform", "Live Connection Attempts", "SECURITY",
+               "Access denied", "waking", "Self_awareness", "Overload"]
+
+# Any media URL containing one of these substrings gets its raw bytes hashed
+# every run, so an in-place edit is caught even if WP doesn't bump the date.
+IMAGE_HASH_MATCH = ("tr4ce",)
+
+# Cap stored body text per item so state.json stays reasonable.
+MAX_TEXT_CHARS = 8000
 
 
 def log(msg):
@@ -87,31 +113,150 @@ def fetch(url, as_json=True, timeout=25):
     return json.loads(raw.decode("utf-8", "replace")) if as_json else raw.decode("utf-8", "replace")
 
 
+def fetch_bytes(url, timeout=30):
+    """Raw-bytes fetch (for hashing images — fetch() would mangle binary)."""
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def fetch_all(url_base, per_page=100, max_pages=25, timeout=25):
+    """Fetch a WP REST collection across ALL pages.
+
+    Returns (items, complete). `complete` is True only if we walked the whole
+    collection without a network/parse error — callers use it to decide whether
+    'missing now' can be trusted as a deletion. A page past the end returns WP's
+    400 rest_post_invalid_page_number, which we treat as a clean stop.
+    """
+    items, page = [], 1
+    while page <= max_pages:
+        sep = "&" if "?" in url_base else "?"
+        url = f"{url_base}{sep}per_page={per_page}&page={page}"
+        try:
+            batch = fetch(url, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            if e.code in (400, 404):   # past last page → done
+                return items, True
+            return items, False        # real HTTP error → incomplete
+        except Exception:
+            return items, False
+        if not isinstance(batch, list) or not batch:
+            break
+        items.extend(batch)
+        if len(batch) < per_page:      # last partial page
+            break
+        page += 1
+    return items, True
+
+
+def clean_inline(s):
+    """HTML → single-line plain text (for titles)."""
+    s = re.sub(r"<[^>]+>", " ", s or "")
+    s = unescape(s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def html_to_text(s):
+    """HTML → readable plain text, keeping line breaks so diffs are legible."""
+    s = s or ""
+    s = re.sub(r"(?i)<\s*br\s*/?>", "\n", s)
+    s = re.sub(r"(?i)</\s*(p|div|h[1-6]|li|tr)\s*>", "\n", s)
+    s = re.sub(r"<[^>]+>", "", s)
+    s = unescape(s)
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r"\n[ \t]*\n[ \t]*\n+", "\n\n", s)
+    return s.strip()[:MAX_TEXT_CHARS]
+
+
+def item_record(kind, p):
+    """Normalize a raw WP REST object into the compact shape we store."""
+    if kind == "media":
+        return {"date": p.get("date_gmt", ""), "url": p.get("source_url", ""),
+                "slug": p.get("slug", ""), "link": p.get("link", ""),
+                "title": clean_inline((p.get("title") or {}).get("rendered", ""))}
+    rec = {"mod": p["modified_gmt"], "date": p["date_gmt"], "slug": p["slug"],
+           "link": p["link"], "title": clean_inline(p["title"]["rendered"])}
+    rec["text"] = html_to_text((p.get("content") or {}).get("rendered", ""))
+    return rec
+
+
+def verify_item(kind, item_id, timeout=20):
+    """Direct existence check for a disappeared item.
+
+    Returns the live REST object if it still exists, None on 404/410 (truly
+    removed), or False if the check itself was inconclusive (network error)."""
+    url = f"{SITE}/wp-json/wp/v2/{kind}/{item_id}"
+    try:
+        return fetch(url, timeout=timeout)
+    except urllib.error.HTTPError as e:
+        if e.code in (404, 410):
+            return None
+        return False
+    except Exception:
+        return False
+
+
+def render_text_diff(old, new, max_lines=40, max_chars=1500):
+    """Unified old→new diff in a Discord ```diff block (+/- render green/red)."""
+    if old == new:
+        return ""
+    old_lines = old.splitlines() or [old]
+    new_lines = new.splitlines() or [new]
+    raw = difflib.unified_diff(old_lines, new_lines, lineterm="", n=1)
+    body = [l for l in raw if not l.startswith(("---", "+++", "@@"))]
+    if not body:
+        return ""
+    body = body[:max_lines]
+    out = "```diff\n" + "\n".join(body) + "\n```"
+    if len(out) > max_chars:
+        out = out[:max_chars] + "\n… ```"
+    return out
+
+
+def _scan_phrases(text, where, into):
+    if not text:
+        return
+    low = text.lower()
+    for ph in KEY_PHRASES:
+        if ph.lower() in low:
+            into.setdefault(ph, [])
+            if where not in into[ph]:
+                into[ph].append(where)
+
+
 def snapshot():
     """Build the current state. Each source is best-effort; a fetch failure for
     one source leaves that key absent so we never false-alert on an outage."""
     s = {}
-    # --- WP posts (new + edited) ---
+    phrase_locations = {}
+    # --- WP posts (new + edited + removed) — full pagination ---
     try:
-        posts = fetch(f"{SITE}/wp-json/wp/v2/posts?per_page=40&orderby=modified&order=desc")
-        s["posts"] = {str(p["id"]): {"mod": p["modified_gmt"], "date": p["date_gmt"],
-                                     "slug": p["slug"], "link": p["link"],
-                                     "title": re.sub("<[^>]+>", "", p["title"]["rendered"]).strip()}
-                      for p in posts}
+        posts, complete = fetch_all(f"{SITE}/wp-json/wp/v2/posts?orderby=modified&order=desc")
+        if posts or complete:
+            s["posts"] = {str(p["id"]): item_record("posts", p) for p in posts}
+            s["posts_complete"] = complete
+            for rec in s["posts"].values():
+                _scan_phrases(rec.get("title", "") + "\n" + rec.get("text", ""),
+                              f"post: {rec.get('title','?')}", phrase_locations)
     except Exception as e:
         log(f"WARN posts fetch failed: {e}")
-    # --- WP pages ---
+    # --- WP pages (new + edited + removed) — full pagination ---
     try:
-        pages = fetch(f"{SITE}/wp-json/wp/v2/pages?per_page=50&orderby=modified&order=desc")
-        s["pages"] = {str(p["id"]): {"mod": p["modified_gmt"], "slug": p["slug"], "link": p["link"],
-                                     "title": re.sub("<[^>]+>", "", p["title"]["rendered"]).strip()}
-                      for p in pages}
+        pages, complete = fetch_all(f"{SITE}/wp-json/wp/v2/pages?orderby=modified&order=desc")
+        if pages or complete:
+            s["pages"] = {str(p["id"]): item_record("pages", p) for p in pages}
+            s["pages_complete"] = complete
+            for rec in s["pages"].values():
+                _scan_phrases(rec.get("title", "") + "\n" + rec.get("text", ""),
+                              f"page: {rec.get('title','?')}", phrase_locations)
     except Exception as e:
         log(f"WARN pages fetch failed: {e}")
-    # --- WP media (new uploads / image swaps) ---
+    # --- WP media (new + removed) — full pagination ---
     try:
-        media = fetch(f"{SITE}/wp-json/wp/v2/media?per_page=30&orderby=date&order=desc")
-        s["media"] = {str(m["id"]): {"date": m["date_gmt"], "url": m.get("source_url", "")} for m in media}
+        media, complete = fetch_all(f"{SITE}/wp-json/wp/v2/media?orderby=date&order=desc")
+        if media or complete:
+            s["media"] = {str(m["id"]): item_record("media", m) for m in media}
+            s["media_complete"] = complete
     except Exception as e:
         log(f"WARN media fetch failed: {e}")
     # --- sitemaps (incl. /tr4ce/ canary) ---
@@ -119,11 +264,26 @@ def snapshot():
         idx = fetch(f"{SITE}/sitemap.xml", as_json=False)
         s["sitemap_lastmods"] = dict(re.findall(r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", idx))
         img = fetch(f"{SITE}/image-sitemap-1.xml", as_json=False)
-        # per-page image lastmods, keyed by page loc
         pairs = re.findall(r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", img)
         s["image_lastmods"] = {loc: lm for loc, lm in pairs}
     except Exception as e:
         log(f"WARN sitemap fetch failed: {e}")
+    # --- tr4ce image BYTES hash (catches in-place pixel/stego edits) ---
+    try:
+        targets = sorted({m.get("url", "") for m in s.get("media", {}).values()
+                          if m.get("url") and any(t in m["url"].lower() for t in IMAGE_HASH_MATCH)})
+        # also pick up tr4ce image-sitemap entries that resolve to a file URL
+        img_hashes = {}
+        for u in targets:
+            try:
+                b = fetch_bytes(u)
+                img_hashes[u] = {"sha256": hashlib.sha256(b).hexdigest(), "bytes": len(b)}
+            except Exception as e:
+                log(f"WARN image hash fetch failed for {u}: {e}")
+        if img_hashes:
+            s["image_hashes"] = img_hashes
+    except Exception as e:
+        log(f"WARN image-hash stage failed: {e}")
     # --- homepage (digit-normalized hash + key phrases) ---
     try:
         home = fetch(f"{SITE}/", as_json=False)
@@ -137,9 +297,8 @@ def snapshot():
         text = re.sub(r"\d+", "#", text)
         text = re.sub(r"\s+", " ", text).strip()
         s["home_hash"] = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
-        s["home_phrases"] = sorted({ph for ph in
-            ["System Filtering Platform", "Live Connection Attempts", "SECURITY", "Access denied",
-             "waking", "Self_awareness", "Overload"] if ph.lower() in home.lower()})
+        s["home_phrases"] = sorted({ph for ph in KEY_PHRASES if ph.lower() in home.lower()})
+        _scan_phrases(home, "homepage", phrase_locations)
     except Exception as e:
         log(f"WARN homepage fetch failed: {e}")
     # --- reserved 2nd site ---
@@ -161,55 +320,137 @@ def snapshot():
                          "indexedAt": top.get("indexedAt", "")}
     except Exception as e:
         log(f"WARN bluesky fetch failed: {e}")
+    # finalize cross-content phrase index
+    s["phrase_locations"] = {k: v for k, v in phrase_locations.items()}
+    s["phrases_present"] = sorted(phrase_locations)
     return s
 
 
 def diff(old, new):
-    """Return a list of human-readable change strings (highest signal first)."""
+    """Return (changes, preserve).
+
+    `changes` is a list of human-readable change strings (highest signal first).
+    `preserve` maps kind→{id:record} of items that LOOKED deleted but verified as
+    still-present (or were inconclusive) — main() merges these into the new state
+    before writing, so a feed glitch never silently drops a real item.
+    """
     ch = []
-    # second site going live = top priority
+    preserve = {}
+
+    # second site: any change, loud when it first gets real content
     o2, n2 = old.get("site2"), new.get("site2")
-    if o2 and n2 and n2.get("non_default", 0) > o2.get("non_default", 0):
-        ch.append(f"🚨 **RESERVED 2ND SITE HAS NEW CONTENT** — {SITE2} now has "
-                  f"{n2['non_default']} non-placeholder post(s). Latest: “{n2.get('latest','')}”. "
-                  f"https://{SITE2}/")
-    # posts: new + edited
+    if o2 and n2 and (o2.get("count") != n2.get("count")
+                      or o2.get("non_default") != n2.get("non_default")
+                      or o2.get("latest") != n2.get("latest")):
+        if n2.get("non_default", 0) > o2.get("non_default", 0):
+            ch.append(f"🚨 **RESERVED 2ND SITE HAS NEW CONTENT** — {SITE2} now has "
+                      f"{n2['non_default']} non-placeholder post(s). Latest: “{n2.get('latest','')}”. "
+                      f"https://{SITE2}/")
+        else:
+            bits = []
+            if o2.get("count") != n2.get("count"):
+                bits.append(f"posts {o2.get('count')}→{n2.get('count')}")
+            if o2.get("non_default") != n2.get("non_default"):
+                bits.append(f"non-placeholder {o2.get('non_default')}→{n2.get('non_default')}")
+            if o2.get("latest") != n2.get("latest"):
+                bits.append(f"latest “{o2.get('latest','')}”→“{n2.get('latest','')}”")
+            ch.append(f"🛰️ **Reserved 2nd site changed** — {', '.join(bits)}. https://{SITE2}/")
+
+    # posts: new + edited (with text diff)
     op, np_ = old.get("posts", {}), new.get("posts", {})
     for pid, p in np_.items():
         if pid not in op:
-            ch.append(f"🆕 **New post** — “{p['title']}” ({p['slug']}) published {p['date']}Z\n{p['link']}")
-        elif op[pid]["mod"] != p["mod"]:
-            ch.append(f"✏️ **Post edited** — “{p['title']}” ({p['slug']}) modified {p['mod']}Z\n{p['link']}")
-    # pages: new + edited
+            ch.append(f"🆕 **New post** — “{p['title']}” ({p['slug']}) published {p.get('date','')}Z\n{p['link']}")
+        elif op[pid].get("mod") != p.get("mod"):
+            o_text = op[pid].get("text")
+            if o_text is None:
+                detail = "_(no prior text on record — re-seed to enable diffs)_"
+            else:
+                d = render_text_diff(o_text, p.get("text", ""))
+                detail = d if d else "_(modified timestamp bumped; no visible text change)_"
+            verb = "Post edited" if (op[pid].get("text") != p.get("text")) else "Post re-saved"
+            ch.append(f"✏️ **{verb}** — “{p['title']}” ({p['slug']}) modified {p['mod']}Z\n{p['link']}\n{detail}")
+
+    # pages: new + edited (with text diff)
     opg, npg = old.get("pages", {}), new.get("pages", {})
     for pid, p in npg.items():
         if pid not in opg:
             ch.append(f"📄 **New page** — “{p['title']}” ({p['slug']})\n{p['link']}")
-        elif opg[pid]["mod"] != p["mod"]:
-            ch.append(f"📝 **Page edited** — “{p['title']}” ({p['slug']}) modified {p['mod']}Z\n{p['link']}")
+        elif opg[pid].get("mod") != p.get("mod"):
+            o_text = opg[pid].get("text")
+            if o_text is None:
+                detail = "_(no prior text on record — re-seed to enable diffs)_"
+            else:
+                d = render_text_diff(o_text, p.get("text", ""))
+                detail = d if d else "_(modified timestamp bumped; no visible text change)_"
+            verb = "Page edited" if (opg[pid].get("text") != p.get("text")) else "Page re-saved"
+            ch.append(f"📝 **{verb}** — “{p['title']}” ({p['slug']}) modified {p['mod']}Z\n{p['link']}\n{detail}")
+
     # media: new uploads
     om, nm = old.get("media", {}), new.get("media", {})
     for mid, m in nm.items():
         if mid not in om:
-            ch.append(f"🖼️ **New media upload** — {m['url']} ({m['date']}Z)")
+            ch.append(f"🖼️ **New media upload** — {m['url']} ({m.get('date','')}Z)")
+
+    # removals (posts/pages/media) — only on a COMPLETE fetch, verified by 404
+    for kind, label in (("posts", "post"), ("pages", "page"), ("media", "media")):
+        o = old.get(kind, {})
+        n = new.get(kind, {})
+        if not o or not new.get(f"{kind}_complete"):
+            continue
+        for did in set(o) - set(n):
+            live = verify_item(kind, did)
+            rec = o[did]
+            name = rec.get("title") or rec.get("url") or did
+            if live is None:                       # confirmed gone
+                ch.append(f"🗑️ **{label.capitalize()} removed** — “{name}” "
+                          f"({rec.get('slug','')}) returned HTTP 404\n{rec.get('link','')}")
+            elif live is False:                    # inconclusive — keep, don't alert
+                log(f"WARN deletion verify inconclusive for {kind} {did}; carrying forward")
+                preserve.setdefault(kind, {})[did] = rec
+            else:                                  # still exists — fetch missed it; refresh+keep
+                log(f"NOTE {kind} {did} absent from list but still live; carrying forward")
+                preserve.setdefault(kind, {})[did] = item_record(kind, live)
+
     # canary: per-image lastmod changes (esp. /tr4ce/)
     oil, nil = old.get("image_lastmods", {}), new.get("image_lastmods", {})
     for loc, lm in nil.items():
         if loc in oil and oil[loc] != lm:
             tag = "  ⚠️ TR4CE CANARY TRIPPED" if "tr4ce" in loc.lower() else ""
             ch.append(f"🗺️ **Image re-uploaded** — {loc} lastmod {oil[loc]} → {lm}{tag}")
+
+    # tr4ce image BYTES changed (pixel/stego edit even if lastmod didn't move)
+    oih, nih = old.get("image_hashes", {}), new.get("image_hashes", {})
+    for u, info in nih.items():
+        if u in oih and oih[u].get("sha256") != info.get("sha256"):
+            ch.append(f"🧬 **Image BYTES changed** — {u}\n"
+                      f"sha256 {oih[u].get('sha256','')[:12]}… → {info.get('sha256','')[:12]}… "
+                      f"({oih[u].get('bytes')}→{info.get('bytes')} bytes)  "
+                      f"⚠️ pixel/stego change even if the upload date didn't move")
+
+    # key phrases newly appearing anywhere (homepage or any post/page body)
+    if "phrases_present" in old:
+        op_set, np_set = set(old.get("phrases_present", [])), set(new.get("phrases_present", []))
+        loc = new.get("phrase_locations", {})
+        for ph in sorted(np_set - op_set):
+            where = ", ".join(loc.get(ph, [])) or "somewhere"
+            ch.append(f"🔔 **Key phrase appeared** — “{ph}” now present in: {where}")
+        for ph in sorted(op_set - np_set):
+            ch.append(f"🔕 **Key phrase gone** — “{ph}” no longer present anywhere")
+
     # homepage structure
     if old.get("home_hash") and new.get("home_hash") and old["home_hash"] != new["home_hash"]:
         added = sorted(set(new.get("home_phrases", [])) - set(old.get("home_phrases", [])))
         removed = sorted(set(old.get("home_phrases", [])) - set(new.get("home_phrases", [])))
         extra = (f" (+{added})" if added else "") + (f" (-{removed})" if removed else "")
         ch.append(f"🏠 **Homepage changed** (structure/text, ignoring the live counter){extra}\n{SITE}/")
+
     # bluesky
     ob, nb = old.get("bsky"), new.get("bsky")
     if ob and nb and ob.get("cid") != nb.get("cid"):
         ch.append(f"🦋 **New Bluesky post** ({nb.get('indexedAt','')}): “{nb.get('text','')}”\n"
                   f"https://bsky.app/profile/{BSKY_ACTOR}")
-    return ch
+    return ch, preserve
 
 
 def send_discord(webhook, changes):
@@ -259,12 +500,21 @@ def main():
         except (OSError, ValueError):
             old = {}
 
-    changes = [] if seeding else diff(old, new)
+    if seeding:
+        changes, preserve = [], {}
+    else:
+        changes, preserve = diff(old, new)
+
+    # carry forward items that looked deleted but verified as still-present
+    for kind, items in preserve.items():
+        new.setdefault(kind, {}).update(items)
+
     json.dump(new, open(STATE_FILE, "w", encoding="utf-8"), indent=1)
 
     if seeding:
         log(f"Seeded baseline: {len(new.get('posts',{}))} posts, {len(new.get('pages',{}))} pages, "
-            f"{len(new.get('media',{}))} media. No alert sent.")
+            f"{len(new.get('media',{}))} media, {len(new.get('phrases_present',[]))} key-phrases present, "
+            f"{len(new.get('image_hashes',{}))} image-hash(es). No alert sent.")
         return
     if not changes:
         log("No changes."); return
