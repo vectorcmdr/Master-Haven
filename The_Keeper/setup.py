@@ -33,27 +33,23 @@ async def init_db():
 # ---------------- COMMAND FETCHER ----------------
 
 def get_all_commands(bot: commands.Bot):
-    cmds = []
+    cmds = {}
 
-    # Slash Commands
     for cmd in bot.tree.get_commands():
         desc = cmd.description or "No description"
-        cmds.append((f"/{cmd.name}", desc))
+        cmds.setdefault(cmd.name, desc)
 
-    # Prefix Commands
     for cmd in bot.commands:
         if cmd.hidden:
             continue
 
-        name = f"!{cmd.name}"
+        name = cmd.name
         desc = cmd.help or "No description"
-        cmds.append((name, desc))
+        cmds.setdefault(name, desc)
 
-    # Remove duplicates + sort
-    cmds = list(dict.fromkeys(cmds))
-    cmds.sort(key=lambda x: x[0])
+    result = sorted(cmds.items(), key=lambda x: x[0])
 
-    return cmds
+    return result
 
 # ---------------- DATABASE HELPERS ----------------
 
@@ -65,7 +61,6 @@ async def save_command_config(
 ):
     async with aiosqlite.connect(DB_PATH) as db:
 
-        # Remove existing config
         await db.execute(
             """
             DELETE FROM command_config
@@ -75,7 +70,6 @@ async def save_command_config(
             (guild_id, command_name)
         )
 
-        # Save new config
         for channel_id in channel_ids:
             await db.execute(
                 """
@@ -118,9 +112,14 @@ async def get_command_config(
     if not rows:
         return None
 
+    role_ids = {
+        r[1] for r in rows
+        if r[1] is not None
+    }
+
     return {
         "channels": [r[0] for r in rows],
-        "role_id": rows[0][1]
+        "role_id": next(iter(role_ids), None)
     }
 
 # ---------------- UI: COMMAND SELECT ----------------
@@ -128,18 +127,15 @@ async def get_command_config(
 class CommandSelect(discord.ui.Select):
     def __init__(
         self,
-        bot: commands.Bot,
+        commands_data: list[tuple[str, str]],
         page: int = 0
     ):
-        self.bot = bot
         self.page = page
-
-        all_commands = get_all_commands(bot)
 
         start = page * MAX_OPTIONS
         end = start + MAX_OPTIONS
 
-        page_commands = all_commands[start:end]
+        page_commands = commands_data[start:end]
 
         options = [
             discord.SelectOption(
@@ -154,7 +150,8 @@ class CommandSelect(discord.ui.Select):
             placeholder=f"Select command page {page + 1}",
             min_values=1,
             max_values=1,
-            options=options
+            options=options,
+            custom_id=f"command_select:{page}"
         )
 
     async def callback(
@@ -180,7 +177,8 @@ class NextPageButton(discord.ui.Button):
     ):
         super().__init__(
             label="Next",
-            style=discord.ButtonStyle.primary
+            style=discord.ButtonStyle.primary,
+            custom_id=f"command_next:{page}"
         )
 
         self.bot = bot
@@ -206,7 +204,8 @@ class PreviousPageButton(discord.ui.Button):
     ):
         super().__init__(
             label="Previous",
-            style=discord.ButtonStyle.secondary
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"command_previous:{page}"
         )
 
         self.bot = bot
@@ -237,7 +236,7 @@ class CommandSelectView(discord.ui.View):
 
         all_commands = get_all_commands(bot)
 
-        self.add_item(CommandSelect(bot, page))
+        self.add_item(CommandSelect(all_commands, page))
 
         total_pages = (
             len(all_commands) - 1
@@ -253,6 +252,11 @@ class CommandSelectView(discord.ui.View):
                 NextPageButton(bot, page)
             )
 
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+
+
 # ---------------- UI: CHANNEL SELECT ----------------
 
 class ChannelSelect(discord.ui.ChannelSelect):
@@ -263,7 +267,8 @@ class ChannelSelect(discord.ui.ChannelSelect):
             placeholder="Select allowed channels...",
             min_values=1,
             max_values=10,
-            channel_types=[discord.ChannelType.text]
+            channel_types=[discord.ChannelType.text],
+            custom_id=f"channel_select:{command_name}"
         )
 
     async def callback(
@@ -293,6 +298,10 @@ class ChannelSelectView(discord.ui.View):
             ChannelSelect(command_name)
         )
 
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+
 # ---------------- UI: ROLE SELECT ----------------
 
 class RoleSelect(discord.ui.RoleSelect):
@@ -307,7 +316,8 @@ class RoleSelect(discord.ui.RoleSelect):
         super().__init__(
             placeholder="Optional role restriction...",
             min_values=0,
-            max_values=1
+            max_values=1,
+            custom_id=f"role_select:{command_name}"
         )
 
     async def callback(
@@ -365,23 +375,33 @@ class RoleSelectView(discord.ui.View):
             )
         )
 
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
 
 
-
-async def is_command_allowed(guild_id: int, command_name: str, channel_id: int, member: discord.Member):
+async def is_command_allowed(
+    guild_id: int,
+    command_name: str,
+    channel_id: int,
+    member: discord.abc.User
+):
     config = await get_command_config(guild_id, command_name)
 
     if not config:
-        return True  # no restrictions set
+        return True
 
-    # Channel restriction
     if channel_id not in config["channels"]:
         return False
 
-    # Role restriction
     role_id = config["role_id"]
+
     if role_id:
+        if not isinstance(member, discord.Member):
+            return False
+
         role = member.get_role(role_id)
+
         if not role:
             return False
 
@@ -396,20 +416,6 @@ class SetupCog(commands.Cog):
     async def cog_before_invoke(self, ctx: commands.Context):
         if not ctx.guild or not ctx.channel or not ctx.author:
             return
-
-        command_name = f"!{ctx.command.name}"
-
-        allowed = await is_command_allowed(
-            guild_id=ctx.guild.id,
-            command_name=command_name,
-            channel_id=ctx.channel.id,
-            member=ctx.author
-        )
-
-        if not allowed:
-            raise commands.CheckFailure(
-                "Command restricted for this channel or role."
-            )
 
     @app_commands.command(
         name="setup",
@@ -429,15 +435,6 @@ class SetupCog(commands.Cog):
             view=CommandSelectView(self.bot),
             ephemeral=True
         )
-
-    @commands.Cog.listener()
-    async def on_command_error(self, ctx, error):
-        if isinstance(error, commands.CheckFailure):
-            await ctx.send(
-                "⛔ You are not allowed to use this command here.",
-                delete_after=5
-            )
-# ---------------- EXTENSION ENTRYPOINT ----------------
 
 async def setup(bot: commands.Bot):
 
