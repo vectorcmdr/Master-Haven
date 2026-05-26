@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 import asyncio, os, sys
 import json
 import logging
-logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
@@ -227,26 +226,45 @@ async def check_channel_allowed(interaction: discord.Interaction) -> bool:
     with open(path, "r") as f:
         config = json.load(f)
 
-   
     command = interaction.command
     if command is None:
         return True
 
-    command_name = command.qualified_name  # FIXED (supports subcommands)
+    command_name = command.qualified_name  
 
     allowed_channels = config.get(command_name)
 
-    
     if not allowed_channels:
         return False
 
     return interaction.channel.id in allowed_channels
+
+
+@bot.check
+async def global_command_check(ctx):
+    if not ctx.guild:
+        return True
+
+    from setup import is_command_allowed
+
+    allowed = await is_command_allowed(
+        guild_id=ctx.guild.id,
+        command_name=ctx.command.name,
+        channel_id=ctx.channel.id,
+        member=ctx.author
+    )
+
+    if not allowed:
+        raise commands.CheckFailure(
+            "Command restricted for this channel or role."
+        )
+
+    return True
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
     guild_folder = "Data/guilds"
-    await init_db()
-    print("DB initialized")
+
     try:
         if os.path.exists(guild_folder):
             for file in os.listdir(guild_folder):
@@ -288,40 +306,6 @@ async def on_command_error(ctx, error):
     logging.exception("Command error in %s", ctx.command, exc_info=error)
     await ctx.send("Something went wrong. The Witness has been notified.")
 
-
-@bot.tree.interaction_check
-async def global_app_command_check(interaction: discord.Interaction):
-    if not interaction.guild or not interaction.channel or not interaction.user:
-        return True
-
-    command_name = interaction.command.qualified_name
-
-    return await is_command_allowed(
-        interaction.guild.id,
-        command_name,
-        interaction.channel.id,
-        interaction.user
-    )
-
-    member = interaction.user
-    if not isinstance(member, discord.Member):
-        return True
-
-    allowed = await is_command_allowed(
-        guild_id=interaction.guild.id,
-        command_name=f"/{command_name}",
-        channel_id=interaction.channel.id,
-        member=member
-    )
-
-    if not allowed:
-        await interaction.response.send_message(
-            "⛔ You cannot use this command in this channel or without the required role.",
-            ephemeral=True
-        )
-        return False
-
-    return True
 
 # -------------------- RUN --------------------
 async def main():
