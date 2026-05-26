@@ -519,7 +519,7 @@ def send_discord(webhook, changes):
     payload = {
         "username": "Skyscraper Watch",
         "embeds": [{
-            "title": f"🛰️ Project Skyscraper — {len(changes)} change(s) detected",
+            "title": f"🛰️ Project Skyscraper — {len(changes)} {'change' if len(changes) == 1 else 'changes'} detected",
             "description": desc,
             "color": 0xF7C948,
             "footer": {"text": f"skyscraper_watch • {when}"},
@@ -540,9 +540,15 @@ def send_discourse(base, user_api_key, topic_id, changes):
     links and emoji the same way Discord does.
     """
     when = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M UTC")
-    raw = (f"🛰️ **Project Skyscraper — {len(changes)} change(s) detected**\n\n"
+    n = len(changes)
+    noun = "change" if n == 1 else "changes"
+    # Discourse markdown: ## heading = title, --- rules = card separation, the
+    # change lines keep their ```diff fences + bare URLs (which Discourse oneboxes
+    # into preview cards — the closest thing to a native embed).
+    raw = (f"## 🛰️ Project Skyscraper — {n} {noun} detected\n\n"
+           "---\n\n"
            + "\n\n".join(changes)
-           + f"\n\n*skyscraper_watch • {when}*")
+           + f"\n\n---\n*🔭 skyscraper_watch · {when}*")
     if len(raw) > 30000:                       # Discourse max_post_length is 32000
         raw = raw[:30000] + "\n… (truncated)"
     payload = {"topic_id": int(topic_id), "raw": raw}
