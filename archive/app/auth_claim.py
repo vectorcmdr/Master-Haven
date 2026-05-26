@@ -29,7 +29,7 @@ import logging
 import re
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -75,15 +75,19 @@ class ClearPasswordRequest(BaseModel):
 # ---------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------
-def _set_session_cookie(response: Response, user_id: int) -> None:
+def _set_session_cookie(response: Response, user_id: int, secure: bool) -> None:
+    # `secure` follows the actual request scheme (https) rather than the
+    # ENV flag — so the cookie works over plain-HTTP Tailscale access AND
+    # over the NPM HTTPS proxy. Behind the proxy, uvicorn's --proxy-headers
+    # rewrites the scheme from X-Forwarded-Proto, so request.url.scheme is
+    # 'https' and the cookie is correctly marked Secure.
     token = make_session_token(user_id)
-    settings = get_settings()
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
-        secure=settings.is_production,
+        secure=secure,
         samesite="lax",
         path="/",
     )
@@ -128,6 +132,7 @@ def _avatar_color_for(username: str) -> str:
 @router.post("/claim")
 def claim(
     body: ClaimRequest,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
 ):
@@ -212,7 +217,7 @@ def claim(
             log.info("claim bootstrap admin: %s (id=%d)", username, new_id)
         else:
             log.info("claim new user: %s (id=%d)", username, new_id)
-        _set_session_cookie(response, new_id)
+        _set_session_cookie(response, new_id, secure=request.url.scheme == "https")
         return {"data": {
             "id": new_id,
             "username": username,
@@ -240,7 +245,7 @@ def claim(
     log_audit(db, existing.id, "auth.claim_existing", "archive_user", existing.id,
               metadata={"username": username})
     db.commit()
-    _set_session_cookie(response, existing.id)
+    _set_session_cookie(response, existing.id, secure=request.url.scheme == "https")
     log.info("claim existing: %s (id=%d, elapsed=%.3fs)", username, existing.id, time.monotonic() - start)
     needs_password = (
         (bool(existing.is_admin) or bool(existing.is_editor))
