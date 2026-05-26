@@ -240,10 +240,10 @@ async def global_command_check(ctx):
     from setup import is_command_allowed
 
     allowed = await is_command_allowed(
-        guild_id=ctx.guild.id,
-        command_name=ctx.command.name,
-        channel_id=ctx.channel.id,
-        member=ctx.author
+        interaction.guild.id,
+        interaction.command.name,
+        interaction.channel.id,
+        interaction.user
     )
 
     if not allowed:
