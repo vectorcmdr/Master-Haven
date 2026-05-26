@@ -286,17 +286,31 @@ async def on_message(message):
 @bot.event
 async def on_command_error(ctx, error):
     print(f"[COMMAND ERROR] {ctx.command} -> {error}")
+
     if isinstance(error, commands.CommandNotFound):
         return
+
     if isinstance(error, commands.CheckFailure):
-        return  
+        return await ctx.send(
+            "⛔ You are not allowed to use this command here."
+        )
+
     if isinstance(error, commands.CommandOnCooldown):
-        return await ctx.send(f"Slow down, Voyager. Try again in {error.retry_after:.1f}s.")
+        return await ctx.send(
+            f"Slow down, Voyager. Try again in {error.retry_after:.1f}s."
+        )
+
     if isinstance(error, commands.MissingPermissions):
-        return await ctx.send("You don't have permission to use that.")
+        return await ctx.send(
+            "You don't have permission to use that."
+        )
+
     import logging
     logging.exception("Command error in %s", ctx.command, exc_info=error)
-    await ctx.send("Something went wrong. The Witness has been notified.")
+
+    await ctx.send(
+        "Something went wrong. The Witness has been notified."
+    )
 
 
 # -------------------- RUN --------------------
