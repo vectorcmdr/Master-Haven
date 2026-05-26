@@ -211,7 +211,7 @@ COGS = [
     "exchange.connect",
     "setup",
 ]
-@bot.tree.interaction_check
+
 async def global_app_command_check(interaction: discord.Interaction):
     if not interaction.guild:
         return True
