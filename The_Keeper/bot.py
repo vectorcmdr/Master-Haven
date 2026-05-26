@@ -137,7 +137,7 @@ get_env_int("HELP_CHANNEL_ID"),
 }
 from exchange.exchange import BASE_URL, API_KEY
 
-# -------------------- XP ENABLED CHANNELS (PATCH) --------------------
+# -------------------- XP ENABLED CHANNELS
 XP_ENABLED_CHANNELS = [
     CHANNELS["system"],
     CHANNELS["planet"],
@@ -147,7 +147,6 @@ XP_ENABLED_CHANNELS = [
     CHANNELS["out"],
     CHANNELS["ship"],
     CHANNELS["tool"],
-
     CHANNELS["cartographer_office"],
     CHANNELS["xeno_office"],
     CHANNELS["architect_office"],
