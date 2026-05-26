@@ -30,9 +30,16 @@ the WEBHOOK_URL line, use suffixed keys (WEBHOOK_URL_2, WEBHOOK_URL_DEV…),
 and/or comma-separate URLs on one line. Each is alerted independently, so
 one dead webhook won't stop the rest. If none set, changes are logged only.
 
+ETARC forum mirror (optional): if DISCOURSE_USER_API_KEY + DISCOURSE_TOPIC_ID
+are set in config.env, the SAME change announcement is also posted as a reply
+to that Discourse thread (forums.atlas-65.com). Get the key with --authorize.
+Runtime is still pure stdlib — only the one-time --authorize step shells out to
+`openssl` (present on the Pi) for the RSA key handshake.
+
 Run: python3 skyscraper_watch.py            (normal poll)
      python3 skyscraper_watch.py --seed     (snapshot now, never alert)
-     python3 skyscraper_watch.py --test      (send a test webhook and exit)
+     python3 skyscraper_watch.py --test      (send a test webhook + forum probe)
+     python3 skyscraper_watch.py --authorize (one-time: mint an ETARC User API Key)
 
 NOTE: after deploying a version that adds new tracked fields, run once with
 --seed so the baseline includes them (otherwise the first real poll could
@@ -48,6 +55,9 @@ UA = "Mozilla/5.0 (skyscraper-watch; +havenmap.online)"
 SITE = "https://project-skyscraper.com"
 SITE2 = "theskyscraperarchitect-ywvhk.wordpress.com"
 BSKY_ACTOR = "skyscraper-prj.bsky.social"
+DISCOURSE_BASE_DEFAULT = "https://forums.atlas-65.com"
+# RSA private key for the one-time User API Key handshake (gitignored).
+DISCOURSE_PRIV_KEY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "discourse_priv.pem")
 
 # Key phrases scanned across the homepage AND every post/page body. A phrase
 # going from absent→present anywhere is high signal (ARG state words).
@@ -104,6 +114,22 @@ def load_config():
             if url and url not in webhooks:
                 webhooks.append(url)
     return webhooks
+
+
+def load_setting(key, default=""):
+    """Read a single KEY=VALUE setting from the env or ./config.env (env wins)."""
+    env = os.environ.get(key)
+    if env:
+        return env
+    p = os.path.join(HERE, "config.env")
+    if os.path.exists(p):
+        for ln in open(p, encoding="utf-8"):
+            ln = ln.strip()
+            if ln and not ln.startswith("#") and "=" in ln:
+                k, v = ln.split("=", 1)
+                if k.strip().upper() == key.upper():
+                    return v.strip().strip('"').strip("'")
+    return default
 
 
 def _bust(url):
@@ -505,11 +531,109 @@ def send_discord(webhook, changes):
         return r.status
 
 
+def send_discourse(base, user_api_key, topic_id, changes):
+    """Post the same change announcement as a reply to a Discourse topic.
+
+    Uses a User API Key (header `User-Api-Key`) — no admin key needed. The body
+    reuses the exact `changes` lines the Discord channel gets, so the forum post
+    mirrors the dedicated channel. Discourse renders the ```diff blocks, bold,
+    links and emoji the same way Discord does.
+    """
+    when = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d %H:%M UTC")
+    raw = (f"🛰️ **Project Skyscraper — {len(changes)} change(s) detected**\n\n"
+           + "\n\n".join(changes)
+           + f"\n\n*skyscraper_watch • {when}*")
+    if len(raw) > 30000:                       # Discourse max_post_length is 32000
+        raw = raw[:30000] + "\n… (truncated)"
+    payload = {"topic_id": int(topic_id), "raw": raw}
+    req = urllib.request.Request(
+        base.rstrip("/") + "/posts.json",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "User-Api-Key": user_api_key, "User-Agent": UA},
+    )
+    with urllib.request.urlopen(req, timeout=25) as r:
+        return r.status
+
+
+def authorize_user_api_key():
+    """One-time: mint a Discourse User API Key via the public key handshake.
+
+    Generates (or reuses) an RSA keypair with `openssl`, prints the authorize
+    URL, and decrypts the payload you paste back. Prints the config.env lines to
+    add. openssl is only needed here — the cron runtime never touches crypto.
+    """
+    import subprocess, base64, secrets, urllib.parse
+    base = (load_setting("DISCOURSE_BASE") or DISCOURSE_BASE_DEFAULT).rstrip("/")
+    if not os.path.exists(DISCOURSE_PRIV_KEY):
+        subprocess.run(["openssl", "genrsa", "-out", DISCOURSE_PRIV_KEY, "2048"],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            os.chmod(DISCOURSE_PRIV_KEY, 0o600)
+        except OSError:
+            pass
+        print(f"Generated RSA private key at {DISCOURSE_PRIV_KEY} (keep it secret; it's gitignored).")
+    pub = subprocess.run(["openssl", "rsa", "-in", DISCOURSE_PRIV_KEY, "-pubout"],
+                         check=True, capture_output=True, text=True).stdout
+    nonce = secrets.token_hex(16)
+    params = {
+        "application_name": "Skyscraper Haven Watch",
+        "client_id": secrets.token_hex(16),
+        "scopes": "write",
+        "public_key": pub,
+        "nonce": nonce,
+    }
+    url = base + "/user-api-key/new?" + urllib.parse.urlencode(params)
+    print("\n1) In a browser logged into the forum as your account, open:\n")
+    print(url)
+    print("\n2) Click Authorize, copy the payload it shows, paste it below,")
+    print("   then press Enter on a blank line:\n")
+    lines = []
+    try:
+        while True:
+            ln = input()
+            if ln.strip() == "":
+                if lines:
+                    break
+                continue
+            lines.append(ln.strip())
+    except EOFError:
+        pass
+    payload_b64 = re.sub(r"\s+", "", "".join(lines))
+    if not payload_b64:
+        print("No payload entered; aborting."); return
+    try:
+        enc = base64.b64decode(payload_b64)
+    except Exception as e:
+        print(f"Payload isn't valid base64: {e}"); return
+    dec = subprocess.run(["openssl", "pkeyutl", "-decrypt", "-inkey", DISCOURSE_PRIV_KEY],
+                         input=enc, capture_output=True)
+    if dec.returncode != 0:
+        print("Decryption failed:", dec.stderr.decode("utf-8", "replace")); return
+    try:
+        obj = json.loads(dec.stdout)
+    except ValueError:
+        print("Decrypted payload wasn't JSON; aborting."); return
+    if obj.get("nonce") != nonce:
+        print("Nonce mismatch — aborting (possible replay or wrong key)."); return
+    print("\n✅ Authorized. Add these lines to config.env (gitignored):\n")
+    print(f"DISCOURSE_BASE={base}")
+    print(f"DISCOURSE_USER_API_KEY={obj.get('key','')}")
+    print("DISCOURSE_TOPIC_ID=9299   # 9299 = 'Sunday Morning poem' thread; 9239 = 'Skyscraper Haven Map'")
+
+
 def main():
     webhooks = load_config()
+    if "--authorize" in sys.argv:
+        authorize_user_api_key()
+        return
+
+    d_key = load_setting("DISCOURSE_USER_API_KEY")
+    d_topic = load_setting("DISCOURSE_TOPIC_ID")
+    d_base = load_setting("DISCOURSE_BASE") or DISCOURSE_BASE_DEFAULT
+
     if "--test" in sys.argv:
-        if not webhooks:
-            log("--test: no WEBHOOK_URL configured"); sys.exit(1)
+        if not webhooks and not d_key:
+            log("--test: nothing configured (no WEBHOOK_URL, no DISCOURSE_USER_API_KEY)"); sys.exit(1)
         msg = ["✅ Test alert — skyscraper_watch is wired up and can reach this channel."]
         for i, w in enumerate(webhooks, 1):
             try:
@@ -517,6 +641,16 @@ def main():
                 log(f"--test: webhook {i}/{len(webhooks)} -> HTTP {st}")
             except Exception as e:
                 log(f"--test: webhook {i}/{len(webhooks)} ERROR: {e}")
+        if d_key:
+            # non-destructive: verify the forum credential WITHOUT a public post
+            try:
+                req = urllib.request.Request(d_base.rstrip("/") + "/session/current.json",
+                                             headers={"User-Api-Key": d_key, "User-Agent": UA})
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    who = json.loads(r.read().decode("utf-8", "replace")).get("current_user", {}).get("username", "?")
+                log(f"--test: ETARC forum key OK — authenticated as '{who}' (topic {d_topic or 'UNSET'})")
+            except Exception as e:
+                log(f"--test: ETARC forum key ERROR: {e}")
         return
 
     new = snapshot()
@@ -563,6 +697,19 @@ def main():
                 log(f"ERROR sending webhook {i}/{len(webhooks)}: {e}")
     else:
         log("No WEBHOOK_URL set — changes logged only. Add it to config.env to enable Discord alerts.")
+
+    # mirror the same announcement to the ETARC Discourse thread, if configured
+    if d_key and d_topic:
+        try:
+            st = send_discourse(d_base, d_key, d_topic, changes)
+            log(f"ETARC forum post (topic {d_topic}) -> HTTP {st}")
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace")[:300]
+            log(f"ERROR posting to ETARC forum: HTTP {e.code} {detail}")
+        except Exception as e:
+            log(f"ERROR posting to ETARC forum: {e}")
+    elif d_key and not d_topic:
+        log("DISCOURSE_USER_API_KEY set but DISCOURSE_TOPIC_ID missing — forum mirror skipped.")
 
 
 if __name__ == "__main__":
