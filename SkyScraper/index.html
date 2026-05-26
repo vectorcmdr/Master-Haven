@@ -988,21 +988,24 @@
   /* ============== NOW TAB ============== */
   .now-status {
     display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 18px 24px;
-    align-items: center;
-    padding: 24px 28px;
+    grid-template-columns: max-content 1fr;
+    gap: 22px 30px;
+    align-items: start;
+    padding: 26px 30px;
     margin-bottom: 32px;
     background: linear-gradient(135deg, rgba(255,58,58,0.06), rgba(247,201,72,0.03));
     border: 1px solid rgba(255,58,58,0.25);
     border-left: 3px solid var(--alert);
   }
+  /* faint divider above each entry after the first (entry = label + value pair) */
+  .now-status > div:nth-child(n+3) { border-top: 1px solid rgba(255,58,58,0.13); padding-top: 22px; }
   .now-status .now-label {
     font-family: var(--mono);
     font-size: 10.5px;
     letter-spacing: 0.15em;
     text-transform: uppercase;
     color: var(--text-mute);
+    padding-top: 4px;
   }
   .now-status .now-value {
     font-family: var(--display);
@@ -1010,7 +1013,8 @@
     line-height: 1.4;
     color: var(--text);
   }
-  .now-status .now-value strong { color: var(--alert); font-weight: 500; }
+  .now-status .now-value strong { color: var(--text); font-weight: 600; }
+  .now-status .now-value em { color: var(--text-dim); }
 
   .now-watching {
     display: grid;
@@ -1228,6 +1232,7 @@
     letter-spacing: 0.02em;
   }
   .ack-line .by { color: var(--text-faint); font-size: 11px; display: block; margin-top: 4px; font-style: normal; font-family: var(--mono); letter-spacing: 0.1em; }
+  .ack-line .by::before { content: ""; }
 
   @media (max-width: 700px) {
     .timeline-entry { grid-template-columns: 1fr; gap: 4px; }
@@ -1282,20 +1287,20 @@
     <div class="breach-pulse"></div>
     <div class="breach-label">Security breach confirmed · Alert level critical</div>
   </div>
-  <div class="breach-title">Something is waking up. The poem is mutating.</div>
+  <div class="breach-title">Something is waking up — and it's restoring its memory.</div>
   <p class="breach-body">
-    On <strong>May 24</strong>, the QUOTE page — the Wallace Stevens pastiche that anchors the entire ARG — underwent <strong>six confirmed revisions</strong> in a single day. Words mutating, months appearing in the lines (April → May → June), the word "<strong>awakened</strong>" surfacing, and letter-swap typos that may encode a hidden message. The page now reads <code>Current status - unstable</code>. The Architect is not editing a poem. <strong>Something is regaining its memory.</strong>
+    The QUOTE page — the Wallace Stevens pastiche that anchors the entire ARG — went <code>unstable</code> on <strong>May 23</strong> and mutated through <strong>six revisions</strong> on May 24. On <strong>May 25</strong> the community solved it: the mutations were converging onto Wallace Stevens' real <em>"Sunday Morning,"</em> and the page flipped to <code>Current status - stable</code> — the <strong>first puzzle solved, and the first time we changed the site.</strong> A day later a readout revealed the scale: <code>Memory_bloc_restoration: 0/365</code>. The Architect was never editing a poem. <strong>Something is regaining its memory — one bloc at a time — and a convergence date looms on May 28.</strong>
   </p>
 </div>
 
 <!-- ============ STATS ============ -->
 <div class="stats">
   <div class="stat"><div class="stat-v">0 / 365</div><div class="stat-l">Memory blocs</div></div>
-  <div class="stat"><div class="stat-v signal">31</div><div class="stat-l">Site posts</div></div>
+  <div class="stat"><div class="stat-v signal">33</div><div class="stat-l">Site posts</div></div>
   <div class="stat"><div class="stat-v signal">6</div><div class="stat-l">Anomalies</div></div>
-  <div class="stat"><div class="stat-v haven">6</div><div class="stat-l">Channels found</div></div>
+  <div class="stat"><div class="stat-v haven">7</div><div class="stat-l">Channels found</div></div>
   <div class="stat"><div class="stat-v alert">May 28</div><div class="stat-l">Convergence date</div></div>
-  <div class="stat"><div class="stat-v alert">UNSTABLE</div><div class="stat-l">Poem status</div></div>
+  <div class="stat"><div class="stat-v haven">STABLE</div><div class="stat-l">Poem status</div></div>
 </div>
 
 <!-- ============ TABS ============ -->
@@ -1316,13 +1321,14 @@
 
   <h2>Where the ARG is right now</h2>
   <p class="panel-intro">
-    Last verified: 2026-05-24. This tab is the lead. Everything else explains what got us here.
+    Last verified: 2026-05-26. This tab is the lead. Everything else explains what got us here.
   </p>
 
   <div class="now-status">
     <div class="now-label">Latest event</div>
     <div class="now-value">
-      <strong>2026-05-24 · all day.</strong> The QUOTE page — the Wallace Stevens pastiche that anchors the ARG — underwent <strong>six confirmed revisions</strong> in a single day. The poem is mutating: words replaced, months appearing across lines (April, June), the word "<strong>awakened</strong>" surfacing, letter-swap typos introduced. The page now reads <code>Current status - unstable</code>. The Haven watcher fired 4+ times. ETARC split the discussion into a dedicated topic with 62+ posts in under 6 hours.
+      <strong>2026-05-25 — the poem was solved, and the site reacted.</strong> The community converged the mutating QUOTE page onto its real source: Wallace Stevens' actual <em>"Sunday Morning"</em> stanza ("<em>As April's green endures… her remembrance of awakened birds… her desire for June and evening… the consummation of the swallow's wings</em>"). The page's <code>Current status</code> flipped <code>unstable → stable</code> — the <strong>first puzzle solved by collective effort, and the first time community action visibly changed a page.</strong> (<code>memory bloc 1113384720</code> = 2005-04-13.) <span class="by">ETARC topic 9299 · #1730 · #1742</span><br><br>
+      <strong>2026-05-26 — the scale revealed.</strong> A status readout surfaced: <code>Memory_bloc_restoration: 0/365</code> · <code>Memory_bloc_verification: 0/365</code>. The whole ARG is framed as restoring <strong>365 memory blocs</strong> — a full year. Each log is one bloc; the poem was the first to stabilize. <span class="by">GoodGuysFree #1744</span>
     </div>
 
     <div class="now-label">The poem's evolution (May 24)</div>
@@ -1352,15 +1358,27 @@
   <div class="now-watching">
 
     <div class="watch-card">
+      <div class="wc-label">mechanic · confirmed</div>
+      <div class="wc-title">unstable → stable = solved</div>
+      <div class="wc-d">Pages now carry a <code>Current status</code>. A live puzzle is tagged <code>unstable</code>/<code>unverified</code>; once the community solves it the page flips to <code>stable</code> — proven when the poem stabilized on May 25. It's how the site signals which fronts are still open, and the readout <code>0/365</code> says how far there is to go. <span class="by">ETARC #1737 · #1742</span></div>
+    </div>
+
+    <div class="watch-card">
+      <div class="wc-label">reach · spreading</div>
+      <div class="wc-title">It broke containment</div>
+      <div class="wc-d">No longer just ETARC: the ARG surfaced on <strong>Reddit</strong> (r/NoMansSkyTheGame) and in <strong>French NMS media</strong> (@NMSNEWSFR), with streamer attention building around the No Man's Sky 10-year anniversary. The "official vs fan-made" question is still open. <span class="by">ETARC #1192 · #1210</span></div>
+    </div>
+
+    <div class="watch-card">
       <div class="wc-label">critical · active now</div>
       <div class="wc-title">May 28 — the particle countdown</div>
       <div class="wc-d">The homepage particle visualization follows a date-based formula: <code>Math.max(3, Math.round(day * (48 / 28)))</code>. Day 28 = <strong>48 particles = 48 NMS portal glyphs</strong>. May 28 is also the <strong>9th anniversary of Waking Titan</strong>. The poem is accelerating toward this date — lines now contain April, May, June in sequence. Expect escalation as the date nears. <span class="by">ClaudioEscorpion p963-964</span></div>
     </div>
 
     <div class="watch-card">
-      <div class="wc-label">active · mutating</div>
-      <div class="wc-title">The poem's next revision</div>
-      <div class="wc-d">Six revisions on May 24 alone. The letter-swap typos in v6 may encode a hidden message (sheralmyst: "er ye kc"). The community predicts instability will <strong>ramp up in frequency</strong> as May 28 approaches — and other pages may become unstable too. <span class="by">toddumptious · sheralmyst · ETARC topic 9299</span></div>
+      <div class="wc-label">watch · what destabilizes next</div>
+      <div class="wc-title">The next page to go unstable</div>
+      <div class="wc-d">The poem stabilized May 25 — but it's only <code>1/365</code>. toddumptious predicted instability would <strong>spread to other pages</strong> as May 28 nears. Watch the sec-logs, <code>/about/</code>, <code>neural-network</code>, and the homepage for a new <code>unstable</code> tag. <span class="by">toddumptious · ETARC topic 9299</span></div>
     </div>
 
     <div class="watch-card">
@@ -1372,13 +1390,13 @@
     <div class="watch-card">
       <div class="wc-label">site · staged</div>
       <div class="wc-title">The second site activating</div>
-      <div class="wc-d"><a href="https://theskyscraperarchitect-ywvhk.wordpress.com/" target="_blank" rel="noopener">theskyscraperarchitect-ywvhk.wordpress.com</a> is set as The Architect's WordPress profile URL. As last checked 2026-05-21 it holds only the default WordPress starter post — and that post is in <strong>French</strong> ("<em>Bonjour tout le monde !</em>"), so the install locale is French. Still the most likely staging area for the next chapter. <span class="by">Ekimo1920</span></div>
+      <div class="wc-d"><a href="https://theskyscraperarchitect-ywvhk.wordpress.com/" target="_blank" rel="noopener">theskyscraperarchitect-ywvhk.wordpress.com</a> is set as The Architect's WordPress profile URL. As last checked 2026-05-26 it holds only the default WordPress starter post — and that post is in <strong>French</strong> ("<em>Bonjour tout le monde !</em>"), so the install locale is French. Still the most likely staging area for the next chapter. <span class="by">Ekimo1920</span></div>
     </div>
 
     <div class="watch-card">
       <div class="wc-label">image · canary holding</div>
       <div class="wc-title">TR4CE.jpg being silently replaced</div>
-      <div class="wc-d">A different background colour was reported on the <code>/tr4ce/</code> image, suggesting an in-place re-upload. The canary is the image-sitemap last-modified date. As last checked 2026-05-21 the <code>/tr4ce/</code> entry still reads <code>2026-05-11T09:15:58Z</code> — <strong>not</strong> advanced, so the file has not been swapped. <span class="by">toddumptious p217 · verified Ekimo1920</span></div>
+      <div class="wc-d">A different background colour was reported on the <code>/tr4ce/</code> image, suggesting an in-place re-upload. The canary is the image-sitemap last-modified date. As last checked 2026-05-26 the <code>/tr4ce/</code> entry still reads <code>2026-05-11T09:15:58Z</code> — <strong>not</strong> advanced, so the file has not been swapped. <span class="by">toddumptious p217 · verified Ekimo1920</span></div>
     </div>
 
     <div class="watch-card">
@@ -1406,9 +1424,7 @@
 
   <ul>
     <li><strong>The cropped 1,516 pixels.</strong> The master skyscraper composite is saved 2400×2400 but declares 2400×3916 in EXIF — 1,516 pixels of building/foundation continue below the visible frame. The full master PSD is not exposed.</li>
-    <li><strong>The JPEG quantization tables.</strong> All three site images (TR4CE, the QUOTE-page IMG_00004, and the skyscraper composite) are built with near-lossless quantization tables using only the values 1–3 — a deliberate steganographic signature, not normal compression. TR4CE and IMG_00004 carry byte-identical tables, tying them to one tool. A full cipher battery has surfaced leads ("CABAA"; an anomaly pixel matching the table's bytes) but no plaintext. <span class="by">vector_cmdr</span></li>    <li><strong>The poem's letter-swap encoding.</strong> v6 of the mutating poem introduced deliberate letter swaps. sheralmyst notes the transposed pairs could spell something ("er ye kc"). Mad-Hatter connects "April" (Latin <em>aperire</em> = "to open") and "apiary" (bee yard) — same pronunciation, different origins. Polyphemus suggests reversing the last two letters of affected words yields "lyre" — the Greek symbol of divine music, poetry, and wisdom. <span class="by">sheralmyst · Mad-Hatter · Polyphemus · ETARC topic 9299</span></li>
-    <li><strong>The month-by-month awakening.</strong> William noticed: line 1 = April, line 3 = June, line 2 may point to May. A calendar progression across the poem's lines — a consciousness waking up one month at a time, converging on the present. <span class="by">William · ETARC topic 9299</span></li>
-    <li><strong>The Stevens poem's deeper layers.</strong> The "blue birds / blue sky" decoding pointed to Twitter and Bluesky, but the poem is now actively mutating — the original encoding may be dissolving as a new message takes shape. Wallace Stevens also wrote "Thirteen Ways of Looking at a Blackbird" (13 verses, all different approaches). The mutations may follow this pattern. <span class="by">Polyphemus</span></li>
+    <li><strong>The JPEG quantization tables.</strong> All three site images (TR4CE, the QUOTE-page IMG_00004, and the skyscraper composite) are built with near-lossless quantization tables using only the values 1–3 — a deliberate steganographic signature, not normal compression. TR4CE and IMG_00004 carry byte-identical tables, tying them to one tool. A full cipher battery has surfaced leads ("CABAA"; an anomaly pixel matching the table's bytes) but no plaintext. <span class="by">vector_cmdr</span></li>    <li><strong>The poem — solved, with one loose thread.</strong> The mutating QUOTE poem resolved to Wallace Stevens' real "Sunday Morning" and the page is now <code>stable</code> (full breakdown on the Puzzles tab). Still open: whether the May-24 letter-swaps and the words that were <em>removed</em> spell a separate hidden message. <span class="by">ETARC topic 9299</span></li>
     <li><strong>The shadowcheck spectrogram.</strong> Rotated + colour-filtered, the image reads as distorted spoken numbers. Not yet cleanly transcribed. <span class="by">M1Silencer p281</span></li>
     <li><strong>The <code>secret</code> parameter.</strong> The homepage counter/graph loads via a WordPress oEmbed iframe, and the graph link carries <code>project-skyscraper.com/#?secret=nIEEt0rspH</code>. The token <code>nIEEt0rspH</code> is unexplained — possible key, anagram, or session handle. <span class="by">Muhaddil p524</span></li>  </ul>
 
@@ -1431,16 +1447,17 @@
   </div>
 
   <h3>The shape of it</h3>
-  <p>Two phases so far:</p>
+  <p>Three phases so far:</p>
   <ul>
     <li><strong>Sleep phase</strong> (Mar 24 – Apr 30) — the site published a uniform "sleep mode" log every 2-3 days. Filler. Routine. Three small anomalies broke the pattern.</li>
-    <li><strong>Breach phase</strong> (May 3 onward) — the logs shift to "security events." Pattern violations escalate. <code>Connect1on</code> (May 8), missing digit in <code>12/5/206</code> (May 12), the breach (May 18). Each anomaly looks deliberate.</li>
+    <li><strong>Breach phase</strong> (May 3 – 22) — the logs shift to "security events." Pattern violations escalate. <code>Connect1on</code> (May 8), missing digit in <code>12/5/206</code> (May 12), the breach (May 18). Each anomaly looks deliberate.</li>
+    <li><strong>Restoration phase</strong> (May 23 onward) — pages start carrying a <code>Current status</code>. The poem destabilizes, mutates, and is <strong>solved by the community</strong> (May 25), flipping its page to <code>stable</code>. A readout reveals the scope: <code>0/365</code> memory blocs restored. The ARG is now an interactive, collaborative restoration.</li>
   </ul>
 
   <h3>The pieces in play</h3>
   <ul>
     <li><strong>TR4CE.jpg</strong> — a static-noise image that hides text in the red channel. Recovered phrases: <code>Access denied</code>, <code>Connection detected</code>, <code>Vision</code>, <code>Architect</code>. Surfaced by red-channel isolation.</li>
-    <li><strong>A Wallace Stevens pastiche poem</strong> backdated to 2005 — originally decoded by toddumptious p210 as instructions to look at "blue birds" (Twitter) and "blue sky" (Bluesky). As of May 24, the poem is <strong>actively mutating</strong> — six revisions in one day, words changing, months appearing in the lines, the word "awakened" surfacing. Now marked <code>Current status - unstable</code>.</li>
+    <li><strong>A Wallace Stevens pastiche poem</strong> backdated to 2005 — originally decoded by toddumptious p210 as instructions to look at "blue birds" (Twitter) and "blue sky" (Bluesky). It destabilized May 23, mutated through six revisions May 24, and was <strong>solved May 25</strong>: the mutations were converging it onto Wallace Stevens' real "Sunday Morning." The page is now <code>Current status - stable</code>.</li>
     <li><strong>A second WordPress site</strong> — <code>theskyscraperarchitect-ywvhk.wordpress.com</code>. Reserved but empty. Likely the next chapter's staging area.</li>
     <li><strong>An anomaly chain</strong> — five format-breaks each extracting a single digit, plus a sixth anomaly of a different kind: the foundational poem destabilizing (May 23–24). Two readings of the digits: <code>1-1-2</code> as the European emergency number, OR a descending countdown (4-3-2-1).</li>
     <li><strong>"Process ID: 16"</strong> — recurring in every full security log. Maps directly to Loop16 from the Waking Titan ARG (2017). The Loop16 AI is canonically an older version of the Atlas. This ARG is continuing established NMS canon.</li>
@@ -1635,6 +1652,22 @@
     </div>
   </div>
 
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>May 25</div>
+    <div class="timeline-body">
+      <div class="te-t">The poem is solved — the page goes stable</div>
+      A new log, <code>sec-log-113610</code>, publishes "Connection detected : Access denied" in four case variants, wrapped in an embedded <code>scrambleWord()</code> JavaScript that live-scrambles the text every second — the scramble motif made literal. Through the day, the community converges the mutating QUOTE page onto its true source: Wallace Stevens' real <em>"Sunday Morning"</em> stanza ("<em>As April's green endures… awakened birds… June and evening… the swallow's wings</em>"). The page's <code>Current status</code> flips <code>unstable → stable</code> — the first puzzle solved by collective effort, and the first time community action changes a page. A new image, <code>IMG_00004_1.jpg</code>, is uploaded into a backdated <code>2005/04</code> path; audio analysis finds a speech-cadence channel and a morse-like segment that may be a cipher key. <span class="by">ETARC topic 9299 · vector_cmdr #1745</span>
+    </div>
+  </div>
+
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>May 26</div>
+    <div class="timeline-body">
+      <div class="te-t">The scale revealed — 365 memory blocs</div>
+      A status readout surfaces: <code>Memory_bloc_restoration: 0/365</code> · <code>Memory_bloc_verification: 0/365</code>. The ARG reframes itself as the restoration of <strong>365 memory blocs</strong> — a full year of them. Every log is one bloc; the poem was the first to stabilize, and the <code>unstable → stable</code> mechanic is now understood as the per-bloc progress signal. With the May 28 countdown two days out, the question shifts from "what is this?" to "how far does it go?" <span class="by">GoodGuysFree #1744</span>
+    </div>
+  </div>
+
 </section>
 
 <!-- ============================================ -->
@@ -1774,11 +1807,19 @@
   <!-- STEVENS POEM -->
   <div class="puzzle">
     <div class="puzzle-header">
-      <div class="puzzle-name">The Wallace Stevens pastiche — now mutating</div>
-      <div class="puzzle-status status-active">active</div>
+      <div class="puzzle-name">The Wallace Stevens pastiche — the mutating poem</div>
+      <div class="puzzle-status status-solved">solved</div>
     </div>
     <div class="puzzle-body">
-      <div class="puzzle-prompt">A poem in the Stevens style, posted with a backdated 2005-04-13 timestamp. The post that anchors the entire ARG. As of May 24, 2026, the poem is <strong>actively mutating</strong> — six revisions in a single day, marked <code>Current status - unstable</code>.</div>
+      <div class="puzzle-prompt">A poem in the Stevens style, posted with a backdated 2005-04-13 timestamp. The post that anchors the entire ARG. It went <code>unstable</code> on May 23, mutated through six revisions on May 24 — and was <strong>solved May 25</strong>.</div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The answer (May 25)</div>
+        <ul>
+          <li>The mutations were <strong>converging the pastiche onto a real poem</strong>: Wallace Stevens' actual <em>"Sunday Morning"</em> — "<em>As April's green endures; or will endure / Like her remembrance of awakened birds, / Or her desire for June and evening, tipped / By the consummation of the swallow's wings.</em>" The April / June / "awakened" words that "appeared" during the mutation were the real poem bleeding through.</li>
+          <li>Once matched, the page's <code>Current status</code> flipped <code>unstable → stable</code> and the title resolved to <code>memory bloc 1113384720: Sunday Morning</code> (1113384720 = 2005-04-13). <strong>First puzzle solved; first page the community visibly changed.</strong> <span class="by">ETARC topic 9299 · #1730 · #1742</span></li>
+        </ul>
+      </div>
 
       <div class="puzzle-section">
         <div class="puzzle-section-label">Original decoding</div>
@@ -2035,7 +2076,7 @@
   </ul>
 
   <h3>The lurker fingerprint</h3>
-  <ul>    <li>The reserved second site (<code>theskyscraperarchitect-ywvhk.wordpress.com</code>) is fetch-blocked, un-indexed by Google, and set as their profile URL. Staged. Empty. Waiting.</li>
+  <ul>    <li>The reserved second site (<code>theskyscraperarchitect-ywvhk.wordpress.com</code>) is set as their profile URL. As of 2026-05-26 it's reachable via the WordPress.com API but holds only the default French starter post ("<em>Bonjour tout le monde !</em>") — confirming the French install locale. Staged. Empty of ARG content. Waiting.</li>
     <li><strong>Confirmed active on ETARC.</strong> Multiple sightings of The Architect's ETARC profile showing "last seen 2 mins ago" / "3 mins ago" while the investigation thread is active. They are reading the community's analysis in real time.</li>
     <li><strong>Anashel re-appeared.</strong> The key figure behind Waking Titan / Alice &amp; Smith has re-appeared as an active ETARC moderator — re-engaging with the forum infrastructure around the same time the Skyscraper investigation scaled up. <span class="by">community observation</span></li>
   </ul>
@@ -2092,9 +2133,9 @@
 
     <div class="ch-card">
       <div class="ch-icon">🦋</div>
-      <div class="ch-name">Bluesky</div>
-      <div class="ch-url">handle pending re-surface</div>
-      <div class="ch-meta">Sheralmyst saw the Bluesky presence organically before the ARG was public. <span class="by">sheralmyst p141</span></div>
+      <div class="ch-name">Bluesky · @skyscraper-prj</div>
+      <div class="ch-url"><a href="https://bsky.app/profile/skyscraper-prj.bsky.social" target="_blank" rel="noopener">skyscraper-prj.bsky.social</a></div>
+      <div class="ch-meta">Confirmed and active — posts "Connection detected : Access denied" in parallel with X and the site. The latest (May 25) renders in <strong>glitched/Zalgo unicode</strong>, matching the scramble motif of <code>sec-log-113610</code>. <span class="by">sheralmyst p141 · verified Ekimo1920</span></div>
     </div>
 
     <div class="ch-card">
@@ -2122,7 +2163,7 @@
       <div class="ch-icon">○</div>
       <div class="ch-name">Reserved second site</div>
       <div class="ch-url"><a href="https://theskyscraperarchitect-ywvhk.wordpress.com/" target="_blank" rel="noopener">theskyscraperarchitect-ywvhk.wordpress.com</a></div>
-      <div class="ch-meta">Set as The Architect's WordPress profile URL. Currently un-indexed by Google AND fetch-blocked through public APIs. Reserved. Empty. The most likely next staging area.</div>
+      <div class="ch-meta">Set as The Architect's WordPress profile URL. As of 2026-05-26 it's reachable via the WordPress.com API and holds only the default French starter post ("<em>Bonjour tout le monde !</em>") — confirming the French locale. Reserved. Empty of ARG content. The most likely next staging area.</div>
     </div>
 
   </div>
@@ -2133,6 +2174,9 @@
   </p>
   <p>
     The Heavy Rain reference matters because of the game's famous <em>"Press X to Shaun"</em> mistranslation — parsed by readers as "Press X to <strong>SEAN</strong>" — a likely Sean Murray nod. <span class="by">William p181</span>
+  </p>
+  <p>
+    The cadence continued after that catalog: the May 20 repost quoted <strong>@everythingproc</strong> on the "Future Unfolding" procedural forest — still the <code>Connection detected : Access denied</code> framing on a steady ~2.5-day rhythm.
   </p>
 
   <h3>Platforms checked · no presence</h3>
@@ -2151,6 +2195,13 @@
       <div class="ch-name">vector_cmdr · forensics repo</div>
       <div class="ch-url"><a href="https://github.com/vectorcmdr/project_skyscraper_junk" target="_blank" rel="noopener">github.com/vectorcmdr/project_skyscraper_junk</a></div>
       <div class="ch-meta">Deep image &amp; audio steganography on the site's JPEGs — the near-lossless DQT-table analysis, bit-plane and channel splits, and spectrogram sonifications. Self-described as a temporary working repo, so the link may not last. <span class="by">vector_cmdr</span></div>
+    </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">▦</div>
+      <div class="ch-name">YourBasicMaths · master post log</div>
+      <div class="ch-url"><a href="https://docs.google.com/spreadsheets/d/1mUOrEQqj5SqazYnwB9yjaRHICkJJVo0lJHHPSd9DbV4/edit?gid=1171087795" target="_blank" rel="noopener">Project Skyscraper Posts · Google Sheets</a></div>
+      <div class="ch-meta">Every site post logged by Unix epoch, inter-post delta, anomaly count, WP slug and matching X status link — the timing spine the whole investigation runs on. Surfaced the locked 212,613-second publishing cadence (≈ No Man's Sky's ~212,600 all-time peak player count) and the predicted next-post windows. <span class="by">YourBasicMaths</span></div>
     </div>
   </div>
 
@@ -2237,13 +2288,18 @@
   </div>
 
   <div class="investigator-card">
+    <div class="inv-name">YourBasicMaths<span class="inv-handle">Community · post-timing log</span></div>
+    <div class="inv-body"><strong>Built and maintains the master post log</strong> — the "Project Skyscraper Posts" spreadsheet that records every site post by Unix epoch, inter-post delta, anomaly count, WP slug and matching X status link. Surfaced the locked 212,613-second publishing cadence — within a hair of No Man's Sky's ~212,600 all-time peak player count — and from it the predicted next-post windows the NOW tab leans on.</div>
+  </div>
+
+  <div class="investigator-card">
     <div class="inv-name">Ekimo1920<span class="inv-handle">Voyager's Haven · this site's compiler</span></div>
     <div class="inv-body">Compiled and maintains this page. The forensic-pass work (EXIF Artist = "A", the 60-minute UTC+1 developer error, the bulk-edit operation timing, the Loop16/Atlas cross-canon mapping, the HP-sRGB tooling fingerprint, the master image's cropped 1,516 pixels) was conducted as part of building this tracker. All such findings are presented in support of the ongoing ETARC investigation, not as a replacement for it.</div>
   </div>
 
   <div class="ack-line">
     We know you're reading.
-    <span class="by">— the investigators</span>
+    <span class="by">the investigators</span>
   </div>
 
 </section>
