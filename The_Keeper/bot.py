@@ -212,11 +212,26 @@ COGS = [
     "setup",
 ]
 
-async def global_app_command_check(interaction: discord.Interaction):
-    if not interaction.guild:
-        return True
+from setup import is_command_allowed
 
-    from setup import is_command_allowed
+# ---------------- PREFIX COMMANDS (!)
+@bot.check
+async def global_command_check(ctx):
+    if ctx.guild is None or ctx.channel is None:
+        return False
+
+    return await is_command_allowed(
+        guild_id=ctx.guild.id,
+        command_name=ctx.command.name,
+        channel_id=ctx.channel.id,
+        member=ctx.author
+    )
+
+
+# ---------------- SLASH COMMANDS (/)
+async def global_app_command_check(interaction: discord.Interaction):
+    if interaction.guild is None or interaction.channel is None:
+        return False
 
     command = interaction.command
     if command is None:
@@ -229,29 +244,8 @@ async def global_app_command_check(interaction: discord.Interaction):
         member=interaction.user
     )
 
+
 bot.tree.interaction_check = global_app_command_check
-
-
-@bot.check
-async def global_command_check(ctx):
-    if not ctx.guild:
-        return True
-
-    from setup import is_command_allowed
-
-    allowed = await is_command_allowed(
-        interaction.guild.id,
-        interaction.command.name,
-        interaction.channel.id,
-        interaction.user
-    )
-
-    if not allowed:
-        raise commands.CheckFailure(
-            "Command restricted for this channel or role."
-        )
-
-    return True
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
