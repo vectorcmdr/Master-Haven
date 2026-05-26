@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 import asyncio, os, sys
 import json
 import logging
-logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
@@ -212,41 +211,46 @@ COGS = [
     "exchange.connect",
     "setup",
 ]
-@bot.tree.interaction_check
-async def check_channel_allowed(interaction: discord.Interaction) -> bool:
-    if not interaction.guild:
-        return True
 
-    import os, json
+from setup import is_command_allowed
 
-    path = f"Data/guilds/{interaction.guild.id}.json"
-
-    if not os.path.exists(path):
+# ---------------- PREFIX COMMANDS (!)
+@bot.check
+async def global_command_check(ctx):
+    if ctx.guild is None or ctx.channel is None:
         return False
 
-    with open(path, "r") as f:
-        config = json.load(f)
+    return await is_command_allowed(
+        guild_id=ctx.guild.id,
+        command_name=ctx.command.name,
+        channel_id=ctx.channel.id,
+        member=ctx.author
+    )
 
-   
+
+# ---------------- SLASH COMMANDS (/)
+async def global_app_command_check(interaction: discord.Interaction):
+    if interaction.guild is None or interaction.channel is None:
+        return False
+
     command = interaction.command
     if command is None:
         return True
 
-    command_name = command.qualified_name  # FIXED (supports subcommands)
+    return await is_command_allowed(
+        guild_id=interaction.guild.id,
+        command_name=command.qualified_name,
+        channel_id=interaction.channel.id,
+        member=interaction.user
+    )
 
-    allowed_channels = config.get(command_name)
 
-    
-    if not allowed_channels:
-        return False
-
-    return interaction.channel.id in allowed_channels
+bot.tree.interaction_check = global_app_command_check
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
     guild_folder = "Data/guilds"
-    await init_db()
-    print("DB initialized")
+
     try:
         if os.path.exists(guild_folder):
             for file in os.listdir(guild_folder):
@@ -276,52 +280,32 @@ async def on_message(message):
 @bot.event
 async def on_command_error(ctx, error):
     print(f"[COMMAND ERROR] {ctx.command} -> {error}")
+
     if isinstance(error, commands.CommandNotFound):
         return
+
     if isinstance(error, commands.CheckFailure):
-        return  
+        return await ctx.send(
+            "⛔ You are not allowed to use this command here."
+        )
+
     if isinstance(error, commands.CommandOnCooldown):
-        return await ctx.send(f"Slow down, Voyager. Try again in {error.retry_after:.1f}s.")
+        return await ctx.send(
+            f"Slow down, Voyager. Try again in {error.retry_after:.1f}s."
+        )
+
     if isinstance(error, commands.MissingPermissions):
-        return await ctx.send("You don't have permission to use that.")
+        return await ctx.send(
+            "You don't have permission to use that."
+        )
+
     import logging
     logging.exception("Command error in %s", ctx.command, exc_info=error)
-    await ctx.send("Something went wrong. The Witness has been notified.")
 
-
-@bot.tree.interaction_check
-async def global_app_command_check(interaction: discord.Interaction):
-    if not interaction.guild or not interaction.channel or not interaction.user:
-        return True
-
-    command_name = interaction.command.qualified_name
-
-    return await is_command_allowed(
-        interaction.guild.id,
-        command_name,
-        interaction.channel.id,
-        interaction.user
+    await ctx.send(
+        "Something went wrong. The Witness has been notified."
     )
 
-    member = interaction.user
-    if not isinstance(member, discord.Member):
-        return True
-
-    allowed = await is_command_allowed(
-        guild_id=interaction.guild.id,
-        command_name=f"/{command_name}",
-        channel_id=interaction.channel.id,
-        member=member
-    )
-
-    if not allowed:
-        await interaction.response.send_message(
-            "⛔ You cannot use this command in this channel or without the required role.",
-            ephemeral=True
-        )
-        return False
-
-    return True
 
 # -------------------- RUN --------------------
 async def main():
