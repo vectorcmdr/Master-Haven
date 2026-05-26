@@ -546,6 +546,18 @@ body {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
+/* Hero title accent ("GRAND FESTIVAL") — plain white instead of the
+   white→aqua gradient, so the whole title is one solid white. Glow kept. */
+.hero-title .accent {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: var(--bulb-on);
+  color: var(--bulb-on);
+  filter: drop-shadow(0 0 30px rgba(184, 244, 236, 0.5))
+    drop-shadow(0 6px 16px rgba(0, 0, 0, 0.3));
+}
+
 @media (max-width: 800px) {
   .nav-logo .summer-tag { display: none; }
   /* .nav-links has no flex-wrap in the contract, so 5 items shrink and break
