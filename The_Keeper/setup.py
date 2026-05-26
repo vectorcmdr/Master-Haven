@@ -121,6 +121,15 @@ async def get_command_config(
         "channels": [r[0] for r in rows],
         "role_id": next(iter(role_ids), None)
     }
+async def get_guild_command_config(guild_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "SELECT command_name, channel_id, role_id FROM command_config WHERE guild_id = ?",
+            (guild_id,)
+        )
+        rows = await cursor.fetchall()
+
+    return rows
 
 # ---------------- UI: COMMAND SELECT ----------------
 
@@ -384,7 +393,7 @@ async def is_command_allowed(
     guild_id: int,
     command_name: str,
     channel_id: int,
-    member: discord.abc.User
+    member: discord.Member | discord.User
 ):
     config = await get_command_config(guild_id, command_name)
 
@@ -395,19 +404,14 @@ async def is_command_allowed(
         return False
 
     role_id = config["role_id"]
-    
+
     if role_id is None:
         return True
 
     if not isinstance(member, discord.Member):
         return False
 
-        role = member.get_role(role_id)
-
-        if not role:
-            return False
-
-    return True
+    return member.get_role(role_id) is not None
 
 # ---------------- MAIN COG ----------------
 
