@@ -59,9 +59,9 @@ export default function About() {
               tradition. It's time we ran the other half.
             </p>
             <p>
-              Summer Unification Day is that other half. The end-of-year UD remains the canonical
-              “main” event. Summer UD is its warmer, looser, more festival-coded sibling — and it
-              has lore on its side.
+              The Summer Grand Festival is that other half. The end-of-year UD remains the
+              canonical “main” event; this is its warmer, looser, more festival-coded sibling —
+              and it has lore on its side.
             </p>
           </div>
 
