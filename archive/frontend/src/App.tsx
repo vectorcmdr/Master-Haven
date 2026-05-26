@@ -30,6 +30,16 @@ import { Story } from "./pages/Story";
 import { Timeline } from "./pages/Timeline";
 import { Admin } from "./pages/Admin";
 import { Avatar } from "./components/Avatar";
+import { Beats } from "./pages/Beats";
+import { BeatPage } from "./pages/BeatPage";
+import { Events } from "./pages/Events";
+import { EventPage } from "./pages/EventPage";
+import { People } from "./pages/People";
+import { PersonPage } from "./pages/PersonPage";
+import { Places } from "./pages/Places";
+import { PlacePage } from "./pages/PlacePage";
+import { Search } from "./pages/Search";
+import { Watchlist } from "./pages/Watchlist";
 
 const PAGE_TITLES: Record<string, string> = {
   home: "Newsroom",
@@ -37,15 +47,24 @@ const PAGE_TITLES: Record<string, string> = {
   civ: "Civilization",
   inquisitions: "Inquisitions",
   inquisition: "Inquisition",
+  beats: "Beats",
   beat: "Newsroom",
   story: "Story",
   profile: "Profile",
+  people: "People",
+  person: "Person",
+  places: "Places",
+  place: "Place",
+  events: "Events",
+  event: "Event",
   timeline: "Master timeline",
   dashboard: "Dashboard",
   drafts: "Drafts",
   draft: "Draft",
   compose: "New draft",
   admin: "Admin",
+  search: "Search",
+  watchlist: "Watchlist",
   notfound: "Not found",
 };
 
@@ -67,9 +86,13 @@ export function App() {
         <NavLink to="/" active={route.name === "home" || route.name === "beat"}>Newsroom</NavLink>
         <NavLink to="/civs" active={route.name === "civs" || route.name === "civ"}>Civilizations</NavLink>
         <NavLink to="/inquisitions" active={route.name === "inquisitions" || route.name === "inquisition"}>Inquisitions</NavLink>
+        <NavLink to="/people" active={route.name === "people" || route.name === "person"}>People</NavLink>
+        <NavLink to="/places" active={route.name === "places" || route.name === "place"}>Places</NavLink>
+        <NavLink to="/events" active={route.name === "events" || route.name === "event"}>Events</NavLink>
         <NavLink to="/timeline" active={route.name === "timeline"}>Timeline</NavLink>
         <NavLink to="/dashboard" active={route.name === "dashboard"}>Dashboard</NavLink>
         <NavLink to="/drafts" active={route.name === "drafts" || route.name === "draft" || route.name === "compose"}>Drafts</NavLink>
+        {user && <NavLink to="/watchlist" active={route.name === "watchlist"}>Watch</NavLink>}
         {user?.is_admin && (
           <NavLink to="/admin" active={route.name === "admin"}>Admin</NavLink>
         )}
@@ -96,7 +119,7 @@ export function App() {
         <div className="ta-mobile-bar-right">
           <NotificationBell />
           {user ? (
-            <a href={`#/profile/${user.discord_username}`}>
+            <a href={`#/profile/${user.discord_username}`} aria-label="My profile">
               <Avatar author={user} />
             </a>
           ) : (
@@ -122,7 +145,11 @@ export function App() {
           <BottomNavLink to="/inquisitions" label="Inq." active={route.name === "inquisitions" || route.name === "inquisition"} />
           <BottomNavLink to="/timeline" label="Time" active={route.name === "timeline"} />
           <BottomNavLink to="/drafts" label="Drafts" active={route.name === "drafts" || route.name === "draft" || route.name === "compose"} />
-          <BottomNavLink to="/dashboard" label="Me" active={route.name === "dashboard"} />
+          {user?.is_admin ? (
+            <BottomNavLink to="/admin" label="Admin" active={route.name === "admin"} />
+          ) : (
+            <BottomNavLink to="/dashboard" label="Me" active={route.name === "dashboard"} />
+          )}
         </div>
       </nav>
 
@@ -146,17 +173,26 @@ function PageFor({ route }: { route: ReturnType<typeof useRoute> }) {
   switch (route.name) {
     case "home": return <Newsroom />;
     case "beat": return <Newsroom beat={route.slug} />;
+    case "beats": return <Beats />;
     case "civs": return <Civs />;
     case "civ": return <CivPage slug={route.slug} />;
     case "inquisitions": return <Inquisitions />;
     case "inquisition": return <InquisitionPage id={route.id} />;
     case "story": return <Story id={route.id} />;
     case "profile": return <Profile slug={route.slug} />;
+    case "people": return <People />;
+    case "person": return <PersonPage slug={route.slug} />;
+    case "places": return <Places />;
+    case "place": return <PlacePage slug={route.slug} />;
+    case "events": return <Events />;
+    case "event": return <EventPage slug={route.slug} />;
     case "timeline": return <Timeline />;
     case "dashboard": return <Dashboard />;
     case "drafts": return <Drafts />;
     case "draft": return <Draft id={route.id} />;
     case "compose": return <Compose doctype={route.doctype} />;
+    case "search": return <Search />;
+    case "watchlist": return <Watchlist />;
     case "login": return <Login />;
     case "admin": return <Admin />;
     case "notfound":

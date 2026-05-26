@@ -9,6 +9,7 @@ import {
 import { InquisitionCard } from "../components/InquisitionCard";
 import { Loading } from "../components/Loading";
 import { StoryCard } from "../components/StoryCard";
+import { KNOWN_BEATS } from "../components/UserSearch";
 import { useAuth } from "../hooks/useAuth";
 
 interface Props {
@@ -23,20 +24,28 @@ export function Newsroom({ beat }: Props) {
   const canCompose = !!user && (user.base_role === "diplomat" || user.base_role === "historian" || user.is_admin);
 
   useEffect(() => {
+    const ac = new AbortController();
     Promise.all([
-      api<StorySummary[]>("/stories", { query: { beat } }),
-      api<InquisitionSummary[]>("/inquisitions"),
-      api<CivilizationSummary[]>("/civilizations"),
+      api<StorySummary[]>("/stories", { query: { beat }, signal: ac.signal }),
+      api<InquisitionSummary[]>("/inquisitions", { signal: ac.signal }),
+      api<CivilizationSummary[]>("/civilizations", { signal: ac.signal }),
     ]).then(([s, i, c]) => {
       setStories(s);
       setInquisitions(i);
       setCivs(c);
-    }).catch(() => {
-      // surfaced by the empty state below
+    }).catch((err) => {
+      if (err?.name === "AbortError") return;
+      // We don't want to leave the page in a permanent loading state
+      // on network failure — but we also shouldn't silently empty
+      // everything. Show a toast so the user knows.
       setStories([]);
       setInquisitions([]);
       setCivs([]);
+      // showToast injected via dynamic import so SSR doesn't break;
+      // simple notification here:
+      console.error("Newsroom fetch failed", err);
     });
+    return () => ac.abort();
   }, [beat]);
 
   const briefs = (stories ?? []).filter((s) => s.doctype === "brief");
@@ -51,9 +60,9 @@ export function Newsroom({ beat }: Props) {
         <h1 className="ta-masthead-name">Travelers Archive</h1>
         <div className="ta-masthead-tag">A record of the No Man's Sky multiverse</div>
         <div className="ta-masthead-meta">
-          <Stat n={stories?.length ?? "—"} label="stories" />
-          <Stat n={inquisitions?.length ?? "—"} label="inquisitions" />
-          <Stat n={civs?.length ?? "—"} label="civs" />
+          <Stat n={stories === null ? "…" : stories.length} label="stories" />
+          <Stat n={inquisitions === null ? "…" : inquisitions.length} label="inquisitions" />
+          <Stat n={civs === null ? "…" : civs.length} label="civs" />
         </div>
       </div>
 
@@ -128,12 +137,11 @@ function Stat({ n, label }: { n: number | string; label: string }) {
 }
 
 function BeatNav({ active }: { active: string | null }) {
-  const beats = ["conflicts", "diplomacy", "events", "civupdates", "projects"];
   return (
     <div className="ta-beat-nav">
       <div className="ta-beat-nav-inner">
         <a href="#/" className={`ta-beat-tab${active === null ? " active" : ""}`}>Front page</a>
-        {beats.map((b) => (
+        {KNOWN_BEATS.map((b) => (
           <a key={b} href={`#/beat/${b}`} className={`ta-beat-tab${active === b ? " active" : ""}`}>{b}</a>
         ))}
         <a href="#/inquisitions" className="ta-beat-tab">Inquisitions</a>

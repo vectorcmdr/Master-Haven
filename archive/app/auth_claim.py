@@ -24,14 +24,17 @@ return 403 if the user has the privilege flag but no password_hash.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import re
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from .audit import log_audit
 from .config import get_settings
 from .deps import (
     SESSION_COOKIE,
@@ -93,6 +96,26 @@ def _no_admin_exists(db: Session) -> bool:
     return row is None
 
 
+# Pre-generated dummy hash so `verify_password` runs the full PBKDF2
+# cycle and we get constant timing across the "user doesn't exist"
+# and "user exists but is unlocked" branches. Reusing the same dummy
+# every request is fine — the hash never matches any real password.
+_DUMMY_HASH = hash_password("dummy-do-not-match-anything")
+
+
+def _dummy_verify() -> None:
+    """Run a PBKDF2 cycle for timing parity. Result is discarded."""
+    verify_password("dummy", _DUMMY_HASH)
+
+
+def _username_matches_admin(username: str) -> bool:
+    """Constant-time comparison against the configured ADMIN_USERNAME."""
+    expected = get_settings().admin_username
+    if not expected:
+        return False
+    return hmac.compare_digest(username.strip().lower(), expected.strip().lower())
+
+
 def _avatar_color_for(username: str) -> str:
     """Stable per-username color choice from a small palette."""
     palette = ["purple", "pink", "teal", "coral", "amber", "slate", "green"]
@@ -109,14 +132,26 @@ def claim(
     db: Session = Depends(get_db),
 ):
     """
-    Claim a username. Three branches:
-    - username doesn't exist: create row, log in (first-admin bootstrap
-      if no admin yet)
-    - exists without password_hash: log in (free re-claim)
-    - exists with password_hash: require password to match
+    Claim a username.
+
+    - username doesn't exist: create row, log in. The configured
+      ADMIN_USERNAME (default 'ekimo') is auto-promoted to admin on
+      first claim if no admin exists yet; every other username gets a
+      plain reader account.
+    - exists without password_hash: log in (free re-claim) — but still
+      run a fake password verify so timing matches the locked-name
+      branch.
+    - exists with password_hash: require password to match.
     """
+    # Constant minimum-cost cycle: do a dummy hash compare so the
+    # "user does not exist" branch can't be timed against the "user
+    # exists w/ password" branch.
+    start = time.monotonic()
     username = body.username.strip().lower()
     if not USERNAME_RE.match(username):
+        # Drain a slice of time before responding so the username
+        # validation path doesn't leak structure either.
+        _dummy_verify()
         raise HTTPException(
             status_code=400,
             detail="username must be 2-32 chars of lowercase letters/digits/dot/underscore",
@@ -132,10 +167,16 @@ def claim(
     ).first()
 
     if existing is None:
-        # First-admin bootstrap: if no admin row exists yet, the first
-        # claimer becomes admin + editor. Otherwise, plain reader.
-        bootstrap_admin = _no_admin_exists(db)
+        # First-admin bootstrap is now gated on ADMIN_USERNAME env var.
+        # An adversary cannot win the race by hitting /claim first with
+        # a random name — they must know the configured admin username.
+        is_admin_name = _username_matches_admin(username)
+        bootstrap_admin = is_admin_name and _no_admin_exists(db)
         base_role = "historian" if bootstrap_admin else "reader"
+        # Always do a dummy verify_password so the timing of "username
+        # doesn't exist" matches the timing of "username exists with
+        # password" — no user-enumeration via response time.
+        _dummy_verify()
         result = db.execute(
             text(
                 "INSERT INTO archive_user ("
@@ -161,6 +202,11 @@ def claim(
             text("UPDATE archive_user SET last_login = CURRENT_TIMESTAMP WHERE id = :id"),
             {"id": new_id},
         )
+        if bootstrap_admin:
+            log_audit(db, new_id, "auth.bootstrap_admin", "archive_user", new_id,
+                      metadata={"username": username})
+        log_audit(db, new_id, "auth.claim_new", "archive_user", new_id,
+                  metadata={"username": username, "bootstrap_admin": bootstrap_admin})
         db.commit()
         if bootstrap_admin:
             log.info("claim bootstrap admin: %s (id=%d)", username, new_id)
@@ -182,15 +228,20 @@ def claim(
                 status_code=401,
                 detail="password required for this username",
             )
-    # else: name is unlocked, anyone can re-claim it
+    else:
+        # Unlocked name path: do a fake verify so timing matches the
+        # locked-name path.
+        _dummy_verify()
 
     db.execute(
         text("UPDATE archive_user SET last_login = CURRENT_TIMESTAMP WHERE id = :id"),
         {"id": existing.id},
     )
+    log_audit(db, existing.id, "auth.claim_existing", "archive_user", existing.id,
+              metadata={"username": username})
     db.commit()
     _set_session_cookie(response, existing.id)
-    log.info("claim existing: %s (id=%d)", username, existing.id)
+    log.info("claim existing: %s (id=%d, elapsed=%.3fs)", username, existing.id, time.monotonic() - start)
     needs_password = (
         (bool(existing.is_admin) or bool(existing.is_editor))
         and not existing.password_hash

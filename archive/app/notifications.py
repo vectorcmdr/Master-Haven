@@ -18,6 +18,7 @@ them up in archive_user. Unknown handles are silently skipped.
 
 from __future__ import annotations
 
+import html
 import re
 from typing import Optional
 
@@ -39,6 +40,12 @@ def _insert_notification(
     related_draft_id: Optional[int] = None,
     related_user_id: Optional[int] = None,
 ) -> None:
+    # HTML-escape title/body before storage. The notification text
+    # often interpolates user-controlled values (headline, comment
+    # body) — escape at the persistence boundary so every consumer
+    # gets a safe string.
+    safe_title = html.escape(title) if title else title
+    safe_body = html.escape(body) if body else body
     db.execute(
         text(
             "INSERT INTO notification (user_id, type, title, body, link, "
@@ -48,13 +55,50 @@ def _insert_notification(
         {
             "uid": user_id,
             "t": type,
-            "title": title,
-            "body": body,
+            "title": safe_title,
+            "body": safe_body,
             "link": link,
             "rdid": related_draft_id,
             "ruid": related_user_id,
         },
     )
+
+
+def notify_watchers(
+    db: Session,
+    target_type: str,
+    target_id: int,
+    actor_id: int,
+    title: str,
+    body: Optional[str] = None,
+    link: Optional[str] = None,
+) -> int:
+    """Insert one notification per watcher of (target_type, target_id),
+    excluding the actor themselves. Returns count inserted.
+
+    Hooked into PATCH endpoints on civilizations/people/places/events
+    and into publish flows on stories/inquisitions.
+    """
+    watchers = db.execute(
+        text(
+            "SELECT DISTINCT user_id FROM watchlist "
+            "WHERE target_type = :tt AND target_id = :tid AND user_id != :actor"
+        ),
+        {"tt": target_type, "tid": target_id, "actor": actor_id},
+    ).fetchall()
+    inserted = 0
+    for w in watchers:
+        _insert_notification(
+            db,
+            user_id=w.user_id,
+            type="watchlist_update",
+            title=title,
+            body=body,
+            link=link,
+            related_user_id=actor_id,
+        )
+        inserted += 1
+    return inserted
 
 
 def notify_coauthor_added(

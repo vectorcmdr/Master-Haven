@@ -17,7 +17,9 @@ it's a document-level comment.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import html
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -53,13 +55,15 @@ def _comment_row_to_detail(row) -> CommentDetail:
     )
 
 
-def _ensure_draft_exists(db: Session, draft_id: int) -> None:
+def _ensure_draft_exists(db: Session, draft_id: int) -> dict:
+    """Verify draft exists and return its row mapping. 404 if missing."""
     row = db.execute(
-        text("SELECT 1 FROM draft WHERE id = :id AND deleted_at IS NULL"),
+        text("SELECT id, status FROM draft WHERE id = :id AND deleted_at IS NULL"),
         {"id": draft_id},
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="draft not found")
+    return dict(row._mapping)
 
 
 @router.get("/drafts/{draft_id}/comments", response_model=Envelope[list[CommentDetail]])
@@ -92,22 +96,36 @@ def list_comments(
 def post_comment(
     draft_id: int,
     body: CommentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(require_team_role),
 ):
-    _ensure_draft_exists(db, draft_id)
+    draft = _ensure_draft_exists(db, draft_id)
+    if draft["status"] == "published":
+        raise HTTPException(
+            status_code=400,
+            detail="cannot comment on a published draft",
+        )
+    # HTML-escape user-supplied text before storage so we can't render
+    # injected markup downstream (notification titles, body previews).
+    safe_body = html.escape(body.body)
+    safe_quote = html.escape(body.quoted_text) if body.quoted_text else None
     result = db.execute(
         text(
             "INSERT INTO draft_comment (draft_id, author_id, body, quoted_text) "
             "VALUES (:d, :a, :b, :q)"
         ),
-        {"d": draft_id, "a": user["id"], "b": body.body, "q": body.quoted_text},
+        {"d": draft_id, "a": user["id"], "b": safe_body, "q": safe_quote},
     )
     comment_id = result.lastrowid
-    # @mentions
-    notify_comment_mentions(db, draft_id, comment_id, body.body, user["id"])
-    log_audit(db, user["id"], "comment.create", "draft_comment", comment_id,
-              metadata={"draft_id": draft_id, "has_quote": bool(body.quoted_text)})
+    # @mentions (parses against the raw body so handles still match,
+    # but notification body uses the already-escaped form).
+    notify_comment_mentions(db, draft_id, comment_id, safe_body, user["id"])
+    log_audit(
+        db, user["id"], "comment.create", "draft_comment", comment_id,
+        metadata={"draft_id": draft_id, "has_quote": bool(body.quoted_text)},
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
 
     row = db.execute(

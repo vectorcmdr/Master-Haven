@@ -13,15 +13,23 @@ export function Story({ id }: { id: string }) {
   useEffect(() => {
     setStory(null);
     setNotFound(false);
-    api<StoryDetail>(`/stories/${id}`)
+    // Numeric id → /stories/{id}; otherwise treat as slug → /stories/by-slug/{slug}.
+    const path = /^\d+$/.test(id) ? `/stories/${id}` : `/stories/by-slug/${id}`;
+    const ac = new AbortController();
+    api<StoryDetail>(path, { signal: ac.signal })
       .then(setStory)
-      .catch(() => setNotFound(true));
+      .catch((e) => {
+        if (e?.name === "AbortError") return;
+        setNotFound(true);
+      });
+    return () => ac.abort();
   }, [id]);
 
   if (notFound) return <div className="ta-empty">Story not found.</div>;
   if (!story) return <Loading label="Loading story…" />;
 
   const niceDate = new Date(story.published_at).toLocaleDateString("en-US", { dateStyle: "long" });
+  const authorRole = story.author?.role || "contributor";
 
   return (
     <div className="ta-story-reader">
@@ -40,7 +48,7 @@ export function Story({ id }: { id: string }) {
             <a href={`#/profile/${story.author.slug}`}>{story.author.name}</a>
           </div>
           <div className="ta-story-reader-byline-meta">
-            {story.author.role ?? "diplomat"} · published {niceDate}
+            {authorRole} · published {niceDate}
             {story.read_minutes ? ` · ${story.read_minutes} min read` : ""}
           </div>
         </div>

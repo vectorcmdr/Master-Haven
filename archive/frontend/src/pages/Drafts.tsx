@@ -27,7 +27,10 @@ export function Drafts() {
   if (!user) {
     return (
       <div className="ta-empty">
-        Log in via the dev panel to see drafts.
+        You need to be signed in to see drafts.
+        <div className="ta-empty-cta-row">
+          <a href="#/login" className="ta-btn ta-btn-primary">Sign in</a>
+        </div>
       </div>
     );
   }

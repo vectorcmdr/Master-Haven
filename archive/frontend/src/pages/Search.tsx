@@ -39,24 +39,30 @@ export function Search() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // Debounce fetch on q change.
+  // Debounce fetch on q change. AbortController prevents a stale
+  // response from overwriting a newer one on fast typing.
   useEffect(() => {
     const term = q.trim();
     if (term.length < 2) { setHits(null); setErr(null); return; }
     setBusy(true);
+    const ac = new AbortController();
     const tid = window.setTimeout(async () => {
       try {
-        const data = await api<SearchHit[]>("/search", { query: { q: term } });
+        const data = await api<SearchHit[]>("/search", { query: { q: term }, signal: ac.signal });
         setHits(data);
         setErr(null);
       } catch (e) {
+        if ((e as Error)?.name === "AbortError") return;
         setHits([]);
         setErr(e instanceof ApiError ? String(e.detail) : "search failed");
       } finally {
         setBusy(false);
       }
     }, 250);
-    return () => window.clearTimeout(tid);
+    return () => {
+      window.clearTimeout(tid);
+      ac.abort();
+    };
   }, [q]);
 
   const grouped = useMemo(() => {

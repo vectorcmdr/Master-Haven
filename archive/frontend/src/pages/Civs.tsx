@@ -7,6 +7,7 @@ import {
   CivilizationWrite,
 } from "../api/client";
 import { CivCard } from "../components/CivCard";
+import { invalidateCivCache } from "../components/CivPicker";
 import { useAuth } from "../hooks/useAuth";
 import { showToast } from "../hooks/useToast";
 import { navigate } from "../router";
@@ -66,6 +67,7 @@ export function Civs() {
           onCancel={() => setCreating(false)}
           onCreated={(c) => {
             setCreating(false);
+            invalidateCivCache();
             showToast(`Created ${c.name}`);
             navigate(`/civ/${c.slug}`);
           }}
@@ -107,6 +109,13 @@ function CreateCivModal({
     }));
   };
 
+  // When the user clears the slug field, allow the auto-derive to take
+  // over again on the next name change.
+  const onSlugChange = (v: string) => {
+    setDraft((d) => ({ ...d, slug: v }));
+    setSlugTouched(v.length > 0);
+  };
+
   const slugValid = SLUG_RE.test(draft.slug);
   const canSave = draft.name.trim() && slugValid && !saving;
 
@@ -114,9 +123,17 @@ function CreateCivModal({
     if (!canSave) return;
     setSaving(true);
     try {
+      // Send null for empty optional string fields so the backend
+      // distinguishes "not provided" from "intentionally empty".
+      const payload = {
+        ...draft,
+        galaxy: draft.galaxy || null,
+        tagline: draft.tagline || null,
+        description: draft.description || null,
+      };
       const c = await api<CivilizationDetail>("/civilizations", {
         method: "POST",
-        body: draft,
+        body: payload,
       });
       onCreated(c);
     } catch (e) {
@@ -143,7 +160,7 @@ function CreateCivModal({
             <input
               className="ta-form-input"
               value={draft.slug}
-              onChange={(e) => { setSlugTouched(true); set("slug", e.target.value); }}
+              onChange={(e) => onSlugChange(e.target.value)}
               placeholder="lowercase, hyphens, max 64 chars"
             />
             {draft.slug && !slugValid && (

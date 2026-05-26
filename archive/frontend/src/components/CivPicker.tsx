@@ -26,6 +26,17 @@ async function fetchAllCivs(): Promise<CivilizationSummary[]> {
   return inflight;
 }
 
+/**
+ * Bust the in-memory civ cache. Call after a successful civilization
+ * create/edit/delete so the next CivPicker mount re-fetches.
+ *
+ * Exported so callers from the Civs page (after a new civ is created)
+ * can invalidate the cache module-wide.
+ */
+export function invalidateCivCache(): void {
+  cachedCivs = null;
+}
+
 interface Props {
   selected: string[];
   onChange: (slugs: string[]) => void;

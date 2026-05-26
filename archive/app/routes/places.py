@@ -10,13 +10,15 @@ Places — galactic locations (systems, regions).
 from __future__ import annotations
 
 import json
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..audit import log_audit
 from ..deps import get_db, require_historian_or_higher
+from ..notifications import notify_watchers
 from ..models.schemas import (
     Author,
     Envelope,
@@ -29,6 +31,50 @@ from ..models.schemas import (
 from ..revisions import record_revision
 
 router = APIRouter(prefix="/api/v1/places", tags=["places"])
+
+
+# ---------------------------------------------------------------------
+# GET /api/v1/places  — paginated list
+# ---------------------------------------------------------------------
+@router.get("", response_model=Envelope[list[PlaceDetail]])
+def list_places(
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    q: Optional[str] = Query(None, min_length=2, max_length=120),
+    galaxy: Optional[str] = None,
+):
+    where = "WHERE deleted_at IS NULL"
+    params: dict = {"limit": page_size, "offset": (page - 1) * page_size}
+    if q:
+        where += " AND (LOWER(name) LIKE :pat OR LOWER(description) LIKE :pat OR LOWER(region) LIKE :pat)"
+        params["pat"] = f"%{q.lower()}%"
+    if galaxy:
+        where += " AND galaxy = :galaxy"
+        params["galaxy"] = galaxy
+    total = db.execute(
+        text(f"SELECT COUNT(*) FROM place {where}"), params
+    ).scalar() or 0
+    rows = db.execute(
+        text(
+            f"SELECT slug, name, galaxy, region, coordinates, description "
+            f"FROM place {where} "
+            f"ORDER BY name ASC "
+            f"LIMIT :limit OFFSET :offset"
+        ),
+        params,
+    ).fetchall()
+    data = [
+        PlaceDetail(
+            slug=r.slug, name=r.name, galaxy=r.galaxy, region=r.region,
+            coordinates=r.coordinates, description=r.description,
+        )
+        for r in rows
+    ]
+    return Envelope(
+        data=data,
+        meta=Meta(page=page, page_size=page_size, total=total, extra={"q": q, "galaxy": galaxy}),
+    )
 
 
 def _place_snapshot(row) -> dict:
@@ -63,6 +109,7 @@ def get_place(slug: str, db: Session = Depends(get_db)):
 @router.post("", response_model=Envelope[PlaceDetail], status_code=201)
 def create_place(
     body: PlaceWrite,
+    request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(require_historian_or_higher),
 ):
@@ -81,7 +128,11 @@ def create_place(
         {"id": pid},
     ).first()
     record_revision(db, "place", pid, user["id"], "created", _place_snapshot(new_row))
-    log_audit(db, user["id"], "place.create", "place", pid, metadata={"slug": body.slug})
+    log_audit(
+        db, user["id"], "place.create", "place", pid,
+        metadata={"slug": body.slug},
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
     return Envelope(data=PlaceDetail(
         slug=new_row.slug, name=new_row.name, galaxy=new_row.galaxy,
@@ -94,6 +145,7 @@ def create_place(
 def patch_place(
     slug: str,
     patch: PlacePatch,
+    request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(require_historian_or_higher),
 ):
@@ -103,7 +155,7 @@ def patch_place(
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="place not found")
-    fields = {k: v for k, v in patch.model_dump(exclude_unset=True).items() if v is not None}
+    fields = patch.model_dump(exclude_unset=True)
     if fields:
         sets = ", ".join(f"{k} = :{k}" for k in fields)
         fields["id"] = row.id
@@ -115,17 +167,57 @@ def patch_place(
         text("SELECT id, slug, name, galaxy, region, coordinates, description FROM place WHERE id = :id"),
         {"id": row.id},
     ).first()
+    changed = [k for k in fields.keys() if k != "id"]
     record_revision(db, "place", row.id, user["id"],
-                    f"patched {', '.join(fields.keys())}" if fields else "no-op patch",
+                    f"patched {', '.join(changed)}" if changed else "no-op patch",
                     _place_snapshot(new_row))
-    log_audit(db, user["id"], "place.patch", "place", row.id,
-              metadata={"slug": slug, "fields_changed": list(fields.keys())})
+    log_audit(
+        db, user["id"], "place.patch", "place", row.id,
+        metadata={"slug": slug, "fields_changed": changed},
+        ip_address=request.client.host if request.client else None,
+    )
+    if changed:
+        notify_watchers(
+            db, "place", row.id, user["id"],
+            title=f"Place updated: {new_row.name}",
+            body=f"Fields changed: {', '.join(changed)}",
+            link=f"/place/{new_row.slug}",
+        )
     db.commit()
     return Envelope(data=PlaceDetail(
         slug=new_row.slug, name=new_row.name, galaxy=new_row.galaxy,
         region=new_row.region, coordinates=new_row.coordinates,
         description=new_row.description,
     ))
+
+
+# ---------------------------------------------------------------------
+# DELETE /api/v1/places/{slug} — soft-delete (historian+ only)
+# ---------------------------------------------------------------------
+@router.delete("/{slug}", status_code=204)
+def delete_place(
+    slug: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_historian_or_higher),
+):
+    row = db.execute(
+        text("SELECT id FROM place WHERE slug = :s AND deleted_at IS NULL"),
+        {"s": slug},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="place not found")
+    db.execute(
+        text("UPDATE place SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id"),
+        {"id": row.id},
+    )
+    record_revision(db, "place", row.id, user["id"], "deleted", {"slug": slug})
+    log_audit(
+        db, user["id"], "place.delete", "place", row.id,
+        metadata={"slug": slug},
+        ip_address=request.client.host if request.client else None,
+    )
+    db.commit()
 
 
 @router.get("/{slug}/revisions", response_model=Envelope[list[RevisionEntry]])

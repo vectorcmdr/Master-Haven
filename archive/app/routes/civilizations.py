@@ -14,7 +14,10 @@ render civ cards / civ pages without any client-side reshaping.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -22,6 +25,7 @@ import json
 
 from ..audit import log_audit
 from ..deps import get_db, require_admin, require_historian_or_higher
+from ..notifications import notify_watchers
 from ..models.schemas import (
     Author,
     CivStats,
@@ -58,21 +62,28 @@ def _row_to_summary(row, stats: CivStats) -> CivilizationSummary:
     )
 
 
-def _compute_stats(db: Session, civ_slug: str, founded_year: int | None, ended_year: int | None) -> CivStats:
+def _compute_stats(
+    db: Session,
+    civ_slug: str,
+    founded_year: Optional[int],
+    ended_year: Optional[int],
+) -> CivStats:
     """
-    Compute live counts for a civ's stat strip.
+    Single-row stats for one civ. Three independent COUNT queries with
+    parameterized civ_slug — each one's a single index scan, no joins.
+    For multi-civ list endpoints, use `_batch_compute_stats` instead.
 
-    `entries` = stories tagged with this civ + inquisitions tagged with this civ
-    `inquisitions` = inquisitions tagged with this civ
-    `people` = archive_user rows whose primary civ_slug matches
-    `years` = founded → ended (or current year, 2026) span
+    `years` uses the current year (UTC) when still active, not a
+    hardcoded value.
     """
     story_count = db.execute(
-        text("SELECT COUNT(*) FROM story_civilization WHERE civ_slug = :s"),
+        text("SELECT COUNT(*) FROM story_civilization sc JOIN story s ON s.id = sc.story_id "
+             "WHERE sc.civ_slug = :s AND s.deleted_at IS NULL"),
         {"s": civ_slug},
     ).scalar() or 0
     inq_count = db.execute(
-        text("SELECT COUNT(*) FROM inquisition_civilization WHERE civ_slug = :s"),
+        text("SELECT COUNT(*) FROM inquisition_civilization ic JOIN inquisition i ON i.id = ic.inquisition_id "
+             "WHERE ic.civ_slug = :s AND i.deleted_at IS NULL"),
         {"s": civ_slug},
     ).scalar() or 0
     people_count = db.execute(
@@ -82,10 +93,9 @@ def _compute_stats(db: Session, civ_slug: str, founded_year: int | None, ended_y
         ),
         {"s": civ_slug},
     ).scalar() or 0
-    # Years active. If still active, use current archive year (2026).
     years = 0
     if founded_year is not None:
-        end = ended_year if ended_year else 2026
+        end = ended_year if ended_year else datetime.utcnow().year
         years = max(0, end - founded_year)
     return CivStats(
         entries=story_count + inq_count,
@@ -93,6 +103,74 @@ def _compute_stats(db: Session, civ_slug: str, founded_year: int | None, ended_y
         people=people_count,
         years=years,
     )
+
+
+def _batch_compute_stats(
+    db: Session, civ_rows: list,
+) -> dict[str, CivStats]:
+    """Compute stats for many civs in 3 queries total (1 per axis).
+
+    Returns a dict keyed by civ slug. Use for the list endpoint to
+    avoid the N+1 pattern of calling `_compute_stats` per row.
+    """
+    if not civ_rows:
+        return {}
+    slugs = [r.slug for r in civ_rows]
+    placeholders = ",".join(f":s{i}" for i in range(len(slugs)))
+    params = {f"s{i}": slugs[i] for i in range(len(slugs))}
+
+    story_counts: dict[str, int] = {}
+    for r in db.execute(
+        text(
+            f"SELECT sc.civ_slug, COUNT(*) AS n "
+            f"FROM story_civilization sc "
+            f"JOIN story s ON s.id = sc.story_id "
+            f"WHERE sc.civ_slug IN ({placeholders}) AND s.deleted_at IS NULL "
+            f"GROUP BY sc.civ_slug"
+        ),
+        params,
+    ).fetchall():
+        story_counts[r.civ_slug] = r.n
+
+    inq_counts: dict[str, int] = {}
+    for r in db.execute(
+        text(
+            f"SELECT ic.civ_slug, COUNT(*) AS n "
+            f"FROM inquisition_civilization ic "
+            f"JOIN inquisition i ON i.id = ic.inquisition_id "
+            f"WHERE ic.civ_slug IN ({placeholders}) AND i.deleted_at IS NULL "
+            f"GROUP BY ic.civ_slug"
+        ),
+        params,
+    ).fetchall():
+        inq_counts[r.civ_slug] = r.n
+
+    people_counts: dict[str, int] = {}
+    for r in db.execute(
+        text(
+            f"SELECT civ_slug, COUNT(*) AS n "
+            f"FROM archive_user "
+            f"WHERE civ_slug IN ({placeholders}) AND deleted_at IS NULL "
+            f"GROUP BY civ_slug"
+        ),
+        params,
+    ).fetchall():
+        people_counts[r.civ_slug] = r.n
+
+    current_year = datetime.utcnow().year
+    out: dict[str, CivStats] = {}
+    for r in civ_rows:
+        years = 0
+        if r.founded_year is not None:
+            end = r.ended_year if r.ended_year else current_year
+            years = max(0, end - r.founded_year)
+        out[r.slug] = CivStats(
+            entries=story_counts.get(r.slug, 0) + inq_counts.get(r.slug, 0),
+            inquisitions=inq_counts.get(r.slug, 0),
+            people=people_counts.get(r.slug, 0),
+            years=years,
+        )
+    return out
 
 
 # ---------------------------------------------------------------------
@@ -103,7 +181,7 @@ def list_civilizations(
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    status: str | None = Query(None, regex="^(active|dormant|archived)$"),
+    status: Optional[str] = Query(None, pattern="^(active|dormant|archived)$"),
 ):
     """Paginated list of civilizations. Optional status filter."""
     where = "WHERE deleted_at IS NULL"
@@ -127,8 +205,9 @@ def list_civilizations(
         params,
     ).fetchall()
 
+    stats_by_slug = _batch_compute_stats(db, rows)
     summaries = [
-        _row_to_summary(r, _compute_stats(db, r.slug, r.founded_year, r.ended_year))
+        _row_to_summary(r, stats_by_slug.get(r.slug, CivStats()))
         for r in rows
     ]
     return Envelope(
@@ -307,6 +386,7 @@ def _civ_row_snapshot(row) -> dict:
 @router.post("", response_model=Envelope[CivilizationDetail], status_code=201)
 def create_civilization(
     body: CivilizationWrite,
+    request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(require_historian_or_higher),
 ):
@@ -339,8 +419,11 @@ def create_civilization(
     snapshot = _civ_row_snapshot(new_row)
     record_revision(db, "civilization", civ_id, user["id"],
                     "created", snapshot)
-    log_audit(db, user["id"], "civilization.create", "civilization", civ_id,
-              metadata={"slug": body.slug})
+    log_audit(
+        db, user["id"], "civilization.create", "civilization", civ_id,
+        metadata={"slug": body.slug},
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
 
     stats = _compute_stats(db, body.slug, body.founded_year, body.ended_year)
@@ -365,6 +448,7 @@ def create_civilization(
 def patch_civilization(
     slug: str,
     patch: CivilizationPatch,
+    request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(require_historian_or_higher),
 ):
@@ -375,7 +459,8 @@ def patch_civilization(
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="civilization not found")
-    fields = {k: v for k, v in patch.model_dump(exclude_unset=True).items() if v is not None}
+    # exclude_unset preserves explicit-NULL writes
+    fields = patch.model_dump(exclude_unset=True)
     if fields:
         sets = ", ".join(f"{k} = :{k}" for k in fields)
         fields["id"] = row.id
@@ -395,11 +480,22 @@ def patch_civilization(
         {"id": row.id},
     ).first()
     snapshot = _civ_row_snapshot(new_row)
+    changed = [k for k in fields.keys() if k != "id"]
     record_revision(db, "civilization", row.id, user["id"],
-                    f"patched {', '.join(fields.keys()) if len(fields) > 1 else 'fields'}"
-                    if fields else "no-op patch", snapshot)
-    log_audit(db, user["id"], "civilization.patch", "civilization", row.id,
-              metadata={"slug": slug, "fields_changed": list(fields.keys())})
+                    f"patched {', '.join(changed)}" if changed else "no-op patch",
+                    snapshot)
+    log_audit(
+        db, user["id"], "civilization.patch", "civilization", row.id,
+        metadata={"slug": slug, "fields_changed": changed},
+        ip_address=request.client.host if request.client else None,
+    )
+    if changed:
+        notify_watchers(
+            db, "civilization", row.id, user["id"],
+            title=f"Civilization updated: {new_row.name}",
+            body=f"Fields changed: {', '.join(changed)}",
+            link=f"/civ/{new_row.slug}",
+        )
     db.commit()
 
     stats = _compute_stats(db, new_row.slug, new_row.founded_year, new_row.ended_year)
@@ -416,6 +512,7 @@ def patch_civilization(
 @router.delete("/{slug}", status_code=204)
 def delete_civilization(
     slug: str,
+    request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(require_admin),
 ):
@@ -431,8 +528,11 @@ def delete_civilization(
         {"id": row.id},
     )
     record_revision(db, "civilization", row.id, user["id"], "deleted", {"slug": slug})
-    log_audit(db, user["id"], "civilization.delete", "civilization", row.id,
-              metadata={"slug": slug})
+    log_audit(
+        db, user["id"], "civilization.delete", "civilization", row.id,
+        metadata={"slug": slug},
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
     return Response(status_code=204)
 

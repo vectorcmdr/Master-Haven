@@ -169,6 +169,11 @@ function RoleBadges({ user }: { user: AdminUserRow }) {
       <span className={`ta-role-badge ${user.base_role}`}>{user.base_role}</span>
       {user.is_editor && <span className="ta-role-badge editor">editor</span>}
       {user.is_admin && <span className="ta-role-badge admin">admin</span>}
+      {user.is_suspended && (
+        <span className="ta-role-badge" style={{ color: "#ff9090", borderColor: "rgba(160,48,48,0.6)", background: "rgba(160,48,48,0.12)" }}>
+          suspended
+        </span>
+      )}
     </div>
   );
 }
@@ -184,6 +189,7 @@ function UserEditForm({ user, civs, onSaved, onCancel }: UserEditFormProps) {
   const [baseRole, setBaseRole] = useState<"reader" | "diplomat" | "historian">(user.base_role);
   const [isEditor, setIsEditor] = useState(user.is_editor);
   const [isAdmin, setIsAdmin] = useState(user.is_admin);
+  const [isSuspended, setIsSuspended] = useState(!!user.is_suspended);
   const [civSlug, setCivSlug] = useState(user.civ_slug ?? "");
   const [beat, setBeat] = useState(user.beat ?? "");
   const [saving, setSaving] = useState(false);
@@ -197,6 +203,7 @@ function UserEditForm({ user, civs, onSaved, onCancel }: UserEditFormProps) {
           base_role: baseRole,
           is_editor: isEditor,
           is_admin: isAdmin,
+          is_suspended: isSuspended,
           civ_slug: civSlug || null,
           beat: beat || null,
         },
@@ -246,7 +253,7 @@ function UserEditForm({ user, civs, onSaved, onCancel }: UserEditFormProps) {
           placeholder="e.g., The Galactic Hub"
         />
       </Field>
-      <div style={{ display: "flex", gap: 16, padding: "6px 0" }}>
+      <div style={{ display: "flex", gap: 16, padding: "6px 0", flexWrap: "wrap" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
           <input
             type="checkbox"
@@ -262,6 +269,14 @@ function UserEditForm({ user, civs, onSaved, onCancel }: UserEditFormProps) {
             onChange={(e) => setIsAdmin(e.target.checked)}
           />
           Admin
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: isSuspended ? "#ff9090" : undefined }}>
+          <input
+            type="checkbox"
+            checked={isSuspended}
+            onChange={(e) => setIsSuspended(e.target.checked)}
+          />
+          Suspended
         </label>
       </div>
       <div style={{ display: "flex", gap: 8 }}>

@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..audit import log_audit
+from ..config import get_settings
 from ..deps import get_db, require_admin
 from ..models.schemas import AdminUserPatch, AdminUserRow, Envelope, Meta
 
@@ -90,7 +91,9 @@ def list_users(
     rows = db.execute(
         text(
             f"SELECT id, discord_username, display_name, avatar_letter, avatar_color, "
-            f"base_role, is_editor, is_admin, civ_slug, beat, created_at "
+            f"base_role, is_editor, is_admin, "
+            f"COALESCE(is_suspended, 0) AS is_suspended, "
+            f"civ_slug, beat, created_at "
             f"FROM archive_user {where} "
             f"ORDER BY is_admin DESC, is_editor DESC, base_role DESC, display_name ASC "
             f"LIMIT :limit OFFSET :offset"
@@ -107,6 +110,7 @@ def list_users(
             base_role=r.base_role,
             is_editor=bool(r.is_editor),
             is_admin=bool(r.is_admin),
+            is_suspended=bool(r.is_suspended),
             civ_slug=r.civ_slug,
             beat=r.beat,
             created_at=r.created_at,
@@ -120,12 +124,23 @@ def list_users(
 def patch_user(
     user_id: int,
     patch: AdminUserPatch,
+    request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(require_admin),
 ):
-    """Update a user's role + permissions. Admin only."""
+    """Update a user's role + permissions. Admin only.
+
+    Invariants:
+    - At least one admin must exist at all times (can't demote the
+      last admin).
+    - The configured ADMIN_USERNAME is undemotable (extra safety net).
+    - Self-demote remains blocked (no foot-gun for the current user).
+    """
     target = db.execute(
-        text("SELECT id, is_admin FROM archive_user WHERE id = :id AND deleted_at IS NULL"),
+        text(
+            "SELECT id, is_admin, discord_username FROM archive_user "
+            "WHERE id = :id AND deleted_at IS NULL"
+        ),
         {"id": user_id},
     ).first()
     if not target:
@@ -133,21 +148,57 @@ def patch_user(
     if target.id == user["id"] and patch.is_admin is False:
         raise HTTPException(status_code=400, detail="cannot remove your own admin flag")
 
-    # Validate civ_slug if provided and non-empty
-    if patch.civ_slug:
+    # Protect the configured ADMIN_USERNAME from demotion.
+    settings = get_settings()
+    if (
+        patch.is_admin is False
+        and target.discord_username == settings.admin_username
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"cannot demote the configured root admin ({settings.admin_username})",
+        )
+
+    # If we're about to remove this user's admin flag, make sure at
+    # least one other admin still exists.
+    if patch.is_admin is False and bool(target.is_admin):
+        other_admins = db.execute(
+            text(
+                "SELECT COUNT(*) FROM archive_user "
+                "WHERE is_admin = 1 AND deleted_at IS NULL AND id != :id"
+            ),
+            {"id": target.id},
+        ).scalar() or 0
+        if other_admins == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="cannot demote the last remaining admin",
+            )
+
+    # Treat empty-string civ_slug as None (clears the link).
+    raw = patch.model_dump(exclude_unset=True)
+    if raw.get("civ_slug") == "":
+        raw["civ_slug"] = None
+    # FK validation for non-null civ_slug.
+    if raw.get("civ_slug"):
         exists = db.execute(
             text("SELECT 1 FROM civilization WHERE slug = :s AND deleted_at IS NULL"),
-            {"s": patch.civ_slug},
+            {"s": raw["civ_slug"]},
         ).first()
         if not exists:
-            raise HTTPException(status_code=400, detail=f"civilization '{patch.civ_slug}' not found")
+            raise HTTPException(status_code=400, detail=f"civilization '{raw['civ_slug']}' not found")
 
-    fields = {k: v for k, v in patch.model_dump(exclude_unset=True).items()}
+    fields = raw
     # Coerce booleans to ints for SQLite
     if "is_editor" in fields and fields["is_editor"] is not None:
         fields["is_editor"] = 1 if fields["is_editor"] else 0
     if "is_admin" in fields and fields["is_admin"] is not None:
         fields["is_admin"] = 1 if fields["is_admin"] else 0
+    if "is_suspended" in fields and fields["is_suspended"] is not None:
+        fields["is_suspended"] = 1 if fields["is_suspended"] else 0
+        # Don't allow suspending yourself
+        if fields["is_suspended"] == 1 and target.id == user["id"]:
+            raise HTTPException(status_code=400, detail="cannot suspend yourself")
 
     if fields:
         sets = ", ".join(f"{k} = :{k}" for k in fields)
@@ -159,14 +210,19 @@ def patch_user(
             ),
             fields,
         )
-    log_audit(db, user["id"], "user.patch", "archive_user", target.id,
-              metadata={"fields_changed": [k for k in fields if k != "id"]})
+    log_audit(
+        db, user["id"], "user.patch", "archive_user", target.id,
+        metadata={"fields_changed": [k for k in fields if k != "id"]},
+        ip_address=request.client.host if request.client else None,
+    )
     db.commit()
 
     row = db.execute(
         text(
             "SELECT id, discord_username, display_name, avatar_letter, avatar_color, "
-            "base_role, is_editor, is_admin, civ_slug, beat, created_at "
+            "base_role, is_editor, is_admin, "
+            "COALESCE(is_suspended, 0) AS is_suspended, "
+            "civ_slug, beat, created_at "
             "FROM archive_user WHERE id = :id"
         ),
         {"id": target.id},
@@ -180,6 +236,7 @@ def patch_user(
         base_role=row.base_role,
         is_editor=bool(row.is_editor),
         is_admin=bool(row.is_admin),
+        is_suspended=bool(row.is_suspended),
         civ_slug=row.civ_slug,
         beat=row.beat,
         created_at=row.created_at,

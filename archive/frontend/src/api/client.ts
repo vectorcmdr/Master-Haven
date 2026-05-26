@@ -33,6 +33,7 @@ interface Opts {
   method?: "GET" | "POST" | "PATCH" | "DELETE" | "PUT";
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined | null>;
+  signal?: AbortSignal;
 }
 
 function qs(query?: Opts["query"]): string {
@@ -61,6 +62,9 @@ export async function apiRaw<T = unknown>(
   };
   if (opts.body !== undefined) {
     init.body = JSON.stringify(opts.body);
+  }
+  if (opts.signal) {
+    init.signal = opts.signal;
   }
   const res = await fetch(url, init);
   if (res.status === 204) return null;

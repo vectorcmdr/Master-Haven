@@ -48,6 +48,10 @@ class Settings:
     discord_vh_guild_id: str
     discord_archivist_guild_id: str
 
+    # Username that is allowed to be auto-promoted to admin on first
+    # claim (closes the public race condition in auth_claim).
+    admin_username: str
+
     @property
     def is_dev(self) -> bool:
         return self.env.lower() == "dev"
@@ -82,6 +86,7 @@ def _load() -> Settings:
         discord_bot_token=os.environ.get("DISCORD_BOT_TOKEN", ""),
         discord_vh_guild_id=os.environ.get("DISCORD_VH_GUILD_ID", ""),
         discord_archivist_guild_id=os.environ.get("DISCORD_ARCHIVIST_GUILD_ID", ""),
+        admin_username=os.environ.get("ADMIN_USERNAME", "ekimo").strip().lower(),
     )
 
 

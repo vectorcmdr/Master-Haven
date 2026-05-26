@@ -26,6 +26,7 @@ from .config import get_settings
 from .routes import (
     admin,
     auth,
+    beats,
     civilizations,
     comments,
     drafts,
@@ -35,9 +36,12 @@ from .routes import (
     notifications,
     people,
     places,
+    revisions,
     search,
+    sources,
     stories,
     timeline,
+    users,
     watchlist,
 )
 
@@ -83,6 +87,7 @@ def create_app() -> FastAPI:
     for module in (
         auth,
         admin,
+        beats,
         civilizations,
         comments,
         drafts,
@@ -92,12 +97,20 @@ def create_app() -> FastAPI:
         notifications,
         people,
         places,
+        revisions,
         search,
+        sources,
         stories,
         timeline,
+        users,
         watchlist,
     ):
         app.include_router(module.router)
+
+    # Serve uploaded media files
+    media_dir = Path(settings.media_path)
+    if media_dir.exists():
+        app.mount("/media", StaticFiles(directory=str(media_dir)), name="media")
 
     # Dev-only fake login. The endpoints inside this router self-gate
     # via _ensure_dev_mode() so attempting to hit them in production

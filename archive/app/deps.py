@@ -74,18 +74,28 @@ def read_session_token(token: str) -> Optional[int]:
 # user fetcher
 # ---------------------------------------------------------------------
 def _fetch_user(db: Session, user_id: int) -> Optional[dict]:
-    """Return a user dict by id, or None if missing/soft-deleted."""
+    """Return a user dict by id, or None if missing/soft-deleted/suspended.
+
+    The is_suspended check is done in Python rather than the WHERE clause
+    so we can still look up the suspended user from the admin UI via the
+    explicit /admin/users endpoint (which doesn't go through this helper).
+    """
     row = db.execute(
         text(
             "SELECT id, discord_id, discord_username, display_name, "
             "avatar_letter, avatar_color, civ_slug, beat, bio, "
-            "base_role, is_editor, is_admin, password_hash "
+            "base_role, is_editor, is_admin, password_hash, "
+            "COALESCE(is_suspended, 0) AS is_suspended "
             "FROM archive_user "
             "WHERE id = :id AND deleted_at IS NULL"
         ),
         {"id": user_id},
     ).first()
     if not row:
+        return None
+    if bool(row.is_suspended):
+        # Suspended accounts behave as logged-out — they can still hit
+        # public endpoints, but get_current_user returns None.
         return None
     is_editor = bool(row.is_editor)
     is_admin = bool(row.is_admin)

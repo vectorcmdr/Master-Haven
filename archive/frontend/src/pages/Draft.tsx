@@ -44,21 +44,28 @@ export function Draft({ id }: Props) {
   const [savedAt, setSavedAt] = useState<string>("");
   const [commentBody, setCommentBody] = useState("");
   const [pendingQuote, setPendingQuote] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [removeCoauthorPrompt, setRemoveCoauthorPrompt] = useState<{ id: number; name: string } | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const saveAbort = useRef<AbortController | null>(null);
+  const saveSeq = useRef<number>(0);
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
   const readonlyBodyRef = useRef<HTMLDivElement | null>(null);
 
   const reload = useCallback(async () => {
+    const ac = new AbortController();
     try {
-      const d = await api<DraftDetail>(`/drafts/${id}`);
+      const d = await api<DraftDetail>(`/drafts/${id}`, { signal: ac.signal });
       setDraft(d);
-      const c = await api<CommentDetail[]>(`/drafts/${id}/comments`);
+      const c = await api<CommentDetail[]>(`/drafts/${id}/comments`, { signal: ac.signal });
       setComments(c);
     } catch (e) {
+      if ((e as Error)?.name === "AbortError") return;
       if (e instanceof ApiError && (e.status === 404 || e.status === 401 || e.status === 403)) {
         setNotFound(true);
       }
     }
+    return () => ac.abort();
   }, [id]);
 
   useEffect(() => { reload(); }, [reload]);
@@ -115,16 +122,29 @@ export function Draft({ id }: Props) {
   const isEditor = user.is_editor || user.is_admin;
   const isPublished = draft.status === "published";
 
-  // Auto-save on field change (800ms debounce)
+  // Auto-save on field change (800ms debounce). Includes race-protection
+  // via AbortController + seq counter so an older response can't clobber
+  // newer state.
   const scheduleSave = (patch: Record<string, unknown>) => {
     if (!canEdit || isPublished) return;
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(async () => {
+      // Cancel any in-flight save and start a new one
+      if (saveAbort.current) saveAbort.current.abort();
+      const ac = new AbortController();
+      saveAbort.current = ac;
+      const mySeq = ++saveSeq.current;
       try {
-        const updated = await api<DraftDetail>(`/drafts/${id}`, { method: "PATCH", body: patch });
-        setDraft(updated);
-        setSavedAt("just now");
-      } catch {
+        const updated = await api<DraftDetail>(`/drafts/${id}`, {
+          method: "PATCH", body: patch, signal: ac.signal,
+        });
+        // Only apply if this is still the latest save in flight
+        if (mySeq === saveSeq.current) {
+          setDraft(updated);
+          setSavedAt("just now");
+        }
+      } catch (e) {
+        if ((e as Error)?.name === "AbortError") return;
         showToast("Auto-save failed");
       }
     }, 800);
@@ -135,11 +155,15 @@ export function Draft({ id }: Props) {
       const updated = await apiRaw<DraftDetail>(`/drafts/${id}/${path}`, { method: "POST" });
       if (updated?.data) setDraft(updated.data);
       showToast(label);
-      if (path === "publish" && updated?.data) {
-        if (updated.data.published_as_story_id) {
-          navigate(`/story/${updated.data.published_as_story_id}`);
-        } else if (updated.data.published_as_inquisition_id) {
-          navigate(`/inquisition/${updated.data.published_as_inquisition_id}`);
+      if (path === "publish") {
+        const d = updated?.data;
+        if (d?.published_as_story_id) {
+          navigate(`/story/${d.published_as_story_id}`);
+        } else if (d?.published_as_inquisition_id) {
+          navigate(`/inquisition/${d.published_as_inquisition_id}`);
+        } else {
+          // Defensive: backend should always set one of these on success.
+          showToast("Published, but no destination ID was returned. Check the drafts list.");
         }
       }
     } catch (e) {
@@ -163,7 +187,13 @@ export function Draft({ id }: Props) {
   };
 
   const removeCoauthor = async (userId: number, name: string) => {
-    if (!window.confirm(`Remove ${name} as a co-author?`)) return;
+    setRemoveCoauthorPrompt({ id: userId, name });
+  };
+
+  const confirmRemoveCoauthor = async () => {
+    if (!removeCoauthorPrompt) return;
+    const { id: userId, name } = removeCoauthorPrompt;
+    setRemoveCoauthorPrompt(null);
     try {
       await apiRaw(`/drafts/${id}/coauthors/${userId}`, { method: "DELETE" });
       showToast(`Removed ${name}`);
@@ -175,9 +205,11 @@ export function Draft({ id }: Props) {
   };
 
   const deleteDraft = async () => {
-    if (!window.confirm(
-      "Delete this draft? Drafts that have been submitted, marked ready, or published cannot be deleted."
-    )) return;
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    setShowDeleteModal(false);
     try {
       await apiRaw(`/drafts/${id}`, { method: "DELETE" });
       showToast("Draft deleted");
@@ -304,8 +336,11 @@ export function Draft({ id }: Props) {
                 Beat
               </div>
               <select
-                defaultValue={draft.beat ?? ""}
-                onChange={(e) => scheduleSave({ beat: e.target.value || null })}
+                value={draft.beat ?? ""}
+                onChange={(e) => {
+                  setDraft({ ...draft, beat: e.target.value || null });
+                  scheduleSave({ beat: e.target.value || null });
+                }}
                 disabled={isPublished}
                 style={{
                   width: "100%", height: 38,
@@ -327,21 +362,30 @@ export function Draft({ id }: Props) {
           <input
             className="ta-draft-editor-headline"
             placeholder="Headline"
-            defaultValue={draft.headline ?? ""}
-            onChange={(e) => scheduleSave({ headline: e.target.value })}
+            value={draft.headline ?? ""}
+            onChange={(e) => {
+              setDraft({ ...draft, headline: e.target.value });
+              scheduleSave({ headline: e.target.value });
+            }}
           />
           <input
             className="ta-draft-editor-deck"
             placeholder="Deck (subtitle)"
-            defaultValue={draft.deck ?? ""}
-            onChange={(e) => scheduleSave({ deck: e.target.value })}
+            value={draft.deck ?? ""}
+            onChange={(e) => {
+              setDraft({ ...draft, deck: e.target.value });
+              scheduleSave({ deck: e.target.value });
+            }}
           />
           <textarea
             ref={bodyRef}
             className="ta-draft-editor-body"
             placeholder="Body…"
-            defaultValue={draft.body ?? ""}
-            onChange={(e) => scheduleSave({ body: e.target.value })}
+            value={draft.body ?? ""}
+            onChange={(e) => {
+              setDraft({ ...draft, body: e.target.value });
+              scheduleSave({ body: e.target.value });
+            }}
           />
         </>
       ) : (
@@ -488,6 +532,54 @@ export function Draft({ id }: Props) {
               Visible to all team members
             </span>
           </div>
+        </div>
+      </div>
+
+      {showDeleteModal && (
+        <ConfirmModal
+          title="Delete this draft?"
+          body="Drafts that have been submitted, marked ready, or published cannot be deleted."
+          confirmLabel="Delete"
+          danger
+          onConfirm={confirmDelete}
+          onCancel={() => setShowDeleteModal(false)}
+        />
+      )}
+      {removeCoauthorPrompt && (
+        <ConfirmModal
+          title="Remove co-author?"
+          body={`Remove ${removeCoauthorPrompt.name} as a co-author?`}
+          confirmLabel="Remove"
+          danger
+          onConfirm={confirmRemoveCoauthor}
+          onCancel={() => setRemoveCoauthorPrompt(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfirmModal({
+  title, body, confirmLabel, onConfirm, onCancel, danger,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <div className="ta-modal-backdrop" role="presentation" onClick={onCancel}>
+      <div className="ta-modal" role="dialog" aria-modal="true" aria-labelledby="ta-modal-title" onClick={(e) => e.stopPropagation()}>
+        <h3 id="ta-modal-title" style={{ marginTop: 0 }}>{title}</h3>
+        <p style={{ color: "var(--ta-text-dim)" }}>{body}</p>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+          <button className="ta-btn" onClick={onCancel}>Cancel</button>
+          <button
+            className={`ta-btn ${danger ? "ta-btn-warn" : "ta-btn-primary"}`}
+            onClick={onConfirm}
+          >{confirmLabel}</button>
         </div>
       </div>
     </div>

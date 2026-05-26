@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -40,6 +40,7 @@ def whoami(user: dict = Depends(require_login)):
 @router.patch("/me")
 def update_me(
     patch: SelfProfilePatch,
+    request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(require_login),
 ):
@@ -48,7 +49,10 @@ def update_me(
     avatar_color. Cannot change role/admin/editor flags here (admin only,
     via /admin/users).
     """
-    fields = {k: v for k, v in patch.model_dump(exclude_unset=True).items()}
+    fields = patch.model_dump(exclude_unset=True)
+    # Treat empty civ_slug as None (clears the link)
+    if fields.get("civ_slug") == "":
+        fields["civ_slug"] = None
     # Validate civ_slug if non-empty
     if fields.get("civ_slug"):
         exists = db.execute(
@@ -67,8 +71,38 @@ def update_me(
             ),
             fields,
         )
-        log_audit(db, user["id"], "user.self_edit", "archive_user", user["id"],
-                  metadata={"fields_changed": [k for k in fields if k != "id"]})
+        # Keep `person.civ_slug` in sync if a linked person row exists
+        # (the audit pointed out identity-conflation between archive_user
+        # and person when editing a profile).
+        if "civ_slug" in fields:
+            db.execute(
+                text(
+                    "UPDATE person SET civ_slug = :c, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE discord_username = :u AND deleted_at IS NULL"
+                ),
+                {"c": fields["civ_slug"], "u": user["discord_username"]},
+            )
+        if "bio" in fields:
+            db.execute(
+                text(
+                    "UPDATE person SET bio = :b, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE discord_username = :u AND deleted_at IS NULL"
+                ),
+                {"b": fields["bio"], "u": user["discord_username"]},
+            )
+        if "display_name" in fields:
+            db.execute(
+                text(
+                    "UPDATE person SET name = :n, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE discord_username = :u AND deleted_at IS NULL"
+                ),
+                {"n": fields["display_name"], "u": user["discord_username"]},
+            )
+        log_audit(
+            db, user["id"], "user.self_edit", "archive_user", user["id"],
+            metadata={"fields_changed": [k for k in fields if k != "id"]},
+            ip_address=request.client.host if request.client else None,
+        )
         db.commit()
     row = db.execute(
         text(

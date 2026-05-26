@@ -413,6 +413,7 @@ class AdminUserRow(BaseModel):
     base_role: str                         # reader / diplomat / historian
     is_editor: bool
     is_admin: bool
+    is_suspended: bool = False
     civ_slug: Optional[str] = None
     beat: Optional[str] = None
     created_at: str
@@ -422,6 +423,7 @@ class AdminUserPatch(BaseModel):
     base_role: Optional[str] = Field(None, pattern="^(reader|diplomat|historian)$")
     is_editor: Optional[bool] = None
     is_admin: Optional[bool] = None
+    is_suspended: Optional[bool] = None
     civ_slug: Optional[str] = None
     beat: Optional[str] = None
     display_name: Optional[str] = None
@@ -438,3 +440,97 @@ class SelfProfilePatch(BaseModel):
     beat: Optional[str] = None
     avatar_letter: Optional[str] = Field(None, max_length=2)
     avatar_color: Optional[str] = None
+
+
+# =====================================================================
+# Sources & citations (Phase 4)
+# =====================================================================
+
+class SourceWrite(BaseModel):
+    title: str = Field(..., min_length=1, max_length=400)
+    url: Optional[str] = Field(None, max_length=2000)
+    source_type: str = Field(..., pattern="^(discord|reddit|forum|wiki|video|screenshot|interview|other)$")
+    quality: str = Field("community", pattern="^(primary|secondary|community|rotted)$")
+    notes: Optional[str] = None
+    archived_url: Optional[str] = Field(None, max_length=2000)
+
+
+class SourceDetail(BaseModel):
+    id: int
+    title: str
+    url: Optional[str] = None
+    source_type: str
+    quality: str
+    notes: Optional[str] = None
+    archived_url: Optional[str] = None
+    added_by_id: Optional[int] = None
+    added_by_name: Optional[str] = None
+    created_at: str
+
+
+class SourceCitationCreate(BaseModel):
+    source_id: int
+    target_type: str = Field(..., pattern="^(inquisition|civilization|person|event|place)$")
+    target_id: int
+    note: Optional[str] = None
+
+
+class SourceCitation(BaseModel):
+    id: int
+    source_id: int
+    source: SourceDetail
+    target_type: str
+    target_id: int
+    note: Optional[str] = None
+    created_at: str
+
+
+# =====================================================================
+# Inquisition lifecycle (Phase 4)
+# =====================================================================
+
+class InquisitionPatch(BaseModel):
+    """Partial update of an inquisition lifecycle row."""
+    title: Optional[str] = Field(None, min_length=1, max_length=400)
+    subtitle: Optional[str] = None
+    deck: Optional[str] = None
+    body: Optional[str] = None
+    state: Optional[str] = Field(None, pattern="^(in_progress|closed|archived)$")
+    progress: Optional[int] = Field(None, ge=0, le=100)
+    sources_count: Optional[int] = Field(None, ge=0)
+
+
+# =====================================================================
+# Story PATCH (Phase 4)
+# =====================================================================
+
+class StoryPatch(BaseModel):
+    headline: Optional[str] = Field(None, min_length=1, max_length=400)
+    deck: Optional[str] = None
+    body: Optional[str] = None
+    beat: Optional[str] = None
+    civs: Optional[list[str]] = None
+
+
+# =====================================================================
+# Admin user suspension
+# =====================================================================
+
+class AdminUserSuspendPatch(BaseModel):
+    is_suspended: Optional[bool] = None
+
+
+# =====================================================================
+# Media upload response
+# =====================================================================
+
+class MediaUploadResponse(BaseModel):
+    id: int
+    filename: str
+    url: str
+    mime_type: str
+    size_bytes: int
+    width: Optional[int] = None
+    height: Optional[int] = None
+    alt_text: Optional[str] = None
+    created_at: str

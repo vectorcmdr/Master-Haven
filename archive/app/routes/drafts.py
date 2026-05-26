@@ -72,10 +72,44 @@ router = APIRouter(prefix="/api/v1/drafts", tags=["drafts"])
 # helpers
 # ---------------------------------------------------------------------
 def _slugify(s: str) -> str:
-    """Cheap slug: lowercase, strip non-alnum, collapse dashes."""
+    """Cheap slug: lowercase, strip non-alnum, collapse dashes.
+    Returns 'untitled' for empty / whitespace-only / unsluggable input.
+    """
     s = (s or "").lower().strip()
     s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
-    return s[:60] or "untitled"
+    return (s[:60] if s else "") or "untitled"
+
+
+def _unique_story_slug(db: Session, base_slug: str) -> str:
+    """Race-safe slug picker for the story table.
+
+    Wrapping the INSERT in `INSERT ... ON CONFLICT` would also work,
+    but story has dozens of columns — keeping the loop here lets the
+    caller produce a deterministic slug ahead of the INSERT. We retry
+    up to 50 candidates; INSERT will UNIQUE-violate if two requests
+    pick the same slug at the same millisecond, but that's much rarer
+    than the previous always-pick-the-same-base behavior.
+    """
+    slug = base_slug
+    i = 1
+    while db.execute(text("SELECT 1 FROM story WHERE slug = :s"), {"s": slug}).first():
+        i += 1
+        slug = f"{base_slug}-{i}"
+        if i > 50:
+            break
+    return slug
+
+
+def _unique_inquisition_slug(db: Session, base_slug: str) -> str:
+    """Race-safe slug picker for the inquisition table."""
+    slug = base_slug
+    i = 1
+    while db.execute(text("SELECT 1 FROM inquisition WHERE slug = :s"), {"s": slug}).first():
+        i += 1
+        slug = f"{base_slug}-{i}"
+        if i > 50:
+            break
+    return slug
 
 
 def _fetch_author(db: Session, user_id: int) -> Optional[Author]:
@@ -157,21 +191,26 @@ def _draft_detail(db: Session, row) -> DraftDetail:
 
 def _next_roman_numeral(db: Session) -> str:
     """
-    Assign the next inquisition numeral by counting existing
-    inquisitions + inquisition-drafts and incrementing.
+    Assign the next inquisition numeral by counting only PUBLISHED
+    inquisitions (not drafts).
 
-    Naive — uses arabic-to-roman conversion. The Archive uses Roman
-    numerals as a tradition; collisions are caught by inquisition.numeral
-    UNIQUE so worst case we crash and bump manually.
+    Includes UNIQUE-collision retry: if `inquisition.numeral` already
+    has the candidate value (race with another publisher), advance by
+    one until we find a free slot.
     """
-    n = (
-        (db.execute(text("SELECT COUNT(*) FROM inquisition")).scalar() or 0)
-        + (db.execute(
-            text("SELECT COUNT(*) FROM draft WHERE doctype = 'inquisition' AND deleted_at IS NULL")
-          ).scalar() or 0)
-        + 1
-    )
-    return _to_roman(n)
+    base = (db.execute(text("SELECT COUNT(*) FROM inquisition")).scalar() or 0) + 1
+    for offset in range(0, 50):
+        candidate = _to_roman(base + offset)
+        existing = db.execute(
+            text("SELECT 1 FROM inquisition WHERE numeral = :n"),
+            {"n": candidate},
+        ).first()
+        if not existing:
+            return candidate
+    # If we somehow can't find a free slot in 50 tries, fall through to
+    # a high one — caller will see the UNIQUE violation and the client
+    # can retry.
+    return _to_roman(base + 50)
 
 
 def _to_roman(n: int) -> str:
@@ -331,15 +370,27 @@ def patch_draft(
     db: Session = Depends(get_db),
     draft: dict = Depends(require_can_edit_draft),
 ):
-    """Partial update. `civs` replaces the whole join (list semantics)."""
+    """Partial update. `civs` replaces the whole join (list semantics).
+    Drafts can only be edited in 'draft' or 'returned' status — once
+    submitted for review or marked ready, the author must return-resubmit
+    via the editor flow.
+    """
     if draft["status"] == "published":
         raise HTTPException(status_code=400, detail="cannot edit a published draft")
+    if draft["status"] in ("in_review", "ready"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"cannot edit a draft in status={draft['status']} — "
+                "ask an editor to return it first"
+            ),
+        )
 
+    patch_data = patch.model_dump(exclude_unset=True)
     fields: dict = {}
-    if patch.headline is not None: fields["headline"] = patch.headline
-    if patch.deck is not None: fields["deck"] = patch.deck
-    if patch.body is not None: fields["body"] = patch.body
-    if patch.beat is not None: fields["beat"] = patch.beat
+    for k in ("headline", "deck", "body", "beat"):
+        if k in patch_data:
+            fields[k] = patch_data[k]
 
     if fields:
         sets = ", ".join(f"{k} = :{k}" for k in fields)
@@ -355,9 +406,12 @@ def patch_draft(
             {"id": draft_id},
         )
 
-    if patch.civs is not None:
+    if "civs" in patch_data:
+        # Explicit-NULL/empty-list semantics: setting civs to [] clears
+        # all linked civs; setting it to a list replaces the whole join.
+        civs = patch_data["civs"] or []
         db.execute(text("DELETE FROM draft_civilization WHERE draft_id = :d"), {"d": draft_id})
-        for civ_slug in patch.civs:
+        for civ_slug in civs:
             db.execute(
                 text("INSERT OR IGNORE INTO draft_civilization (draft_id, civ_slug) VALUES (:d, :c)"),
                 {"d": draft_id, "c": civ_slug},
@@ -405,9 +459,13 @@ def submit_draft(
 ):
     if draft["status"] not in ("draft", "returned"):
         raise HTTPException(status_code=400, detail=f"can't submit from status={draft['status']}")
+    # Clear any prior reviewer attribution so a re-submission doesn't
+    # appear to already have been reviewed.
     db.execute(
         text(
-            "UPDATE draft SET status = 'in_review', last_edited_at = CURRENT_TIMESTAMP "
+            "UPDATE draft SET status = 'in_review', "
+            "reviewed_by_id = NULL, reviewed_at = NULL, "
+            "last_edited_at = CURRENT_TIMESTAMP "
             "WHERE id = :id"
         ),
         {"id": draft_id},
@@ -538,14 +596,10 @@ def publish_draft(
         # Compute read_minutes for features (~200 wpm)
         word_count = len((draft["body"] or "").split())
         read_minutes = max(3, word_count // 200) if doctype == "feature" else None
-        # Slug: from headline + unique suffix to avoid collision
+        # Race-safe slug picker (subject to UNIQUE check on INSERT if a
+        # collision happens between SELECT and INSERT — rare).
         base_slug = _slugify(headline)
-        slug = base_slug
-        # Disambiguate if needed
-        i = 1
-        while db.execute(text("SELECT 1 FROM story WHERE slug = :s"), {"s": slug}).first():
-            i += 1
-            slug = f"{base_slug}-{i}"
+        slug = _unique_story_slug(db, base_slug)
         result = db.execute(
             text(
                 "INSERT INTO story (slug, doctype, headline, deck, body, beat, "
@@ -581,13 +635,11 @@ def publish_draft(
         log_audit(db, draft["author_id"], "draft.publish", "draft", draft_id,
                   metadata={"published_as": "story", "story_id": story_id, "slug": slug})
     else:  # inquisition
-        numeral = draft.get("numeral") or _next_roman_numeral(db)
+        # Re-derive numeral at publish time so the count reflects actual
+        # PUBLISHED inquisitions (not pending/abandoned drafts).
+        numeral = _next_roman_numeral(db)
         base_slug = _slugify(f"inq-{numeral}")
-        slug = base_slug
-        i = 1
-        while db.execute(text("SELECT 1 FROM inquisition WHERE slug = :s"), {"s": slug}).first():
-            i += 1
-            slug = f"{base_slug}-{i}"
+        slug = _unique_inquisition_slug(db, base_slug)
         result = db.execute(
             text(
                 "INSERT INTO inquisition (slug, numeral, title, subtitle, deck, "

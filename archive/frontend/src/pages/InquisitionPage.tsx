@@ -3,17 +3,28 @@ import { useEffect, useState } from "react";
 import { api, InquisitionDetail } from "../api/client";
 import { Avatar } from "../components/Avatar";
 import { Loading } from "../components/Loading";
+import { SourcesList } from "../components/SourcesList";
+import { WatchButton } from "../components/WatchButton";
+import { useAuth } from "../hooks/useAuth";
 
 export function InquisitionPage({ id }: { id: string }) {
+  const { user } = useAuth();
   const [inq, setInq] = useState<InquisitionDetail | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     setInq(null);
     setNotFound(false);
-    api<InquisitionDetail>(`/inquisitions/${id}`)
+    // Numeric id → /inquisitions/{id}; otherwise treat as slug → /inquisitions/by-slug/{slug}.
+    const path = /^\d+$/.test(id) ? `/inquisitions/${id}` : `/inquisitions/by-slug/${id}`;
+    const ac = new AbortController();
+    api<InquisitionDetail>(path, { signal: ac.signal })
       .then(setInq)
-      .catch(() => setNotFound(true));
+      .catch((e) => {
+        if (e?.name === "AbortError") return;
+        setNotFound(true);
+      });
+    return () => ac.abort();
   }, [id]);
 
   if (notFound) return <div className="ta-empty">Inquisition not found.</div>;
@@ -55,8 +66,17 @@ export function InquisitionPage({ id }: { id: string }) {
       </div>
 
       <div className="ta-story-reader">
-        <a href="#/inquisitions" className="ta-back-link">← Back to inquisitions</a>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <a href="#/inquisitions" className="ta-back-link">← Back to inquisitions</a>
+          {user && <WatchButton targetType="inquisition" targetId={inq.id} />}
+        </div>
         <Prose body={inq.body} />
+
+        <SourcesList
+          targetType="inquisition"
+          targetId={inq.id}
+          canEdit={!!(user && (user.is_editor || user.is_admin || user.base_role === "historian"))}
+        />
 
         {inq.civs.length > 0 && (
           <div style={{ marginTop: 32, padding: 16, background: "var(--ta-bg)", borderRadius: 10 }}>

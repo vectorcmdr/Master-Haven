@@ -64,7 +64,7 @@ def _resolve_entity_id(db: Session, target_type: str, target_id: str) -> int:
 
 @router.get("/{target_type}/{target_id}", response_model=Envelope[list[RevisionEntry]])
 def list_revisions(
-    target_type: str = Path(..., regex="^(civilization|person|event|place|story|inquisition)$"),
+    target_type: str = Path(..., pattern="^(civilization|person|event|place|story|inquisition)$"),
     target_id: str = Path(...),
     db: Session = Depends(get_db),
 ):

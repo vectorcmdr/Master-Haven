@@ -1362,3 +1362,411 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 1px dotted var(--ta-accent-gold);
   padding: 1px 0;
 }
+
+/* =====================================================================
+   POST-AUDIT ADDITIONS — classes referenced by Phase 5+ pages that were
+   missing definitions. Match the existing dark/teal/amber palette.
+   ===================================================================== */
+
+/* Tabs (Admin page panel switcher) */
+.ta-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--ta-border);
+  margin-bottom: 18px;
+  overflow-x: auto;
+}
+.ta-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--ta-text-dim);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.ta-tab:hover { color: var(--ta-text); }
+.ta-tab.active {
+  color: var(--ta-text);
+  border-bottom-color: var(--ta-accent-blue);
+}
+
+/* Generic table */
+.ta-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ta-table thead th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ta-text-faint);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ta-border);
+  font-weight: 500;
+  background: var(--ta-bg);
+}
+.ta-table tbody td {
+  padding: 10px;
+  border-bottom: 1px solid var(--ta-border);
+  vertical-align: top;
+  color: var(--ta-text);
+}
+.ta-table tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+.ta-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Role badges */
+.ta-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border-radius: 999px;
+  border: 1px solid var(--ta-border-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ta-text-dim);
+}
+.ta-role-badge.editor {
+  border-color: rgba(63, 130, 193, 0.6);
+  color: var(--ta-accent-blue);
+  background: rgba(63, 130, 193, 0.12);
+}
+.ta-role-badge.admin {
+  border-color: rgba(250, 199, 117, 0.6);
+  color: var(--ta-accent-gold);
+  background: rgba(250, 199, 117, 0.12);
+}
+.ta-role-badge.reader {
+  border-color: var(--ta-border-strong);
+  color: var(--ta-text-faint);
+}
+.ta-role-badge.diplomat {
+  border-color: rgba(29, 158, 117, 0.6);
+  color: #6fd5b0;
+  background: rgba(29, 158, 117, 0.12);
+}
+.ta-role-badge.historian {
+  border-color: rgba(190, 130, 250, 0.6);
+  color: #c69ef9;
+  background: rgba(190, 130, 250, 0.12);
+}
+
+/* Modal scaffold */
+.ta-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 3, 36, 0.7);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  backdrop-filter: blur(4px);
+}
+.ta-modal {
+  background: var(--ta-surface);
+  border: 1px solid var(--ta-border-strong);
+  border-radius: 10px;
+  padding: 20px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  color: var(--ta-text);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.ta-modal h3 { font-family: Georgia, serif; font-size: 20px; margin-bottom: 12px; }
+
+/* Index list layouts */
+.ta-people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  padding: 12px 0;
+}
+.ta-place-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  padding: 12px 0;
+}
+.ta-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+}
+.ta-event-row {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 14px;
+  align-items: baseline;
+  padding: 12px 16px;
+  background: var(--ta-surface);
+  border: 1px solid var(--ta-border);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--ta-text);
+}
+.ta-event-row:hover { background: var(--ta-surface-2); }
+.ta-event-year {
+  font-family: Georgia, serif;
+  font-size: 22px;
+  color: var(--ta-accent-gold);
+  font-weight: 500;
+}
+.ta-event-row-body { display: flex; flex-direction: column; gap: 4px; }
+.ta-event-title { font-size: 15px; font-weight: 500; }
+.ta-event-date { font-size: 12px; color: var(--ta-text-faint); }
+
+/* Watchlist */
+.ta-watch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+}
+.ta-watch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--ta-surface);
+  border: 1px solid var(--ta-border);
+  border-radius: 8px;
+}
+
+/* Search page */
+.ta-search-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px 0;
+}
+.ta-search-section { padding: 4px 0 12px; }
+.ta-search-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ta-text-faint);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.ta-search-hit {
+  display: block;
+  padding: 10px 14px;
+  background: var(--ta-surface);
+  border: 1px solid var(--ta-border);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  text-decoration: none;
+  color: var(--ta-text);
+}
+.ta-search-hit:hover { background: var(--ta-surface-2); }
+.ta-search-hit-title { font-weight: 500; }
+.ta-search-hit-snippet {
+  font-size: 12px;
+  color: var(--ta-text-dim);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* SourcesList */
+.ta-sources-panel {
+  background: var(--ta-bg);
+  border: 1px solid var(--ta-border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-top: 24px;
+}
+.ta-sources-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ta-sources-panel-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ta-text-faint);
+  font-weight: 500;
+}
+.ta-sources-panel-count {
+  margin-left: 6px;
+  color: var(--ta-text-dim);
+}
+.ta-source-row {
+  padding: 8px 0;
+  border-top: 1px solid var(--ta-border);
+}
+.ta-source-row:first-of-type { border-top: 0; }
+.ta-source-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ta-source-quality {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.ta-source-quality-primary {
+  background: rgba(46, 125, 50, 0.18);
+  color: #6fd5b0;
+}
+.ta-source-quality-secondary {
+  background: rgba(63, 130, 193, 0.18);
+  color: var(--ta-accent-blue);
+}
+.ta-source-quality-community {
+  background: rgba(250, 199, 117, 0.14);
+  color: var(--ta-accent-gold);
+}
+.ta-source-quality-rotted {
+  background: rgba(160, 48, 48, 0.18);
+  color: #ff9090;
+}
+.ta-source-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ta-text-faint);
+}
+.ta-source-title {
+  font-size: 13px;
+  font-weight: 500;
+  flex: 1;
+  min-width: 200px;
+}
+.ta-source-title a { color: var(--ta-accent-blue); text-decoration: underline; }
+.ta-source-note {
+  font-size: 12px;
+  color: var(--ta-text-dim);
+  margin-top: 4px;
+}
+.ta-source-meta {
+  font-size: 11px;
+  color: var(--ta-text-faint);
+  margin-top: 4px;
+}
+.ta-add-source-form {
+  background: var(--ta-surface);
+  border: 1px solid var(--ta-border);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* MediaUpload */
+.ta-media-upload-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ta-media-upload-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--ta-surface);
+  border: 1px solid var(--ta-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ta-text);
+}
+.ta-media-upload-button:hover { border-color: var(--ta-border-strong); }
+.ta-media-upload-preview {
+  margin-top: 8px;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--ta-border);
+}
+.ta-media-upload-status {
+  font-size: 11px;
+  color: var(--ta-text-faint);
+}
+.ta-media-upload-error {
+  font-size: 11px;
+  color: #ff9090;
+}
+
+/* Prose body inline code */
+.ta-prose-code {
+  background: var(--ta-bg);
+  border: 1px solid var(--ta-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  color: var(--ta-accent-gold);
+}
+
+/* Beats grid */
+.ta-beats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  padding: 12px 0;
+}
+
+/* Profile hero/body (used by Profile.tsx if not already styled) */
+.ta-profile-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px 24px;
+  gap: 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--ta-border);
+}
+.ta-profile-name {
+  font-family: Georgia, serif;
+  font-size: 30px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+.ta-profile-meta {
+  font-size: 13px;
+  color: var(--ta-text-dim);
+  text-transform: capitalize;
+}
+.ta-profile-body {
+  padding: 24px 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* Responsive overrides */
+@media (max-width: 768px) {
+  .ta-modal {
+    padding: 16px;
+    border-radius: 8px;
+  }
+  .ta-table { font-size: 12px; }
+  .ta-table thead th, .ta-table tbody td { padding: 8px 6px; }
+  .ta-event-row {
+    grid-template-columns: 60px 1fr;
+    gap: 10px;
+    padding: 10px;
+  }
+  .ta-people-grid, .ta-place-grid, .ta-beats-grid {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  }
+}

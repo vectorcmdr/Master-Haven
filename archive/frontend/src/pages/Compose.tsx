@@ -47,6 +47,18 @@ export function Compose({ doctype }: Props) {
     }
     if (doctype !== "brief" && doctype !== "feature" && doctype !== "inquisition") {
       setErr(`unknown doctype: ${doctype}`);
+      return;
+    }
+    // Role-check: readers can't compose anything; only historians can
+    // start an inquisition. This mirrors the backend gate so the user
+    // gets a clear message instead of a 403 after typing a headline.
+    if (user.base_role === "reader" && !user.is_admin) {
+      setErr("readers can't compose drafts — a team role is required");
+      return;
+    }
+    if (doctype === "inquisition" && user.base_role !== "historian" && !user.is_admin) {
+      setErr("only historians can start an inquisition");
+      return;
     }
   }, [doctype, user, loading]);
 
