@@ -17,6 +17,7 @@ def civ_public(row: sqlite3.Row) -> dict:
         "status": row["status"],
         "logo_filename": row["logo_filename"],
         "logo_url": logo_url(row["logo_filename"]),
+        "discord_link": row["discord_link"],
         "display_order": row["display_order"],
     }
 

@@ -77,12 +77,21 @@ def get_db():
         conn.close()
 
 
+def _ensure_columns(conn) -> None:
+    """Add columns introduced after a DB was first created (CREATE TABLE IF NOT
+    EXISTS won't alter an existing table). Idempotent."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(civilizations)").fetchall()}
+    if "discord_link" not in existing:
+        conn.execute("ALTER TABLE civilizations ADD COLUMN discord_link TEXT")
+
+
 def init_db() -> None:
-    """Run schema (idempotent) and seed once if the roster is empty."""
+    """Run schema (idempotent), backfill new columns, seed once if empty."""
     ensure_dirs()
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     with db_conn() as conn:
         conn.executescript(schema)
+        _ensure_columns(conn)
         count = conn.execute("SELECT COUNT(*) AS c FROM civilizations").fetchone()["c"]
         if count == 0 and SEED_PATH.exists():
             conn.executescript(SEED_PATH.read_text(encoding="utf-8"))

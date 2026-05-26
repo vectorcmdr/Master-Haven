@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS civilizations (
     description     TEXT    NOT NULL,
     status          TEXT    NOT NULL CHECK (status IN ('host', 'confirmed', 'tentative')),
     logo_filename   TEXT,                        -- e.g. "voyagers-haven.webp" — file lives in /uploads
+    discord_link    TEXT,                        -- the civ's Discord invite/link (shown on the card)
     submitter_discord TEXT,                      -- Discord handle of person submitting
     submitter_notes TEXT,                        -- "We'd love to bring our cartographer team..."
     approval_state  TEXT NOT NULL DEFAULT 'pending'

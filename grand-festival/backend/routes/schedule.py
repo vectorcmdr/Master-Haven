@@ -60,8 +60,9 @@ def _parse(text: str) -> dict:
     days: list[dict] = []
     current: dict | None = None
     for raw in rows[1:]:
-        cells = [(c or "").strip() for c in (raw + [""] * 8)[:8]]
-        day, gmt, est, pst, aus, host, event, location = cells
+        # Columns A–I: Day | GMT | EST | PST | Brisbane | Host | Event | Location | Discord link
+        cells = [(c or "").strip() for c in (raw + [""] * 9)[:9]]
+        day, gmt, est, pst, aus, host, event, location, discord = cells
 
         if day:
             # A new festival day starts a fresh group. Other day-labels
@@ -84,6 +85,7 @@ def _parse(text: str) -> dict:
                 "host": host,
                 "event": event,
                 "location": location,
+                "discord": discord,
             }
         )
 

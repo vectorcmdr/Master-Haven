@@ -9,6 +9,7 @@ const EMPTY = {
   role: '',
   description: '',
   status: 'tentative',
+  discord_link: '',
   submitter_discord: '',
   submitter_notes: '',
 }
@@ -56,6 +57,7 @@ export default function SubmitCiv() {
       fd.append('role', form.role.trim())
       fd.append('description', form.description.trim())
       fd.append('status', form.status)
+      if (form.discord_link.trim()) fd.append('discord_link', form.discord_link.trim())
       if (form.submitter_discord.trim()) fd.append('submitter_discord', form.submitter_discord.trim())
       if (form.submitter_notes.trim()) fd.append('submitter_notes', form.submitter_notes.trim())
       if (logo) fd.append('logo', logo)
@@ -130,6 +132,11 @@ export default function SubmitCiv() {
                     <option value="tentative">Tentative — interested, not locked in</option>
                     <option value="confirmed">Confirmed — we're in</option>
                   </select>
+                </label>
+
+                <label className="field">
+                  <span>Your civilization's Discord <small>(optional · full link)</small></span>
+                  <input type="url" value={form.discord_link} onChange={update('discord_link')} maxLength={300} placeholder="https://discord.gg/..." />
                 </label>
 
                 <label className="field">

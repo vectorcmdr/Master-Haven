@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import DiscordLink from '../components/DiscordLink.jsx'
 import {
   adminApprove,
   adminClearLogo,
@@ -96,6 +97,7 @@ function AdminCivRow({ civ, onChanged, onError }) {
         role: draft.role,
         description: draft.description,
         status: draft.status,
+        discord_link: (draft.discord_link || '').trim(),
         display_order: Number(draft.display_order) || 0,
       })
       setEditing(false)
@@ -160,21 +162,39 @@ function AdminCivRow({ civ, onChanged, onError }) {
         <p className="admin-desc">{civ.description}</p>
       )}
 
-      {editing && (
-        <div className="admin-edit-row">
-          <label>
-            Status
-            <select value={draft.status} onChange={setField('status')}>
-              <option value="host">Host</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="tentative">Tentative</option>
-            </select>
-          </label>
-          <label>
-            Display order
-            <input type="number" value={draft.display_order ?? 100} onChange={setField('display_order')} />
-          </label>
+      {!editing && civ.discord_link && (
+        <div style={{ marginTop: '0.2rem' }}>
+          <DiscordLink url={civ.discord_link} />
         </div>
+      )}
+
+      {editing && (
+        <>
+          <label className="admin-field-label">
+            Discord link
+            <input
+              className="admin-inline"
+              type="url"
+              value={draft.discord_link || ''}
+              onChange={setField('discord_link')}
+              placeholder="https://discord.gg/..."
+            />
+          </label>
+          <div className="admin-edit-row">
+            <label>
+              Status
+              <select value={draft.status} onChange={setField('status')}>
+                <option value="host">Host</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="tentative">Tentative</option>
+              </select>
+            </label>
+            <label>
+              Display order
+              <input type="number" value={draft.display_order ?? 100} onChange={setField('display_order')} />
+            </label>
+          </div>
+        </>
       )}
 
       {(civ.submitter_discord || civ.submitter_notes) && !editing && (

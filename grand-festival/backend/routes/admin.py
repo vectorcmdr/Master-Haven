@@ -122,7 +122,13 @@ def edit(civ_id: int, body: CivPatch, conn: sqlite3.Connection = Depends(get_db)
     if "approval_state" in fields and fields["approval_state"] not in ALLOWED_APPROVAL:
         raise HTTPException(status_code=400, detail="Invalid approval state.")
 
-    columns = ["name", "role", "description", "status", "display_order", "approval_state"]
+    if "discord_link" in fields and fields["discord_link"]:
+        link = str(fields["discord_link"]).strip()
+        if not link.lower().startswith(("http://", "https://")) or len(link) > 300:
+            raise HTTPException(status_code=400, detail="Discord link must be a full http(s) URL.")
+        fields["discord_link"] = link
+
+    columns = ["name", "role", "description", "status", "discord_link", "display_order", "approval_state"]
     sets = [f"{c} = ?" for c in columns if c in fields]
     values = [fields[c] for c in columns if c in fields]
     if not sets:

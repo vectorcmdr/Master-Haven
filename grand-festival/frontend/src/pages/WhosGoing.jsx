@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getCivs, getSchedule } from '../api.js'
 import CivCard from '../components/CivCard.jsx'
 import GlyphStrip from '../components/GlyphStrip.jsx'
+import DiscordLink from '../components/DiscordLink.jsx'
 import { activityNote, deriveActivities, realLoc } from '../scheduleUtils.js'
 
 function ScheduleItem({ item }) {
@@ -27,6 +28,7 @@ function ScheduleItem({ item }) {
         <div className="sched-meta">
           {zones && <span className="sched-zones">{zones}</span>}
           {realLoc(item.location) && <GlyphStrip code={item.location.trim()} size="sm" />}
+          <DiscordLink url={item.discord} />
         </div>
       </div>
     </div>
@@ -123,9 +125,10 @@ export default function WhosGoing() {
                       <div className="attr-content">
                         <h4>{a.event || a.host}</h4>
                         <p>{activityNote(a)}</p>
-                        {realLoc(a.location) && (
-                          <div style={{ marginTop: '0.5rem' }}>
-                            <GlyphStrip code={a.location.trim()} size="sm" />
+                        {(realLoc(a.location) || a.discord) && (
+                          <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {realLoc(a.location) && <GlyphStrip code={a.location.trim()} size="sm" />}
+                            <DiscordLink url={a.discord} />
                           </div>
                         )}
                       </div>

@@ -387,6 +387,14 @@ body {
   padding: 0.5rem 0.7rem;
   width: 100%;
 }
+.admin-field-label {
+  display: grid;
+  gap: 0.3rem;
+  font-family: var(--soft-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: var(--aqua-4);
+}
 .admin-edit-row {
   display: flex;
   gap: 1rem;
@@ -707,6 +715,29 @@ body {
   letter-spacing: 0.12em;
   color: var(--aqua-4);
 }
+
+/* Discord link pill (civ cards, schedule, attractions) */
+.discord-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--soft-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(180deg, #5e8cff 0%, #5865f2 55%, #4350c4 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px rgba(88, 101, 242, 0.4);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.discord-link:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.civ-discord { margin-top: 0.8rem; }
 .sched-mainsystem {
   display: flex;
   align-items: center;

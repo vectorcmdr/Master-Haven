@@ -22,6 +22,7 @@ class CivPublic(BaseModel):
     status: CivStatus
     logo_filename: Optional[str] = None
     logo_url: Optional[str] = None
+    discord_link: Optional[str] = None
     display_order: int = 100
 
 
@@ -43,6 +44,7 @@ class CivPatch(BaseModel):
     role: Optional[str] = None
     description: Optional[str] = None
     status: Optional[CivStatus] = None
+    discord_link: Optional[str] = None
     display_order: Optional[int] = None
     approval_state: Optional[ApprovalState] = None
 

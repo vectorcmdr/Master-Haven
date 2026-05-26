@@ -27,6 +27,7 @@ async def submit_civ(
     role: str = Form(...),
     description: str = Form(...),
     status: str = Form("tentative"),
+    discord_link: str | None = Form(None),
     submitter_discord: str | None = Form(None),
     submitter_notes: str | None = Form(None),
     logo: UploadFile | None = File(None),
@@ -36,6 +37,7 @@ async def submit_civ(
     role = (role or "").strip()
     description = (description or "").strip()
     status = (status or "tentative").strip().lower()
+    discord_link = ((discord_link or "").strip()) or None
     submitter_discord = ((submitter_discord or "").strip()) or None
     submitter_notes = ((submitter_notes or "").strip()) or None
 
@@ -45,6 +47,9 @@ async def submit_civ(
         raise HTTPException(status_code=400, detail="Invalid status.")
     if len(name) > MAX_NAME or len(role) > MAX_ROLE or len(description) > MAX_DESC:
         raise HTTPException(status_code=400, detail="One or more fields exceed the maximum length.")
+    if discord_link is not None:
+        if not discord_link.lower().startswith(("http://", "https://")) or len(discord_link) > 300:
+            raise HTTPException(status_code=400, detail="Discord link must be a full http(s) URL.")
     if submitter_discord and len(submitter_discord) > MAX_DISCORD:
         raise HTTPException(status_code=400, detail="Discord handle is too long.")
     if submitter_notes and len(submitter_notes) > MAX_NOTES:
@@ -62,9 +67,9 @@ async def submit_civ(
 
     cur = conn.execute(
         "INSERT INTO civilizations "
-        "(name, role, description, status, submitter_discord, submitter_notes, approval_state) "
-        "VALUES (?, ?, ?, ?, ?, ?, 'pending')",
-        (name, role, description, status, submitter_discord, submitter_notes),
+        "(name, role, description, status, discord_link, submitter_discord, submitter_notes, approval_state) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
+        (name, role, description, status, discord_link, submitter_discord, submitter_notes),
     )
     civ_id = cur.lastrowid
 

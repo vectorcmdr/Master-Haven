@@ -1,3 +1,5 @@
+import DiscordLink from './DiscordLink.jsx'
+
 export default function CivCard({ civ }) {
   // Every participating civilization is a host in its own way — the public
   // roster shows them all as Host. (Admin still shows the real status for management.)
@@ -10,6 +12,11 @@ export default function CivCard({ civ }) {
       <h3>{civ.name}</h3>
       <div className="role">{civ.role}</div>
       <p>{civ.description}</p>
+      {civ.discord_link && (
+        <div className="civ-discord">
+          <DiscordLink url={civ.discord_link} />
+        </div>
+      )}
     </div>
   )
 }

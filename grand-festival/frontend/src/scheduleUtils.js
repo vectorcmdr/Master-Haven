@@ -23,7 +23,7 @@ export function deriveActivities(days) {
       const key = `${host}||${event || ''}`.toLowerCase()
       if (seen.has(key)) continue
       seen.add(key)
-      out.push({ host, event, location: item.location })
+      out.push({ host, event, location: item.location, discord: item.discord })
     }
   }
   return out
