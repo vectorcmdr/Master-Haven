@@ -234,7 +234,7 @@ async def global_app_command_check(interaction: discord.Interaction):
 
     command = interaction.command
     if command is None:
-        return True
+        return False
 
     return await is_command_allowed(
         guild_id=interaction.guild.id,
@@ -248,15 +248,8 @@ bot.tree.interaction_check = global_app_command_check
 # -------------------- EVENTS --------------------
 @bot.event
 async def on_ready():
-    guild_folder = "Data/guilds"
-
+    guild_folder = "Data/guilds"  
     try:
-        if os.path.exists(guild_folder):
-            for file in os.listdir(guild_folder):
-                if file.endswith(".json"):
-                    gid = int(file.replace(".json", ""))
-                    await bot.tree.sync(guild=discord.Object(id=gid))
-
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} command(s)")
 
