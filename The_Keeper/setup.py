@@ -395,10 +395,12 @@ async def is_command_allowed(
         return False
 
     role_id = config["role_id"]
+    
+    if role_id is None:
+        return True
 
-    if role_id:
-        if not isinstance(member, discord.Member):
-            return False
+    if not isinstance(member, discord.Member):
+        return False
 
         role = member.get_role(role_id)
 
