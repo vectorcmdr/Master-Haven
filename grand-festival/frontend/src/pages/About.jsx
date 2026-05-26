@@ -69,7 +69,7 @@ export default function About() {
             <h2>Two events, one tradition</h2>
             <div className="compare-grid">
               <div className="compare-card summer">
-                <h3>☀ Summer UD</h3>
+                <h3>☀ Grand Festival</h3>
                 <ul>
                   <li><strong>When:</strong> Mid-year (target: July)</li>
                   <li><strong>Vibe:</strong> Grand Festival, open-air, celebratory</li>
