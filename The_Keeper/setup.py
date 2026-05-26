@@ -389,7 +389,7 @@ async def is_command_allowed(
     config = await get_command_config(guild_id, command_name)
 
     if not config:
-        return True
+        return False
 
     if channel_id not in config["channels"]:
         return False
