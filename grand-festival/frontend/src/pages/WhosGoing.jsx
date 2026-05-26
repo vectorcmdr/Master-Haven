@@ -2,17 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCivs, getSchedule } from '../api.js'
 import CivCard from '../components/CivCard.jsx'
-
-// A location counts as "real" only if it's an actual portal address — not blank,
-// not a TBA/TBD placeholder.
-const realLoc = (l) => {
-  const v = (l || '').trim()
-  return v && !/^(tba|tbd|tbc)$/i.test(v) ? v : null
-}
-const realText = (t) => {
-  const v = (t || '').trim()
-  return v && !/^(tba|tbd|tbc)$/i.test(v) ? v : null
-}
+import GlyphStrip from '../components/GlyphStrip.jsx'
+import { activityNote, deriveActivities, realLoc } from '../scheduleUtils.js'
 
 function ScheduleItem({ item }) {
   const zones = [
@@ -35,7 +26,7 @@ function ScheduleItem({ item }) {
         {sub && <div className="sched-sub">{sub}</div>}
         <div className="sched-meta">
           {zones && <span className="sched-zones">{zones}</span>}
-          {realLoc(item.location) && <span className="sched-loc">📍 {item.location.trim()}</span>}
+          {realLoc(item.location) && <GlyphStrip code={item.location.trim()} size="sm" />}
         </div>
       </div>
     </div>
@@ -64,26 +55,9 @@ export default function WhosGoing() {
   }, [])
 
   const liveDays = schedule?.days || []
-
-  // Attractions = what communities committed to in the schedule sheet, deduped.
-  // Included: any row with a stated activity, the festival opening, and reserved
-  // slots whose activity is still "TBA" (e.g. NMSCord Hub). Skipped: hosts with a
-  // completely blank Event cell who haven't reserved anything (Voyagers Haven,
-  // PodManSky) — nothing to show for them yet.
-  const attractions = []
-  const seen = new Set()
-  for (const day of liveDays) {
-    for (const item of day.items) {
-      const host = (item.host || '').trim()
-      const event = realText(item.event) // null for blank / "TBA" / "TBD"
-      const reserved = (item.event || '').trim() !== '' || /open/i.test(host)
-      if (!host || !reserved) continue
-      const key = `${host}||${event || ''}`.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      attractions.push({ host, event, location: item.location })
-    }
-  }
+  // Real activities from the sheet (festival opening + stated/reserved events;
+  // fully blank slots skipped). Shared with the homepage via scheduleUtils.
+  const attractions = deriveActivities(liveDays)
 
   return (
     <main className="page active">
@@ -144,23 +118,19 @@ export default function WhosGoing() {
 
               {attractions.length > 0 && (
                 <div className="attr-list attractions">
-                  {attractions.map((a, i) => {
-                    const title = a.event || a.host
-                    const note = a.event
-                      ? `Hosted by ${a.host}`
-                      : /open/i.test(a.host)
-                        ? 'Festival opening'
-                        : 'Details to be announced'
-                    return (
-                      <div className="attr-item" key={i}>
-                        <div className="attr-content">
-                          <h4>{title}</h4>
-                          <p>{note}</p>
-                        </div>
-                        {realLoc(a.location) && <div className="attr-host">📍 {a.location.trim()}</div>}
+                  {attractions.map((a, i) => (
+                    <div className="attr-item" key={i}>
+                      <div className="attr-content">
+                        <h4>{a.event || a.host}</h4>
+                        <p>{activityNote(a)}</p>
+                        {realLoc(a.location) && (
+                          <div style={{ marginTop: '0.5rem' }}>
+                            <GlyphStrip code={a.location.trim()} size="sm" />
+                          </div>
+                        )}
                       </div>
-                    )
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -168,15 +138,16 @@ export default function WhosGoing() {
 
           {tab === 'schedule' && (
             <div className="wg-pane active">
-              <p className="section-sub" style={{ marginBottom: '1.6rem' }}>
+              <p className="section-sub" style={{ marginBottom: schedule?.main_system ? '0.8rem' : '1.6rem' }}>
                 Four days under summer skies — Friday 19 to Monday 22 June 2026, peaking on the
                 Solstice. Times shown in GMT · EST · PST · AEST.
-                {schedule?.main_system && (
-                  <>
-                    {' '}Main system <code>{schedule.main_system}</code>.
-                  </>
-                )}
               </p>
+              {schedule?.main_system && (
+                <div className="sched-mainsystem">
+                  <span className="glyph-label">Main system</span>
+                  <GlyphStrip code={schedule.main_system} />
+                </div>
+              )}
 
               {schedErr && <div className="state-msg error">Couldn't load the schedule ({schedErr}).</div>}
               {schedule === null && !schedErr && <div className="state-msg">Loading the live schedule…</div>}

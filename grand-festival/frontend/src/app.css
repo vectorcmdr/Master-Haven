@@ -654,3 +654,51 @@ body {
   }
   .sched-gmt-label { margin-top: 0; }
 }
+
+/* ============================================================
+   Portal glyphs (GlyphStrip) — transparent mint glyphs on navy chips
+   ============================================================ */
+.glyph-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  vertical-align: middle;
+}
+.glyph-row { display: inline-flex; gap: 2px; }
+.glyph-chip {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(13, 52, 100, 0.95), rgba(5, 29, 61, 0.95));
+  border: 1px solid rgba(125, 208, 255, 0.4);
+  border-radius: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.glyph-chip img { width: 100%; height: 100%; object-fit: contain; padding: 2px; display: block; }
+.glyph-hex {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--aqua-4);
+  letter-spacing: 0.04em;
+}
+.glyph-sm .glyph-chip { width: 18px; height: 18px; border-radius: 4px; }
+.glyph-sm .glyph-hex { font-size: 0.68rem; }
+.glyph-label {
+  font-family: var(--soft-display);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--aqua-4);
+}
+.sched-mainsystem {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.6rem;
+}

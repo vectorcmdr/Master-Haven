@@ -1,18 +1,29 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useCountdown from '../hooks/useCountdown.js'
+import { getSchedule } from '../api.js'
+import { activityIcon, activityNote, deriveActivities } from '../scheduleUtils.js'
 
-const HIGHLIGHTS = [
-  ['🎆', 'Opening Ceremony', 'Multi-tool light shows, a parade of starships, and the first volley of fireworks lighting up the festival grounds at dusk.'],
-  ['🏛️', 'Festival Grounds', 'Pavilions, gathering halls, and themed builds from every civilization. Wander, gawk, and find your tribe between events.'],
-  ['🎲', 'Fortune & Fireworks', 'Gambling halls in the Trade Lord tradition — community-run games of chance, prizes, and skyward sparks at every win.'],
-  ['🏁', 'Exocraft Races', 'The classic UD tradition — high-speed runs across grasslands and ridges with prizes for fastest, weirdest, and most photogenic.'],
-  ['📸', 'Photo Mode Hunt', 'A scavenger hunt across host worlds with themed prompts. Winners featured on the official UD Summer site.'],
-  ['🎤', 'Closing Ceremony', 'Group photo, ambassador speeches, fireworks finale, and the symbolic baton-pass to UD-Winter ’26.'],
-]
+const HOME_TEASER_COUNT = 6
 
 export default function Main() {
   const navigate = useNavigate()
   const { days, hours, mins, secs } = useCountdown()
+  const [schedule, setSchedule] = useState(null) // null = loading
+  const [schedErr, setSchedErr] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    getSchedule()
+      .then((d) => alive && setSchedule(d))
+      .catch((e) => alive && setSchedErr(e.message))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const activities = deriveActivities(schedule?.days)
+  const teaser = activities.slice(0, HOME_TEASER_COUNT)
 
   return (
     <main className="page active">
@@ -64,21 +75,36 @@ export default function Main() {
 
       <section className="highlights">
         <div className="highlights-inner">
-          <h2 className="section-title">The Grand Festival</h2>
+          <h2 className="section-title">What's Happening</h2>
           <p className="section-sub">
-            A gathering of Trade Lords, travelers, and every wandering soul — across alliances,
-            across galaxies
+            The real lineup — pulled live from the festival schedule. Four days, Friday 19 to
+            Sunday 21 June 2026, peaking on the Summer Solstice.
           </p>
 
-          <div className="hl-grid">
-            {HIGHLIGHTS.map(([icon, title, body]) => (
-              <div className="hl-card" key={title}>
-                <span className="hl-icon">{icon}</span>
-                <h3>{title}</h3>
-                <p>{body}</p>
+          {schedErr && <div className="state-msg error">Couldn't load the lineup ({schedErr}).</div>}
+          {schedule === null && !schedErr && <div className="state-msg">Loading the lineup…</div>}
+          {schedule !== null && !schedErr && activities.length === 0 && (
+            <div className="state-msg muted">Activities will appear here as hosts confirm them.</div>
+          )}
+
+          {teaser.length > 0 && (
+            <>
+              <div className="hl-grid">
+                {teaser.map((a, i) => (
+                  <div className="hl-card" key={i}>
+                    <span className="hl-icon">{activityIcon(a)}</span>
+                    <h3>{a.event || a.host}</h3>
+                    <p>{activityNote(a)}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <div style={{ textAlign: 'center', marginTop: '2.5rem' }}>
+                <button className="hero-cta" onClick={() => navigate('/whos-going')}>
+                  See all {activities.length} activities &amp; the schedule ▸
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </section>
     </main>
