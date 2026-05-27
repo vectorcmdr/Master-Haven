@@ -4,7 +4,7 @@ import { getCivs, getSchedule } from '../api.js'
 import CivCard from '../components/CivCard.jsx'
 import GlyphStrip from '../components/GlyphStrip.jsx'
 import DiscordLink from '../components/DiscordLink.jsx'
-import { activityNote, deriveActivities, realLoc } from '../scheduleUtils.js'
+import { activityNote, deriveActivities, discordByHost, normalizeHost, realLoc } from '../scheduleUtils.js'
 
 function ScheduleItem({ item }) {
   const zones = [
@@ -60,6 +60,9 @@ export default function WhosGoing() {
   // Real activities from the sheet (festival opening + stated/reserved events;
   // fully blank slots skipped). Shared with the homepage via scheduleUtils.
   const attractions = deriveActivities(liveDays)
+  // Discord links come from the schedule sheet (column I), matched to each civ
+  // by host name; fall back to a civ's own discord_link if set in admin.
+  const discordMap = discordByHost(liveDays)
 
   return (
     <main className="page active">
@@ -89,7 +92,11 @@ export default function WhosGoing() {
               {!error && civs !== null && (
                 <div className="civ-grid">
                   {civs.map((c) => (
-                    <CivCard civ={c} key={c.id} />
+                    <CivCard
+                      civ={c}
+                      discordUrl={discordMap[normalizeHost(c.name)] || c.discord_link || ''}
+                      key={c.id}
+                    />
                   ))}
                   <div
                     className="civ-card civ-card-cta"

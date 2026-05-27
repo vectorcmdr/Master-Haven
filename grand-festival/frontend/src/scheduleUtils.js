@@ -29,6 +29,25 @@ export function deriveActivities(days) {
   return out
 }
 
+// Normalize a host/civ name for matching across the sheet + the roster
+// (case-insensitive, apostrophes dropped, whitespace collapsed).
+export const normalizeHost = (s) =>
+  (s || '').toLowerCase().replace(/['`’]/g, '').replace(/\s+/g, ' ').trim()
+
+// Map of normalized host name -> Discord URL, from the schedule sheet's
+// column I. Only includes cells that are real http(s) URLs (Google's CSV/HTML
+// exports drop hyperlink targets, so a "linked label" won't appear here).
+export function discordByHost(days) {
+  const map = {}
+  for (const day of days || []) {
+    for (const item of day.items || []) {
+      const url = (item.discord || '').trim()
+      if (/^https?:\/\//i.test(url)) map[normalizeHost(item.host)] = url
+    }
+  }
+  return map
+}
+
 // A festival emoji picked from the activity's wording.
 export function activityIcon({ host, event }) {
   const s = `${event || ''} ${host || ''}`.toLowerCase()
