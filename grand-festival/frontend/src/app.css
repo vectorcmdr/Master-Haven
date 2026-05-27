@@ -738,6 +738,33 @@ body {
   transform: translateY(-1px);
 }
 .civ-discord { margin-top: 0.8rem; }
+
+/* Discord JOIN buttons (nav + Sign Up) recolored to the warm Atlas gold of the
+   festival marker, with dark navy text for contrast. */
+.nav-discord,
+.signup-discord {
+  background: linear-gradient(180deg, #ffe6a8 0%, #ffc83d 45%, #f3a01c 55%, #ffc83d 100%);
+  color: var(--navy-deep);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.nav-discord {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 4px 14px rgba(243, 160, 28, 0.5);
+}
+.nav-discord:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 6px 18px rgba(243, 160, 28, 0.7);
+}
+.signup-discord {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.12),
+    0 8px 24px rgba(243, 160, 28, 0.5);
+}
+.signup-discord:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.12),
+    0 12px 28px rgba(243, 160, 28, 0.65);
+}
 .sched-mainsystem {
   display: flex;
   align-items: center;

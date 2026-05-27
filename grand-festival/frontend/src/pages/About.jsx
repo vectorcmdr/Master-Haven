@@ -30,22 +30,6 @@ export default function About() {
           </div>
 
           <div className="about-section">
-            <h2>What is Unification Day?</h2>
-            <p>
-              Unification Day is the largest fan-run gathering in No Man's Sky. Every December since{' '}
-              <strong>2017</strong>, civilizations across every galaxy converge in a single host
-              system to celebrate what holds the community together — exploration, friendship, and
-              the shared act of leaving footprints across infinite worlds.
-            </p>
-            <p>
-              It started as a single party. It became a tradition. By 2023 it had evolved into a
-              multi-civilization tour — a moving festival across the universe.{' '}
-              <strong>2026 marks the 10th annual UD</strong>, alongside No Man's Sky's own 10-year
-              anniversary year.
-            </p>
-          </div>
-
-          <div className="about-section">
             <h2>Why summer?</h2>
             <p>
               For nine years UD has lived at the end of December — winter solstice, holiday season,
