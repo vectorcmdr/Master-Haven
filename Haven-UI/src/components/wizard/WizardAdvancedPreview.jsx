@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import OrbitalDiagram from '../shared/OrbitalDiagram'
 import StatTile, { GRADE_BG, gradeFromScore } from '../shared/StatTile'
+import { glyphImageSrc } from '../../utils/glyphAssets'
 
 // Wizard advanced-flow live preview. Replaces the portrait sticky panel in
 // the advanced flow with a full landscape banner.
@@ -12,14 +13,6 @@ import StatTile, { GRADE_BG, gradeFromScore } from '../shared/StatTile'
 //   - Stat grid expanded to economy / conflict / lifeform / planets / moons
 //   - Stellar class + game version + expedition shown as supporting meta
 //   - Planet biome thumbnail strip + special-feature badge row at bottom
-
-// Same glyph map as the cached poster. /haven-ui-photos/* serves them.
-const GLYPH_FILE = {
-  '0': 'IMG_9202.webp', '1': 'IMG_9203.webp', '2': 'IMG_9204.webp', '3': 'IMG_9205.webp',
-  '4': 'IMG_9206.webp', '5': 'IMG_9207.webp', '6': 'IMG_9208.webp', '7': 'IMG_9209.webp',
-  '8': 'IMG_9210.webp', '9': 'IMG_9211.webp', 'A': 'IMG_9212.webp', 'B': 'IMG_9213.webp',
-  'C': 'IMG_9214.webp', 'D': 'IMG_9215.webp', 'E': 'IMG_9216.webp', 'F': 'IMG_9217.webp',
-}
 
 const BIOME_TINTS = {
   Lush: '#34d399', Frozen: '#60a5fa', Scorched: '#f97316', Barren: '#a8a29e',
@@ -216,7 +209,7 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
             <div className="flex items-center gap-1 flex-wrap">
               {Array.from({ length: 12 }).map((_, i) => {
                 const c = glyphChars[i]
-                const file = c && GLYPH_FILE[c]
+                const src = c ? glyphImageSrc(c) : null
                 return (
                   <div
                     key={i}
@@ -228,12 +221,12 @@ export default function WizardAdvancedPreview({ system, gradeInfo }) {
                     }}
                     title={c || 'pending'}
                   >
-                    {file ? (
+                    {src ? (
                       <img
-                        src={`/haven-ui-photos/${file}`}
+                        src={src}
                         alt={c}
                         className="w-[18px] h-[18px] lg:w-[22px] lg:h-[22px]"
-                        style={{ objectFit: 'cover', mixBlendMode: 'screen', filter: 'brightness(1.4)' }}
+                        style={{ objectFit: 'contain' }}
                       />
                     ) : (
                       <span className="mono text-[10px] opacity-50">·</span>

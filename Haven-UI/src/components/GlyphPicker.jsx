@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { HEX_DIGITS, GLYPH_NAMES, glyphImageSrc } from '../utils/glyphAssets';
 
 /**
  * GlyphPicker Component
@@ -13,7 +14,6 @@ import axios from 'axios';
 const GlyphPicker = ({ value, onChange, onDecoded }) => {
   const [glyphCode, setGlyphCode] = useState(value || '');
   const [selectedGlyphs, setSelectedGlyphs] = useState(value ? value.split('') : []);
-  const [glyphImages, setGlyphImages] = useState({});
   const [inputMode, setInputMode] = useState('visual'); // 'visual' or 'text'
   const [validation, setValidation] = useState({ valid: null, message: null });
   const [decodedCoords, setDecodedCoords] = useState(null);
@@ -25,17 +25,6 @@ const GlyphPicker = ({ value, onChange, onDecoded }) => {
     setSelectedGlyphs(code ? code.split('') : []);
     if (onChange) onChange(code);
   };
-
-  // Fetch glyph images mapping on mount
-  useEffect(() => {
-    axios.get('/api/glyph_images')
-      .then(response => {
-        setGlyphImages(response.data);
-      })
-      .catch(error => {
-        console.error('Failed to load glyph images:', error);
-      });
-  }, []);
 
   // Sync local state with parent value when it changes (e.g., when loading existing system for edit)
   // Does NOT call onChange back — the parent already knows the value it set.
@@ -146,13 +135,8 @@ const GlyphPicker = ({ value, onChange, onDecoded }) => {
     return code;
   };
 
-  const hexDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
-  const glyphNames = {
-    '0': 'Sunset', '1': 'Bird', '2': 'Face', '3': 'Diplo',
-    '4': 'Eclipse', '5': 'Balloon', '6': 'Boat', '7': 'Bug',
-    '8': 'Dragonfly', '9': 'Galaxy', 'A': 'Voxel', 'B': 'Fish',
-    'C': 'Tent', 'D': 'Rocket', 'E': 'Tree', 'F': 'Atlas'
-  };
+  const hexDigits = HEX_DIGITS;
+  const glyphNames = GLYPH_NAMES;
 
   return (
     <div className="glyph-picker bg-gray-900 p-4 rounded-lg border border-purple-500">
@@ -208,21 +192,17 @@ const GlyphPicker = ({ value, onChange, onDecoded }) => {
                     key={digit}
                     onClick={() => handleGlyphClick(digit)}
                     disabled={selectedGlyphs.length >= 12}
-                    className="relative aspect-square border-2 border-purple-500 rounded hover:border-purple-300 hover:bg-purple-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden bg-gray-800"
+                    className="aspect-square flex flex-col border-2 border-purple-500 rounded hover:border-purple-300 hover:bg-purple-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden bg-gray-800"
                     title={`${glyphNames[digit]} (${digit})`}
                   >
-                    {glyphImages[digit] ? (
+                    <div className="flex-1 min-h-0 flex items-center justify-center p-1.5">
                       <img
-                        src={`/haven-ui-photos/${glyphImages[digit]}`}
+                        src={glyphImageSrc(digit)}
                         alt={glyphNames[digit]}
-                        className="w-full h-full object-contain p-1 sm:p-1 pb-4 sm:pb-4"
+                        className="max-w-full max-h-full object-contain"
                       />
-                    ) : (
-                      <span className="absolute inset-0 flex items-center justify-center text-purple-300 font-mono text-2xl sm:text-lg pb-4">
-                        {digit}
-                      </span>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/80 text-[10px] sm:text-xs text-purple-300 py-0.5 text-center font-mono">
+                    </div>
+                    <div className="bg-black/80 text-[10px] sm:text-xs text-purple-300 py-0.5 text-center font-mono">
                       {digit}
                     </div>
                   </button>

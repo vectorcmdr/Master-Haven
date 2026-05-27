@@ -10,6 +10,7 @@ import { fetchTagColorsForPoster, getTagColorFromAPI, getDisplayTagName } from '
 // own local Stat() function with the original 8/13/9 px fonts. Removing that
 // in favor of the shared <StatTile> with 19/24/16 fonts.
 import StatTile from '../components/shared/StatTile'
+import { glyphImageSrc } from '../utils/glyphAssets'
 
 // ============================================================================
 // System Thumbnail — 600×400 landscape card.
@@ -21,9 +22,9 @@ import StatTile from '../components/shared/StatTile'
 //                    space-station rendered as the outside diamond marker)
 //   - Right half:    name + galaxy/reality + 2×3 stat tile grid
 //   - Bottom strip:  12-glyph icon row decoded from glyph_code, using the
-//                    existing IMG_92xx.webp glyph photos via mix-blend mode
-//                    to drop the black backgrounds. Parker noted these are
-//                    placeholders pending transparent-bg replacements.
+//                    transparent festival glyph art (public/glyphs/{0-F}.webp)
+//                    rendered straight onto the chip — no blend-mode hack
+//                    needed now that the art has a clear background.
 //
 // Per Parker (system-poster spec, this session):
 //   A landscape · B real planet count + biome + moons · C star color
@@ -68,15 +69,6 @@ const GRADE_BG = {
   A: { bg: '#34d399', fg: '#022c22' },
   B: { bg: '#60a5fa', fg: '#082f49' },
   C: { bg: 'rgba(255,255,255,0.20)', fg: 'rgba(255,255,255,0.95)' },
-}
-
-// Glyph picture map — matches backend/glyph_decoder.GLYPH_IMAGES.
-// Hex char → IMG filename. Served from /haven-ui-photos/.
-const GLYPH_FILE = {
-  '0': 'IMG_9202.webp', '1': 'IMG_9203.webp', '2': 'IMG_9204.webp', '3': 'IMG_9205.webp',
-  '4': 'IMG_9206.webp', '5': 'IMG_9207.webp', '6': 'IMG_9208.webp', '7': 'IMG_9209.webp',
-  '8': 'IMG_9210.webp', '9': 'IMG_9211.webp', 'A': 'IMG_9212.webp', 'B': 'IMG_9213.webp',
-  'C': 'IMG_9214.webp', 'D': 'IMG_9215.webp', 'E': 'IMG_9216.webp', 'F': 'IMG_9217.webp',
 }
 
 export default function SystemThumb({ routeKey }) {
@@ -328,9 +320,9 @@ function OrbitalDiagram({ star, planets, moons, hasStation }) {
 //  been bumped to 19/24/16.)
 
 function GlyphIcon({ hex }) {
-  const file = GLYPH_FILE[hex]
+  const src = glyphImageSrc(hex)
   // Bumped 28→36 (Parker 2026-05-11) for legibility at L4 card scale.
-  if (!file) return <span style={{ width: 36, height: 36 }} />
+  if (!src) return <span style={{ width: 36, height: 36 }} />
   return (
     <div style={{
       width: 36, height: 36,
@@ -341,13 +333,9 @@ function GlyphIcon({ hex }) {
       overflow: 'hidden',
     }}>
       <img
-        src={`/haven-ui-photos/${file}`}
+        src={src}
         alt={hex}
-        style={{
-          width: 36, height: 36, objectFit: 'cover',
-          mixBlendMode: 'screen',
-          filter: 'brightness(1.4)',
-        }}
+        style={{ width: 30, height: 30, objectFit: 'contain' }}
       />
     </div>
   )
