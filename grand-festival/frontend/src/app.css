@@ -765,6 +765,24 @@ body {
     inset 0 -2px 0 rgba(0, 0, 0, 0.12),
     0 12px 28px rgba(243, 160, 28, 0.65);
 }
+
+/* Primary CTA buttons ("Join the Festival", "See all activities", Submit, etc.)
+   recolored from aqua to the warm Atlas gold, navy text. */
+.hero-cta {
+  background: linear-gradient(180deg, #ffe6a8 0%, #ffc83d 45%, #f3a01c 55%, #ffc83d 100%);
+  color: var(--navy-deep);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.15),
+    0 10px 28px rgba(243, 160, 28, 0.5);
+}
+.hero-cta:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.15),
+    0 14px 32px rgba(243, 160, 28, 0.7);
+}
 .sched-mainsystem {
   display: flex;
   align-items: center;
