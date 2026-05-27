@@ -113,7 +113,7 @@ export default function SubmitCiv() {
 
                 <label className="field">
                   <span>Civilization name <em>*</em></span>
-                  <input type="text" value={form.name} onChange={update('name')} maxLength={120} placeholder="e.g. Galactic Hub Project" required />
+                  <input type="text" value={form.name} onChange={update('name')} maxLength={120} placeholder="e.g. Neoterra" required />
                 </label>
 
                 <label className="field">
