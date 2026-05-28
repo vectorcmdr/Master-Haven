@@ -281,22 +281,18 @@ class ChannelSelect(discord.ui.ChannelSelect):
             custom_id=f"channel_select:{command_name}"
         )
 
-    async def callback(
-        self,
-        interaction: discord.Interaction
-    ):
-        selected_channels = self.values
-
+    async def callback(self, interaction: discord.Interaction):
+        view = self.view
+        view.command_name = self.command_name
+        view.channels = self.values
+        view.command_name = self.command_name
+        view.channels = self.values
         await interaction.response.edit_message(
             content=(
-                f"✅ Channels selected for "
-                f"**{self.command_name}**.\n"
+                f"✅ Channels selected for **{self.command_name}**.\n"
                 f"Now select an optional role restriction."
             ),
-            view=RoleSelectView(
-                self.command_name,
-                selected_channels
-            )
+            view=RoleSelectView(self.command_name, self.values)
         )
 
 
@@ -315,14 +311,25 @@ class ChannelSelectView(discord.ui.View):
             
 class SubmitSkipRoleButton(discord.ui.Button):
     def __init__(self, view: ChannelSelectView):
-        super().__init__(label="Skip role & Save", style=discord.ButtonStyle.success)
+        super().__init__(
+            label="Skip role & Save",
+            style=discord.ButtonStyle.success
+        )
         self.v = view
 
     async def callback(self, interaction: discord.Interaction):
+        view = self.v
+
+        if not hasattr(view, "channels"):
+            return await interaction.response.send_message(
+                "Select channels first.",
+                ephemeral=True
+            )
+
         await save_command_config(
             interaction.guild.id,
-            self.v.command_name,
-            [c.id for c in self.v.channels],
+            view.command_name,
+            [c.id for c in view.channels],
             None
         )
 
