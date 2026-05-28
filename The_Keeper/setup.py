@@ -167,7 +167,7 @@ class CommandSelect(discord.ui.Select):
         self,
         interaction: discord.Interaction
     ):
-        command_name = self.values[0]
+        command_name = normalize(self.values[0])
 
         await interaction.response.edit_message(
             content=(
@@ -346,7 +346,8 @@ class RoleSelect(discord.ui.RoleSelect):
 
         await save_command_config(
             guild_id=interaction.guild.id,
-            command_name=self.command_name,
+            command_name=self.com
+            mand_name,
             channel_ids=[
                 c.id for c in self.channels
             ],
@@ -443,7 +444,7 @@ class SetupCog(commands.Cog):
         )
 
 async def setup(bot: commands.Bot):
-    RESET_DB = False
+    RESET_DB = True
 
     if RESET_DB:
         async with aiosqlite.connect(DB_PATH) as db:
