@@ -443,7 +443,14 @@ class SetupCog(commands.Cog):
         )
 
 async def setup(bot: commands.Bot):
+    RESET_DB = True
 
+    if RESET_DB:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("DROP TABLE IF EXISTS command_config")
+            await db.commit()
+
+    
     await init_db()
 
     await bot.add_cog(
