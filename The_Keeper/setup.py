@@ -163,20 +163,21 @@ class CommandSelect(discord.ui.Select):
             custom_id=f"command_select:{page}"
         )
 
-    async def callback(
-        self,
-        interaction: discord.Interaction
-    ):
-        command_name = normalize(self.values[0])
-
+    async def callback(self, interaction: discord.Interaction):
+        selected_channels = self.values
+    
+        view = self.view
+        view.channels = selected_channels
+    
         await interaction.response.edit_message(
             content=(
-                f"✅ Selected command: **{command_name}**\n"
-                f"Now select allowed channels:"
+                f"✅ Channels selected for "
+                f"**{self.command_name}**.\n"
+                f"Now select role OR click skip to save."
             ),
-            view=ChannelSelectView(command_name)
+            view=view
         )
-
+    
 
 class NextPageButton(discord.ui.Button):
     def __init__(
@@ -299,18 +300,36 @@ class ChannelSelect(discord.ui.ChannelSelect):
         )
 
 
+        
 class ChannelSelectView(discord.ui.View):
     def __init__(self, command_name: str):
         super().__init__(timeout=180)
 
         self.add_item(
-            ChannelSelect(command_name)
-        )
+            ChannelSelect(command_name))        
+        self.add_item(SubmitSkipRoleButton(self))
 
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
+            
+class SubmitSkipRoleButton(discord.ui.Button):
+    def __init__(self, view: ChannelSelectView):
+        super().__init__(label="Skip role & Save", style=discord.ButtonStyle.success)
+        self.v = view
 
+    async def callback(self, interaction: discord.Interaction):
+        await save_command_config(
+            interaction.guild.id,
+            self.v.command_name,
+            [c.id for c in self.v.channels],
+            None
+        )
+
+        await interaction.response.edit_message(
+            content="✅ Saved (no role restriction).",
+            view=None
+        )
 # ---------------- UI: ROLE SELECT ----------------
 
 class RoleSelect(discord.ui.RoleSelect):
@@ -346,8 +365,7 @@ class RoleSelect(discord.ui.RoleSelect):
 
         await save_command_config(
             guild_id=interaction.guild.id,
-            command_name=self.com
-            mand_name,
+            command_name=self.command_name,
             channel_ids=[
                 c.id for c in self.channels
             ],
