@@ -270,7 +270,13 @@ class SetupFlowView(discord.ui.View):
 
         self.channel_select = ChannelSelect(command_name)
         self.role_select = RoleSelect(command_name, [])
-
+        self.channel_select.row = 0
+        self.role_select.row = 1
+        
+        button = SubmitSkipRoleButton()
+        button.row = 2
+        self.add_item(button)
+        
         self.add_item(self.channel_select)
         self.add_item(self.role_select)
         self.add_item(SubmitSkipRoleButton())
