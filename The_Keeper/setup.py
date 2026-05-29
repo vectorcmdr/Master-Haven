@@ -363,7 +363,6 @@ class RoleSelect(discord.ui.RoleSelect):
 
         super().__init__(
             placeholder="Optional role restriction...",
-            min_values=0,
             max_values=1,
             custom_id=f"role_select:{command_name}"
         )
