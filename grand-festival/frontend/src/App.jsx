@@ -9,6 +9,7 @@ import WhosGoing from './pages/WhosGoing.jsx'
 import SubmitCiv from './pages/SubmitCiv.jsx'
 import SignUp from './pages/SignUp.jsx'
 import Admin from './pages/Admin.jsx'
+import Splash from './components/Splash.jsx'
 
 // Smooth scroll-to-top on every route change (mockup did this in showPage()),
 // plus a GA4 page_view for SPA navigations. The initial page_view is sent by
@@ -36,6 +37,7 @@ function ScrollToTop() {
 export default function App() {
   return (
     <>
+      <Splash />
       <Nav />
       <ScrollToTop />
       <Routes>

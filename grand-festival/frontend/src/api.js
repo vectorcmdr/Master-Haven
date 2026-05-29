@@ -37,6 +37,7 @@ const jsonOpts = (method, payload) =>
 // ---- Public ----
 export const getCivs = async () => handle(await fetch(`${BASE}/civs`, opts()))
 export const getSchedule = async () => handle(await fetch(`${BASE}/schedule`, opts()))
+export const getCreators = async () => handle(await fetch(`${BASE}/creators`, opts()))
 export const submitCiv = async (formData) =>
   handle(await fetch(`${BASE}/civs/submit`, opts({ method: 'POST', body: formData })))
 
@@ -63,3 +64,15 @@ export const adminSetLogo = async (id, file) => {
 export const adminClearLogo = async (id) =>
   handle(await fetch(`${BASE}/admin/civs/${id}/logo`, opts({ method: 'DELETE' })))
 export const adminLog = async () => handle(await fetch(`${BASE}/admin/log`, opts()))
+
+// ---- Admin: Creator Corner ----
+export const adminListCreators = async () =>
+  handle(await fetch(`${BASE}/admin/creators`, opts()))
+export const adminCreateCreator = async (payload) =>
+  handle(await fetch(`${BASE}/admin/creators`, jsonOpts('POST', payload)))
+export const adminEditCreator = async (id, patch) =>
+  handle(await fetch(`${BASE}/admin/creators/${id}`, jsonOpts('PATCH', patch)))
+export const adminRestoreCreator = async (id) =>
+  handle(await fetch(`${BASE}/admin/creators/${id}/restore`, opts({ method: 'POST' })))
+export const adminDeleteCreator = async (id) =>
+  handle(await fetch(`${BASE}/admin/creators/${id}`, opts({ method: 'DELETE' })))

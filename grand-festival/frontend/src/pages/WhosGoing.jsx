@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCivs, getSchedule } from '../api.js'
+import { getCivs, getCreators, getSchedule } from '../api.js'
 import CivCard from '../components/CivCard.jsx'
+import CreatorCard from '../components/CreatorCard.jsx'
 import GlyphStrip from '../components/GlyphStrip.jsx'
 import DiscordLink from '../components/DiscordLink.jsx'
 import { activityNote, deriveActivities, discordByHost, normalizeHost, realLoc } from '../scheduleUtils.js'
@@ -42,6 +43,8 @@ export default function WhosGoing() {
   const [error, setError] = useState(null)
   const [schedule, setSchedule] = useState(null) // null = loading
   const [schedErr, setSchedErr] = useState(null)
+  const [creators, setCreators] = useState(null) // null = loading
+  const [creatorsErr, setCreatorsErr] = useState(null)
 
   useEffect(() => {
     let alive = true
@@ -51,6 +54,9 @@ export default function WhosGoing() {
     getSchedule()
       .then((data) => alive && setSchedule(data))
       .catch((e) => alive && setSchedErr(e.message))
+    getCreators()
+      .then((data) => alive && setCreators(data))
+      .catch((e) => alive && setCreatorsErr(e.message))
     return () => {
       alive = false
     }
@@ -71,6 +77,7 @@ export default function WhosGoing() {
         <div className="wg-tabs">
           <button className={`wg-tab ${tab === 'civs' ? 'active' : ''}`} onClick={() => setTab('civs')}>Civilizations</button>
           <button className={`wg-tab ${tab === 'attractions' ? 'active' : ''}`} onClick={() => setTab('attractions')}>Attractions</button>
+          <button className={`wg-tab ${tab === 'creators' ? 'active' : ''}`} onClick={() => setTab('creators')}>Creator Corner</button>
           <button className={`wg-tab ${tab === 'schedule' ? 'active' : ''}`} onClick={() => setTab('schedule')}>Schedule</button>
         </div>
       </section>
@@ -140,6 +147,33 @@ export default function WhosGoing() {
                         )}
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'creators' && (
+            <div className="wg-pane active">
+              <p className="section-sub" style={{ marginBottom: '2rem' }}>
+                Streamers, photographers, builders, and storytellers covering the festival —
+                pulled live from the creator sheet. Pick a time slot or roam the grounds; a
+                meet-and-greet booth will be open at the festival site.
+              </p>
+
+              {creatorsErr && <div className="state-msg error">Couldn't load the creators ({creatorsErr}).</div>}
+              {creators === null && !creatorsErr && <div className="state-msg">Loading the creator roster…</div>}
+              {creators !== null && !creatorsErr && (creators.creators || []).length === 0 && (
+                <div className="state-msg muted">
+                  No creators have signed up yet — check back soon, or message the organizers on
+                  Discord to claim a slot.
+                </div>
+              )}
+
+              {(creators?.creators || []).length > 0 && (
+                <div className="creator-grid">
+                  {creators.creators.map((c) => (
+                    <CreatorCard creator={c} key={c.id} />
                   ))}
                 </div>
               )}

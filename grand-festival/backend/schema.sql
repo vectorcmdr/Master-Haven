@@ -29,6 +29,40 @@ BEGIN
     UPDATE civilizations SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END;
 
+-- Creator Corner — synced from the "Sponsors & Creators" tab of the festival
+-- sheet, with the option for admin overrides. Sheet is preseeded info; any row
+-- the admin touches gets `admin_edited = 1` and stops being overwritten by the
+-- next sheet sync. Admin can also add pure-DB rows (sheet_key NULL).
+CREATE TABLE IF NOT EXISTS creators (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    sheet_key     TEXT,                                  -- "day|gmt|host" normalized; NULL = admin-only
+    host          TEXT NOT NULL DEFAULT '',              -- creator name
+    event         TEXT NOT NULL DEFAULT '',              -- what they're bringing (optional)
+    day           TEXT NOT NULL DEFAULT '',              -- "Festival Day 1: Friday, 19 June 2026"
+    gmt           TEXT NOT NULL DEFAULT '',
+    est           TEXT NOT NULL DEFAULT '',
+    pst           TEXT NOT NULL DEFAULT '',
+    aest          TEXT NOT NULL DEFAULT '',
+    location      TEXT NOT NULL DEFAULT '',              -- portal hex (optional)
+    link          TEXT NOT NULL DEFAULT '',              -- Twitch / YouTube / X / Discord etc.
+    notes         TEXT NOT NULL DEFAULT '',              -- freeform admin note
+    admin_edited  INTEGER NOT NULL DEFAULT 0,            -- 1 = sheet sync skips this row
+    hidden        INTEGER NOT NULL DEFAULT 0,            -- 1 = admin suppressed it from the public list
+    display_order INTEGER NOT NULL DEFAULT 100,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_creators_sheet_key
+    ON creators(sheet_key) WHERE sheet_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_creators_hidden ON creators(hidden);
+
+CREATE TRIGGER IF NOT EXISTS creators_updated_at
+AFTER UPDATE ON creators
+BEGIN
+    UPDATE creators SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END;
+
 -- Audit log
 CREATE TABLE IF NOT EXISTS admin_log (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

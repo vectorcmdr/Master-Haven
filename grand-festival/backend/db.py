@@ -84,6 +84,10 @@ def _ensure_columns(conn) -> None:
     if "discord_link" not in existing:
         conn.execute("ALTER TABLE civilizations ADD COLUMN discord_link TEXT")
 
+    # creators table was added after the initial schema; the CREATE TABLE in
+    # schema.sql handles fresh DBs. Nothing column-wise to backfill yet.
+    _ = conn.execute("PRAGMA table_info(creators)").fetchall()
+
 
 def init_db() -> None:
     """Run schema (idempotent), backfill new columns, seed once if empty."""

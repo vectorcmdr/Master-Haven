@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .db import init_db
-from .routes import admin, public, schedule, submit
+from .routes import admin, creators, public, schedule, submit
 
 # Some platforms don't know .webp — register it so logos serve with the right type.
 mimetypes.add_type("image/webp", ".webp")
@@ -35,6 +35,7 @@ app = FastAPI(title="Grand Festival API", version="1.0.0", lifespan=lifespan)
 app.include_router(public.router, prefix="/api", tags=["public"])
 app.include_router(submit.router, prefix="/api", tags=["submit"])
 app.include_router(schedule.router, prefix="/api", tags=["schedule"])
+app.include_router(creators.router, prefix="/api", tags=["creators"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
 
 

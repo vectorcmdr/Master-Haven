@@ -49,6 +49,40 @@ class CivPatch(BaseModel):
     approval_state: Optional[ApprovalState] = None
 
 
+class CreatorCreate(BaseModel):
+    """Admin-created creator entry (pure-DB, no sheet origin)."""
+
+    host: str
+    event: Optional[str] = ""
+    day: Optional[str] = ""
+    gmt: Optional[str] = ""
+    est: Optional[str] = ""
+    pst: Optional[str] = ""
+    aest: Optional[str] = ""
+    location: Optional[str] = ""
+    link: Optional[str] = ""
+    notes: Optional[str] = ""
+    display_order: Optional[int] = 100
+
+
+class CreatorPatch(BaseModel):
+    """Admin edit — any subset. Any content field set flips ``admin_edited`` so
+    the next sheet sync leaves the row alone."""
+
+    host: Optional[str] = None
+    event: Optional[str] = None
+    day: Optional[str] = None
+    gmt: Optional[str] = None
+    est: Optional[str] = None
+    pst: Optional[str] = None
+    aest: Optional[str] = None
+    location: Optional[str] = None
+    link: Optional[str] = None
+    notes: Optional[str] = None
+    display_order: Optional[int] = None
+    hidden: Optional[int] = None  # 0/1
+
+
 class AdminLogin(BaseModel):
     password: str
 

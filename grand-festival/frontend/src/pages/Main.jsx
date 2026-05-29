@@ -44,10 +44,19 @@ export default function Main() {
 
         <div className="hero-content">
           <div className="hero-eyebrow">★ A NEW MID-YEAR TRADITION ★</div>
-          <h1 className="hero-title">
-            SUMMER<br />
-            <span className="accent">GRAND FESTIVAL</span>
-          </h1>
+          {/* NMS wordmark "1st Annual GRAND FESTIVAL 2026 — NO MAN'S SKY".
+              Keeps an <h1> for SEO/screen-readers via aria-label on the picture
+              and an offscreen <span>. */}
+          <picture className="hero-wordmark-wrap">
+            <source srcSet="/branding/wordmark.webp" type="image/webp" />
+            <img
+              className="hero-wordmark"
+              src="/branding/wordmark.png"
+              alt="1st Annual Grand Festival 2026 — No Man's Sky"
+              fetchpriority="high"
+            />
+          </picture>
+          <h1 className="visually-hidden">1st Annual Grand Festival 2026 — No Man's Sky</h1>
           <p className="hero-subtitle">
             Once a year was never enough. The Grand Festival returns — Trade Lords, travelers, and
             every alliance gathering on grass-green plains under summer skies.
@@ -75,7 +84,9 @@ export default function Main() {
 
       <section className="highlights">
         <div className="highlights-inner">
-          <h2 className="section-title">What's Happening</h2>
+          <h2 className="section-title">
+            What's Happening<span className="kzzt-cursor" aria-hidden="true">_</span>
+          </h2>
           <p className="section-sub">
             The real lineup — pulled live from the festival schedule. Four days, Friday 19 to
             Sunday 21 June 2026, peaking on the Summer Solstice.

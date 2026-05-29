@@ -10,7 +10,7 @@ export default function About() {
   return (
     <main className="page active">
       <section className="about-hero">
-        <h1>About the Festival</h1>
+        <h1>About the Festival<span className="kzzt-cursor" aria-hidden="true">_</span></h1>
         <p>
           From a distress beacon to a decade of gatherings — and now, every Trade Lord, traveler,
           and wandering alliance has two reasons to assemble.
@@ -20,13 +20,14 @@ export default function About() {
       <section className="about-body">
         <div className="about-inner">
           <div className="lore-box">
-            <div className="source">From a Crashed Ship's Distress Beacon</div>
+            <div className="source">From the Crashed Gek Freighter's Log</div>
             <blockquote>
-              “Groups of similar minds, unable to meet but attempting to find one another, to claim
-              worlds across time and space. Once a year their various alliances, federations, hubs,
-              and empires united to remember all that they were, and could become in time…”
+              “I access the ship's systems, extracting a quantity of Nanite Clusters. Nothing else
+              is salvageable, the pilot's ship already in poor repair before the crash. The log
+              shows these Gek were on their way to the Grand Festival, an assembly of Trade Lords
+              and their employees from across the stars.”
             </blockquote>
-            <cite>— The original in-game log that started it all (writ. Greg Buchanan, Hello Games)</cite>
+            <cite>— recovered fragment, TRA_CRA_RES_B_18 · the in-game record of the original Grand Festival (writ. Greg Buchanan, Hello Games)</cite>
           </div>
 
           <div className="about-section">
