@@ -325,7 +325,7 @@ class SubmitSkipRoleButton(discord.ui.Button):
         self.v = view
 
     async def callback(self, interaction: discord.Interaction):
-        view: SetupFlowView = self.v
+        view: SetupFlowView = self.view
 
         if not view.channels:
             return await interaction.response.send_message(
