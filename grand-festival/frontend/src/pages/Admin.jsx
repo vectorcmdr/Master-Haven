@@ -261,10 +261,6 @@ const CREATOR_FIELDS = [
   ['host', 'Creator name'],
   ['event', 'What they\'re bringing'],
   ['day', 'Day (e.g. "Festival Day 1: Friday, 19 June 2026")'],
-  ['gmt', 'GMT'],
-  ['est', 'EST'],
-  ['pst', 'PST'],
-  ['aest', 'AEST'],
   ['location', 'Portal hex'],
   ['link', 'Link (Twitch / YouTube / X / etc.)'],
   ['notes', 'Admin notes (private)'],
@@ -367,13 +363,6 @@ function AdminCreatorRow({ creator, onChanged, onError }) {
         <div className="admin-creator-readout">
           {creator.event && <div><span className="admin-label">Bringing</span> {creator.event}</div>}
           {creator.day && <div><span className="admin-label">Day</span> {creator.day}</div>}
-          {(creator.gmt || creator.est || creator.pst || creator.aest) && (
-            <div>
-              <span className="admin-label">Time</span>{' '}
-              {[creator.gmt && `${creator.gmt} GMT`, creator.est && `${creator.est} EST`, creator.pst && `${creator.pst} PST`, creator.aest && `${creator.aest} AEST`]
-                .filter(Boolean).join(' · ')}
-            </div>
-          )}
           {creator.location && <div><span className="admin-label">Portal</span> <code>{creator.location}</code></div>}
           {creator.link && (
             <div>

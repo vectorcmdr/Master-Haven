@@ -50,15 +50,17 @@ class CivPatch(BaseModel):
 
 
 class CreatorCreate(BaseModel):
-    """Admin-created creator entry (pure-DB, no sheet origin)."""
+    """Admin-created creator entry (pure-DB, no sheet origin).
+
+    Time-of-day fields (gmt/est/pst/aest) were removed from the contract — the
+    festival sheet exposes them per-row but creators aren't time-bound the way
+    scheduled activities are, so the website and admin form no longer surface
+    them. The DB columns stay so existing rows aren't broken, just ignored.
+    """
 
     host: str
     event: Optional[str] = ""
     day: Optional[str] = ""
-    gmt: Optional[str] = ""
-    est: Optional[str] = ""
-    pst: Optional[str] = ""
-    aest: Optional[str] = ""
     location: Optional[str] = ""
     link: Optional[str] = ""
     notes: Optional[str] = ""
@@ -67,15 +69,12 @@ class CreatorCreate(BaseModel):
 
 class CreatorPatch(BaseModel):
     """Admin edit — any subset. Any content field set flips ``admin_edited`` so
-    the next sheet sync leaves the row alone."""
+    the next sheet sync leaves the row alone. Time fields intentionally omitted
+    (see ``CreatorCreate``)."""
 
     host: Optional[str] = None
     event: Optional[str] = None
     day: Optional[str] = None
-    gmt: Optional[str] = None
-    est: Optional[str] = None
-    pst: Optional[str] = None
-    aest: Optional[str] = None
     location: Optional[str] = None
     link: Optional[str] = None
     notes: Optional[str] = None

@@ -5,12 +5,8 @@ import { realLoc } from '../scheduleUtils.js'
 // portal coords, and a follow-link to whatever they put in column J of the
 // sheet (Twitch / YouTube / X / their own Discord, etc.).
 export default function CreatorCard({ creator }) {
-  const { host, event, day, gmt, est, pst, aest, location, link } = creator
-  const zones = [gmt && `${gmt} GMT`, est && `${est} EST`, pst && `${pst} PST`, aest && `${aest} AEST`]
-    .filter(Boolean)
-    .join('  ·  ')
+  const { host, event, day, location, link } = creator
   const dayShort = (day || '').replace(/^Festival\s+/i, '').replace(/^Day\s*/i, 'Day ')
-  const hasTime = !!(gmt || est || pst || aest)
 
   return (
     <div className="creator-card">
@@ -20,10 +16,9 @@ export default function CreatorCard({ creator }) {
       </div>
       {event && <p className="creator-event">{event}</p>}
 
-      {(dayShort || hasTime) && (
+      {dayShort && (
         <div className="creator-when">
-          {dayShort && <span className="creator-day">{dayShort}</span>}
-          {zones && <span className="creator-times">{zones}</span>}
+          <span className="creator-day">{dayShort}</span>
         </div>
       )}
 

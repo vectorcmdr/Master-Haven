@@ -126,12 +126,17 @@ def _parse_sheet(text: str) -> list[dict]:
 # Sync from sheet to DB
 # ----------------------------------------------------------------------------
 
-_SYNC_FIELDS = ("host", "event", "day", "gmt", "est", "pst", "aest", "location", "link")
+_SYNC_FIELDS = ("host", "event", "day", "location", "link")
 
 
 def _sync_sheet_to_db(conn: sqlite3.Connection, entries: list[dict]) -> None:
     """Upsert each sheet row into ``creators``. Rows with ``admin_edited = 1``
-    are left untouched. Pure-DB rows (``sheet_key`` NULL) are never touched."""
+    are left untouched. Pure-DB rows (``sheet_key`` NULL) are never touched.
+
+    Time-of-day columns (gmt/est/pst/aest) are no longer synced — the website
+    doesn't surface them. The DB columns still exist so historical values aren't
+    erased; they just go stale on sheet-sourced rows from here on out.
+    """
     for e in entries:
         existing = conn.execute(
             "SELECT id, admin_edited FROM creators WHERE sheet_key = ?",
@@ -142,14 +147,14 @@ def _sync_sheet_to_db(conn: sqlite3.Connection, entries: list[dict]) -> None:
                 continue
             conn.execute(
                 "UPDATE creators "
-                "SET host=?, event=?, day=?, gmt=?, est=?, pst=?, aest=?, location=?, link=? "
+                "SET host=?, event=?, day=?, location=?, link=? "
                 "WHERE id = ?",
                 (*(e[f] for f in _SYNC_FIELDS), existing["id"]),
             )
         else:
             conn.execute(
-                "INSERT INTO creators (sheet_key, host, event, day, gmt, est, pst, aest, location, link) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO creators (sheet_key, host, event, day, location, link) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (e["sheet_key"], *(e[f] for f in _SYNC_FIELDS)),
             )
 
@@ -181,25 +186,12 @@ def _day_sort_key(day: str) -> int:
     return int(m.group(1)) if m else 99
 
 
-_TIME_SORT_RE = re.compile(r"(\d{1,2}):(\d{2})\s*(AM|PM)?", re.IGNORECASE)
-
-
-def _time_sort_key(gmt: str) -> int:
-    m = _TIME_SORT_RE.search(gmt or "")
-    if not m:
-        return 99 * 60
-    h = int(m.group(1)) % 12
-    if (m.group(3) or "").upper() == "PM":
-        h += 12
-    return h * 60 + int(m.group(2))
-
-
 def _sort_key(row) -> tuple:
     """Sort key for a raw sqlite3.Row (has every column). Run BEFORE
-    serialization — `_to_public` doesn't expose `display_order`."""
+    serialization — `_to_public` doesn't expose `display_order`. Time-of-day
+    is no longer part of the contract, so we sort by day → display_order → host."""
     return (
         _day_sort_key(row["day"] or ""),
-        _time_sort_key(row["gmt"] or ""),
         int(row["display_order"] if row["display_order"] is not None else 100),
         (row["host"] or "").lower(),
     )
@@ -211,10 +203,6 @@ def _to_public(row) -> dict:
         "host": row["host"],
         "event": row["event"],
         "day": row["day"],
-        "gmt": row["gmt"],
-        "est": row["est"],
-        "pst": row["pst"],
-        "aest": row["aest"],
         "location": row["location"],
         "link": row["link"],
         # `from_sheet` lets the UI badge sheet-sourced vs. admin-only entries
@@ -332,8 +320,8 @@ def admin_edit_creator(
         fields["link"] = link
 
     columns = [
-        "host", "event", "day", "gmt", "est", "pst", "aest",
-        "location", "link", "notes", "display_order", "hidden",
+        "host", "event", "day", "location", "link",
+        "notes", "display_order", "hidden",
     ]
     sets = [f"{c} = ?" for c in columns if c in fields]
     values = [fields[c] for c in columns if c in fields]

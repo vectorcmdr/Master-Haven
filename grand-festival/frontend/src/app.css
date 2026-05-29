@@ -1003,7 +1003,6 @@ body {
   font-size: 0.7rem;
   letter-spacing: 0.12em;
 }
-.creator-times { opacity: 0.85; }
 .creator-loc { margin-top: 0.1rem; }
 .creator-link {
   align-self: flex-start;
