@@ -289,6 +289,11 @@ class ChannelSelect(discord.ui.ChannelSelect):
 
 
 class SaveButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Save",
+            style=discord.ButtonStyle.success
+        )
     async def callback(self, interaction):
         view = self.view
 
