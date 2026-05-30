@@ -283,8 +283,8 @@ class ChannelSelect(discord.ui.ChannelSelect):
         )
 
     async def callback(self, interaction):
-        self.view.channels = self.values
-
+        self.view.channels = list(self.values)
+        
         await interaction.response.edit_message(view=self.view)
 
 
