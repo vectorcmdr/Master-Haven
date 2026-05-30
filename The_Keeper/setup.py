@@ -289,12 +289,6 @@ class ChannelSelect(discord.ui.ChannelSelect):
 
 
 class SaveButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="Save",
-            style=discord.ButtonStyle.success
-        )
-
     async def callback(self, interaction):
         view = self.view
 
@@ -362,7 +356,8 @@ class RoleSetupView(discord.ui.View):
         self.channels = channels
 
         self.add_item(RoleSelect(command_name, channels))
-
+        self.add_item(RoleSelect(command_name, channels))
+        self.add_item(SaveButton())
 
 async def is_command_allowed(
     guild_id: int,
