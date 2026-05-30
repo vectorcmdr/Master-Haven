@@ -354,8 +354,7 @@ class RoleSetupView(discord.ui.View):
 
         self.command_name = command_name
         self.channels = channels
-
-        self.add_item(RoleSelect(command_name, channels))
+        
         self.add_item(RoleSelect(command_name, channels))
         self.add_item(SaveButton())
 
