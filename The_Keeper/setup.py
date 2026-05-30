@@ -285,7 +285,7 @@ class ChannelSelect(discord.ui.ChannelSelect):
     async def callback(self, interaction):
         self.view.channels = self.values
 
-        await interaction.response.defer()
+        await interaction.response.edit_message(view=self.view)
 
 
 class SaveButton(discord.ui.Button):
