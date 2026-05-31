@@ -10,7 +10,6 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "Data", "guild.db")
 
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-# Discord select menu limit
 MAX_OPTIONS = 25
 
 # ---------------- DATABASE SETUP ----------------
@@ -267,20 +266,22 @@ class ChannelSetupView(discord.ui.View):
         self.command_name = command_name
         self.channels = []
 
-        self.add_item(ChannelSelect())
-
-        self.add_item(SaveButton())
-        self.add_item(RoleSetupButton())
+       
+        self.add_item(ChannelSelect(row=0))
+        self.add_item(SaveButton(row=1))
+        self.add_item(RoleSetupButton(row=1))
 
 
 class ChannelSelect(discord.ui.ChannelSelect):
-    def __init__(self):
+    def __init__(self, row: int = 0):
         super().__init__(
             placeholder="Select channels...",
             min_values=1,
             max_values=10,
-            channel_types=[discord.ChannelType.text]
+            channel_types=[discord.ChannelType.text],
+            row=row  
         )
+
 
     async def callback(self, interaction):
         self.view.channels = list(self.values)
