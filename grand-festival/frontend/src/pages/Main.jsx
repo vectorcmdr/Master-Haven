@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useCountdown from '../hooks/useCountdown.js'
 import { getSchedule } from '../api.js'
+import { DISCORD_INVITE_URL } from '../config.js'
 import { activityIcon, activityNote, deriveActivities } from '../scheduleUtils.js'
 
 const HOME_TEASER_COUNT = 6
@@ -24,6 +25,13 @@ export default function Main() {
 
   const activities = deriveActivities(schedule?.days)
   const teaser = activities.slice(0, HOME_TEASER_COUNT)
+
+  // Hero CTA jumps straight into the festival Discord; if no invite is set yet,
+  // fall back to the Sign Up page (same pattern as the nav Discord button).
+  const onJoin = () => {
+    if (DISCORD_INVITE_URL) window.open(DISCORD_INVITE_URL, '_blank', 'noopener')
+    else navigate('/signup')
+  }
 
   return (
     <main className="page active">
@@ -66,7 +74,7 @@ export default function Main() {
             <div className="hero-meta-pill"><strong>WHERE</strong> Host system TBD</div>
             <div className="hero-meta-pill"><strong>WHO</strong> All civilizations welcome</div>
           </div>
-          <button className="hero-cta" onClick={() => navigate('/signup')}>
+          <button className="hero-cta" onClick={onJoin}>
             Join the Festival ▸
           </button>
         </div>
