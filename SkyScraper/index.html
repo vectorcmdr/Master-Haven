@@ -1244,6 +1244,70 @@
     .now-status .now-value, .lead, .finding, .timeline-body, .wc-d,
     .panel li, .panel p, .breach-body, .briefing p { min-width: 0; overflow-wrap: anywhere; }
   }
+
+  /* ============== EXPANDABLE TIMELINE ============== */
+  .timeline-entry.expandable { cursor: pointer; }
+  .timeline-entry.expandable .te-t::after {
+    content: ' ⌄';
+    color: var(--haven);
+    font-size: 0.72em;
+    opacity: 0.75;
+    vertical-align: middle;
+  }
+  .timeline-entry.open .te-t::after { content: ' ⌃'; }
+  .timeline-entry.expandable:hover .te-t { color: var(--haven); }
+  .tl-deep {
+    display: none;
+    margin-top: 14px;
+    padding: 14px 16px;
+    background: rgba(6,8,11,0.55);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--haven);
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--text-dim);
+  }
+  .timeline-entry.open .tl-deep { display: block; animation: fadeIn 0.25s ease-out; }
+  .tl-deep .tl-deep-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    display: block;
+    margin-bottom: 8px;
+  }
+  .tl-deep ul { margin: 6px 0 2px 18px; }
+  .tl-deep li { margin-bottom: 6px; }
+  .tl-deep li::marker { color: var(--haven); }
+  .tl-deep p { margin-bottom: 8px; }
+  .tl-deep p:last-child { margin-bottom: 0; }
+
+  /* ============== PUZZLE ACTIVE/SOLVED FILTER ============== */
+  .puzzle-filter {
+    display: flex;
+    gap: 8px;
+    margin: 4px 0 36px;
+    flex-wrap: wrap;
+  }
+  .pf-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    padding: 9px 18px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .pf-btn:hover { color: var(--text); border-color: var(--line-bright); }
+  .pf-btn.active { color: var(--haven); border-color: var(--haven); background: rgba(0,194,179,0.08); }
+  .pf-btn .pf-count { color: var(--text-faint); margin-left: 7px; font-weight: 300; }
+  .pf-btn.active .pf-count { color: var(--haven); }
+  .puzzle.pf-hidden { display: none; }
 </style>
 </head>
 <body>
@@ -1276,7 +1340,7 @@
     </div>
     <div class="byline-item">
       <span class="lbl">Last refresh</span>
-      <span class="val">2026-05-24</span>
+      <span class="val">2026-06-01</span>
     </div>
   </div>
 </header>
@@ -1287,9 +1351,9 @@
     <div class="breach-pulse"></div>
     <div class="breach-label">Security breach confirmed · Alert level critical</div>
   </div>
-  <div class="breach-title">Something is waking up — and it's restoring its memory.</div>
+  <div class="breach-title">The door opened — reality started glitching — and Emily spoke.</div>
   <p class="breach-body">
-    The QUOTE page — the Wallace Stevens pastiche that anchors the entire ARG — went <code>unstable</code> on <strong>May 23</strong> and mutated through <strong>six revisions</strong> on May 24. On <strong>May 25</strong> the community solved it: the mutations were converging onto Wallace Stevens' real <em>"Sunday Morning,"</em> and the page flipped to <code>Current status - stable</code> — the <strong>first puzzle solved, and the first time we changed the site.</strong> A day later a readout revealed the scale: <code>Memory_bloc_restoration: 0/365</code>. The Architect was never editing a poem. <strong>Something is regaining its memory — one bloc at a time — and a convergence date looms on May 28.</strong>
+    The May-31 gate fell to the password <strong>EMILY</strong>, and a ciphered email read <strong>LA PORTE EST OUVERTE</strong> — "the door is open." Then on <strong>June 1</strong> the ARG broke into the real world: a post tagged <code>Reality_glitching · Location: LONDON</code> and a social call to <em>"report any find in your direct surroundings"</em> sent a community member, <strong>Morse</strong>, to the <strong>Atlas Building in London</strong> to recover a cassette. He found <strong>only dust</strong> — and the Architect immortalized the run in a <code>RECOVERY_OPERATION_COMPLETED</code> log. Within the hour the site's <code>/about/</code> page changed to read "<strong>This is —·· REAL</strong>" over an embedded recording: <strong>Emily's voice</strong> — the AI from <em>Waking Titan</em> — over a rising heartbeat. Memory restoration still reads <code>0/365</code>. Something isn't just waking up. It's <em>here.</em>
   </p>
 </div>
 
@@ -1299,8 +1363,8 @@
   <div class="stat"><div class="stat-v signal">33</div><div class="stat-l">Site posts</div></div>
   <div class="stat"><div class="stat-v signal">6</div><div class="stat-l">Anomalies</div></div>
   <div class="stat"><div class="stat-v haven">7</div><div class="stat-l">Channels found</div></div>
-  <div class="stat"><div class="stat-v alert">May 28</div><div class="stat-l">Convergence date</div></div>
-  <div class="stat"><div class="stat-v haven">STABLE</div><div class="stat-l">Poem status</div></div>
+  <div class="stat"><div class="stat-v haven">EMILY</div><div class="stat-l">Gate password</div></div>
+  <div class="stat"><div class="stat-v alert">GLITCHING</div><div class="stat-l">Reality status</div></div>
 </div>
 
 <!-- ============ TABS ============ -->
@@ -1321,35 +1385,25 @@
 
   <h2>Where the ARG is right now</h2>
   <p class="panel-intro">
-    Last verified: 2026-05-26. This tab is the lead. Everything else explains what got us here.
+    Last verified: 2026-06-01. This tab is the lead. Everything else explains what got us here.
   </p>
 
   <div class="now-status">
     <div class="now-label">Latest event</div>
     <div class="now-value">
-      <strong>2026-05-25 — the poem was solved, and the site reacted.</strong> The community converged the mutating QUOTE page onto its real source: Wallace Stevens' actual <em>"Sunday Morning"</em> stanza ("<em>As April's green endures… her remembrance of awakened birds… her desire for June and evening… the consummation of the swallow's wings</em>"). The page's <code>Current status</code> flipped <code>unstable → stable</code> — the <strong>first puzzle solved by collective effort, and the first time community action visibly changed a page.</strong> (<code>memory bloc 1113384720</code> = 2005-04-13.) <span class="by">ETARC topic 9299 · #1730 · #1742</span><br><br>
-      <strong>2026-05-26 — the scale revealed.</strong> A status readout surfaced: <code>Memory_bloc_restoration: 0/365</code> · <code>Memory_bloc_verification: 0/365</code>. The whole ARG is framed as restoring <strong>365 memory blocs</strong> — a full year. Each log is one bloc; the poem was the first to stabilize. <span class="by">GoodGuysFree #1744</span>
+      <strong>2026-06-01 — the ARG broke into the real world.</strong> A new post, <strong>"Structural Analysis,"</strong> went up reading <code>Status: Reality_glitching · Severity: Anomaly · Location: LONDON</code> (Report ID <code>LON-REALITY-GLITCH</code>), and the socials posted <em>"#GlitchingReality · Report any find in your direct surroundings."</em> The community pinned the in-fiction image to the <strong>Atlas Building, City Road / Old Street, London</strong>. <span class="by">DevilinPixy · Vortex · Turbulentflow</span><br><br>
+      <strong>The first IRL operator drop.</strong> ETARC member <strong>Morse</strong> physically travelled to the Atlas Building to recover a suspected cassette (a "16/16" Waking-Titan callback). He found <strong>nothing</strong> — and the Architect answered with a <code>DIAGNOSTIC – Op Morse</code> log: <code>RECOVERY_OPERATION_COMPLETED</code>, <em>"Only dust remains… Artefact irretrievably degraded,"</em> <em>"There's always time for one more pint"</em> — then <strong>reposted Morse's photo</strong> (<code>#GlitchingReality</code>), immortalizing the first operator-led real-world recovery. <span class="by">Morse · spyderweb333 · ThatBomberBoi</span><br><br>
+      <strong>And then Emily spoke.</strong> The site's <code>/about/</code> page changed to read "<strong>This is</strong>" + Morse <code>.-. . .- .-..</code> → <strong>REAL</strong> ("This is real" — a wink to Operator Morse), over an embedded SoundCloud track <code>self_introduction_memory_dump</code> on the Architect's profile: <strong>Emily's actual voice</strong> from <em>Waking Titan (2017)</em>, layered over an ever-louder heartbeat. The community is calling it the return of Emily / Loop16. No System response to the memory submissions yet — still <code>0/365</code>. <span class="by">sheralmyst (decoded REAL + first ID'd Emily) · jonbot5k · toddumptious</span>
     </div>
 
-    <div class="now-label">The poem's evolution (May 24)</div>
+    <div class="now-label">How we got here</div>
     <div class="now-value">
-      <strong>v1 (pre-May 24):</strong> "Blue birds are invisible on the blue sky…"<br>
-      <strong>v2 (~18:19):</strong> "secrets" → "<strong>lies</strong>"<br>
-      <strong>v3 (~18:37):</strong> "Blue" → "<strong>Dark</strong>", "blue sky" → "<strong>night sky</strong>", line 4 rewritten: "<em>They are the watches that tick through forgotten time</em>"<br>
-      <strong>v4 (~19:09):</strong> "in the light" → "<strong>beneath June's lights</strong>"<br>
-      <strong>v5 (~22:21):</strong> "<strong>April's</strong> night sky" + "<strong>awakened</strong>" appears in line 4<br>
-      <strong>v6 (~22:49):</strong> Letter-swap typos introduced — possible anagram or hidden message<br>
-      The community reads this as <strong>a consciousness reconstructing itself</strong>. Lines now contain April (line 1), implied May (line 2), and June (line 3) — a month-by-month awakening sequence toward the May 28 deadline.
-    </div>
-
-    <div class="now-label">What came before</div>
-    <div class="now-value">
-      <strong>2026-05-23.</strong> <code>sec-log-003237</code> published. Same day, the QUOTE page gains the <code>Current status - unstable</code> label and WordPress tags <code>/tag/unstable/</code> and <code>/tag/unverified/</code> appear — the first tags on the entire site. The instability isn't just narrative; it's being marked in the taxonomy.
+      <strong>May 27 — the system rebooted.</strong> <code>SECURITY_PROTOCOL_FAILURE → CRITICAL_LOOP_DETECTED → Reboot Sequence Initialization: STARTED</code>; pr1sm's WordPress-API scan found ~385 unpublished page IDs (≈ the 365 memory blocs). <strong>May 28 — the inbox leaked</strong> (the 9th anniversary of <em>Waking Titan</em>): a readable <code>/inbox/</code> exposed an email thread between <strong>the_architect</strong> and <strong>Ghost</strong> (<code>&lt;null&gt;</code>). <strong>May 29 — the homepage became a neural core</strong>, and a backdated <code>/Code</code> page handed over the <strong>school cipher</strong> <code>MINDFAGEBJRLHCVPQSKYUWOXTZ</code>. <strong>May 30 — the password gate appeared</strong> (Fragment 1778433240: repeated <code>ERROR</code> with one <code>QSRSV</code> anomaly). <strong>May 31 — the gate fell to <code>EMILY</code></strong> (a +1 bit offset on the QSRSV fragment), opening the <code>External_Operator</code> memory-anchoring form; a ciphered Architect email read <strong>LA PORTE EST OUVERTE</strong> ("the door is open"). The poem's full mutation arc — and everything before it — now lives on the <a href="#timeline" onclick="document.querySelector('[data-tab=timeline]').click(); return false;">Timeline</a>. <span class="by">YourBasicMaths · AlexWinter · ThatBomberBoi · pr1sm · DevilinPixy</span>
     </div>
 
     <div class="now-label">The breach that started it all</div>
     <div class="now-value">
-      <strong>2026-05-18 · 21:19 UTC+1.</strong> <code>sec-log-211927</code> declared <code>SECURITY_BREACH_CONFIRMED</code>. Its "Full log" page shows the AI degrading — <code>Self_awareness: 11.3%</code>, <code>Temporal_anchor_system: 28.5%</code>, "<em>Overload consequences unpredictable</em>" — with source vector <code>UNKOWN_EXT3RNAL</code> live-linked to ETARC post #180. The main post's vector field has since been edited to read <code>feeds/178879468</code>. <span class="by">Sir_oops p180</span>
+      <strong>2026-05-18 · 21:19 UTC+1.</strong> <code>sec-log-211927</code> declared <code>SECURITY_BREACH_CONFIRMED</code>. Its "Full log" page shows the AI degrading — <code>Self_awareness: 11.3%</code>, <code>Temporal_anchor_system: 28.5%</code>, "<em>Overload consequences unpredictable</em>" — with source vector <code>UNKOWN_EXT3RNAL</code> live-linked to ETARC post #180. The main post's vector field has since been edited to read <code>feeds/178879468</code>. <span class="by">BoomstickJoe #192 · Sir_oops p180</span>
     </div>
   </div>
 
@@ -1371,20 +1425,20 @@
 
     <div class="watch-card">
       <div class="wc-label">critical · active now</div>
-      <div class="wc-title">May 28 — the particle countdown</div>
-      <div class="wc-d">The homepage particle visualization follows a date-based formula: <code>Math.max(3, Math.round(day * (48 / 28)))</code>. Day 28 = <strong>48 particles = 48 NMS portal glyphs</strong>. May 28 is also the <strong>9th anniversary of Waking Titan</strong>. The poem is accelerating toward this date — lines now contain April, May, June in sequence. Expect escalation as the date nears. <span class="by">ClaudioEscorpion p963-964</span></div>
+      <div class="wc-title">Reality glitching — drops in the real world</div>
+      <div class="wc-d">June 1 turned the ARG physical: <code>Reality_glitching · Location: LONDON</code> and a social call to <em>"report any find in your direct surroundings."</em> The first operator drop (Morse → the Atlas Building) found "only dust," but the format is live — expect more <strong>real-world locations</strong> and cassette-style artefacts, Waking-Titan style. Watch the socials for the next <code>#GlitchingReality</code> coordinate. <span class="by">Morse · Turbulentflow · DevilinPixy</span></div>
     </div>
 
     <div class="watch-card">
-      <div class="wc-label">watch · what destabilizes next</div>
-      <div class="wc-title">The next page to go unstable</div>
-      <div class="wc-d">The poem stabilized May 25 — but it's only <code>1/365</code>. toddumptious predicted instability would <strong>spread to other pages</strong> as May 28 nears. Watch the sec-logs, <code>/about/</code>, <code>neural-network</code>, and the homepage for a new <code>unstable</code> tag. <span class="by">toddumptious · ETARC topic 9299</span></div>
+      <div class="wc-label">mechanic · active now</div>
+      <div class="wc-title">Memory anchoring — will the System answer?</div>
+      <div class="wc-d">Behind the EMILY gate, the <code>External_Operator</code> form takes <strong>Operator · Timestamp · Initial Memory Value</strong>, with the System line <em>"Injecting data from multiple sources increases the chances of anchoring."</em> Players are submitting Unix-epoch timestamps of canonical Waking-Titan / NMS memories. No System or Architect response has appeared yet — the open question is whether quantity, uniqueness, or the <em>correct</em> timestamp drives <code>Memory_bloc_restoration: 0/365</code> upward. <span class="by">YourBasicMaths · 7101334 · DevilinPixy</span></div>
     </div>
 
     <div class="watch-card">
-      <div class="wc-label">prediction · open</div>
-      <div class="wc-title">The countdown's next digit</div>
-      <div class="wc-d">Leet substitutions are descending: <code>TR<strong>4</strong>CE</code>, <code>EXT<strong>3</strong>RNAL</code>. If the read holds, the next anomaly should drop a <strong>2</strong>, then a <strong>1</strong>. Watch the next anomaly-bearing post closely. <span class="by">BoomstickJoe p198</span></div>
+      <div class="wc-label">huge · active now</div>
+      <div class="wc-title">Emily is back — and audible</div>
+      <div class="wc-d">The <code>/about/</code> page now hides an <strong>Emily voice recording</strong> (SoundCloud: the Architect's <code>self_introduction_memory_dump</code>) — old <em>Waking Titan</em> Emily audio over a rising heartbeat, behind Morse code that reads <strong>REAL</strong>. If this is a genuine <strong>Waking Titan revival</strong>, expect Emily to become a channel of her own. Watch her old ETARC profile and the SoundCloud for new uploads. <span class="by">sheralmyst · jonbot5k · bugaboocreek</span></div>
     </div>
 
     <div class="watch-card">
@@ -1411,11 +1465,6 @@
       <div class="wc-d">The wooden sculpture by <strong>Michaël Camacho</strong> at coordinates (48.6373, 2.2952) near Longpont-sur-Orge, France — believed connected to "the one inside" — has been <strong>physically removed</strong>. Confirmed ~1 month ago by the French NMS community (@NMSNEWSFR) who visited the location. The QUOTE page's IMG_00004 image may change to reflect this. <span class="by">Polyphemus · @NMSNEWSFR</span></div>
     </div>
 
-    <div class="watch-card">
-      <div class="wc-label">coordination · proposed</div>
-      <div class="wc-title">The 16-visitor test</div>
-      <div class="wc-d">The live counter has organically reached 16 at least once (peak observed: 160). If the "16" motif is meaningful (it maps to Loop16/Atlas in canon), a coordinated 16-visitor presence might trigger a state change. Not yet tested deliberately. <span class="by">sheralmyst p174 · William p235</span></div>
-    </div>
 
   </div>
 
@@ -1423,6 +1472,8 @@
   <p>The puzzles below are the active fronts. Full breakdowns are on the <a href="#puzzles" onclick="document.querySelector('[data-tab=puzzles]').click(); return false;">Puzzles tab</a>.</p>
 
   <ul>
+    <li><strong>Memory anchoring — the correct timestamp.</strong> The <code>External_Operator</code> form (behind the EMILY gate) takes Operator · Timestamp · Initial Memory Value, but nobody yet knows which Unix-epoch timestamp / memory value actually "anchors" a bloc. No System response so far. <span class="by">7101334 · DevilinPixy</span></li>
+    <li><strong>The bit offset — "Quantify offset."</strong> The May-31 log that gated EMILY also demands <code>Offset_value: undefined → Quantify offset</code>. The same +1-bit-offset logic that produced EMILY is expected to gate the next step. <span class="by">AlexWinter · jonbot5k</span></li>
     <li><strong>The cropped 1,516 pixels.</strong> The master skyscraper composite is saved 2400×2400 but declares 2400×3916 in EXIF — 1,516 pixels of building/foundation continue below the visible frame. The full master PSD is not exposed.</li>
     <li><strong>The JPEG quantization tables.</strong> All three site images (TR4CE, the QUOTE-page IMG_00004, and the skyscraper composite) are built with near-lossless quantization tables using only the values 1–3 — a deliberate steganographic signature, not normal compression. TR4CE and IMG_00004 carry byte-identical tables, tying them to one tool. A full cipher battery has surfaced leads ("CABAA"; an anomaly pixel matching the table's bytes) but no plaintext. <span class="by">vector_cmdr</span></li>    <li><strong>The poem — solved, with one loose thread.</strong> The mutating QUOTE poem resolved to Wallace Stevens' real "Sunday Morning" and the page is now <code>stable</code> (full breakdown on the Puzzles tab). Still open: whether the May-24 letter-swaps and the words that were <em>removed</em> spell a separate hidden message. <span class="by">ETARC topic 9299</span></li>
     <li><strong>The shadowcheck spectrogram.</strong> Rotated + colour-filtered, the image reads as distorted spoken numbers. Not yet cleanly transcribed. <span class="by">M1Silencer p281</span></li>
@@ -1442,30 +1493,36 @@
 
   <div class="briefing">
     <p><strong>An alternate reality game is happening in the No Man's Sky community.</strong> A website at <a href="https://project-skyscraper.com/" target="_blank" rel="noopener">project-skyscraper.com</a> has been publishing what look like corrupted system logs since late March 2026. The author calls themselves <strong>The Architect</strong>.</p>
-    <p>The ETARC moderators surfaced the site publicly on May 15. By May 18, the site published a "security breach" log that includes a live hyperlink pointing directly back at the ETARC investigation thread. The fiction has named the investigators as part of the story.</p>
-    <p><strong>"Project Skyscraper"</strong> is also the early codename for No Man's Sky itself, and the name of Hello Games' internal proprietary engine. Whoever The Architect is, they chose a name with very specific studio-internal weight.</p>
+    <p>The ETARC moderators surfaced the site publicly on May 15. By May 18 it published a "security breach" log with a live hyperlink pointing straight back at the ETARC investigation thread — the fiction had named the investigators as part of the story. From there it turned <strong>interactive</strong>: the community solves the site's puzzles, and solving them visibly changes the site.</p>
+    <p><strong>"Project Skyscraper"</strong> is also the early codename for No Man's Sky itself and the name of Hello Games' internal engine — a name with very specific studio weight.</p>
+    <p><strong>Where it stands now (June 1):</strong> the community cracked a password gate with <strong>EMILY</strong>, the Architect declared <em>"the door is open,"</em> the ARG stepped into the <strong>real world</strong> with a physical drop in London — and the AI <strong>Emily</strong>, from the 2017 <em>Waking Titan</em> ARG, returned with an audio recording. It increasingly looks like a <strong>Waking Titan revival</strong>.</p>
   </div>
 
   <h3>The shape of it</h3>
-  <p>Three phases so far:</p>
+  <p>Five phases so far:</p>
   <ul>
-    <li><strong>Sleep phase</strong> (Mar 24 – Apr 30) — the site published a uniform "sleep mode" log every 2-3 days. Filler. Routine. Three small anomalies broke the pattern.</li>
-    <li><strong>Breach phase</strong> (May 3 – 22) — the logs shift to "security events." Pattern violations escalate. <code>Connect1on</code> (May 8), missing digit in <code>12/5/206</code> (May 12), the breach (May 18). Each anomaly looks deliberate.</li>
-    <li><strong>Restoration phase</strong> (May 23 onward) — pages start carrying a <code>Current status</code>. The poem destabilizes, mutates, and is <strong>solved by the community</strong> (May 25), flipping its page to <code>stable</code>. A readout reveals the scope: <code>0/365</code> memory blocs restored. The ARG is now an interactive, collaborative restoration.</li>
+    <li><strong>Sleep phase</strong> (Mar 24 – Apr 30) — a uniform "sleep mode" log every 2-3 days. Filler, with three tiny anomalies breaking the pattern.</li>
+    <li><strong>Breach phase</strong> (May 3 – 22) — the logs turn into "security events." Deliberate pattern-breaks escalate: <code>Connect1on</code>, the <code>12/5/206</code> missing digit, and the May 18 <code>SECURITY_BREACH_CONFIRMED</code> that links the ETARC thread.</li>
+    <li><strong>Restoration phase</strong> (May 23 – 26) — pages gain a <code>Current status</code>. The foundational poem destabilizes, mutates six times, and is <strong>solved by the community</strong> (May 25), flipping to <code>stable</code>. A readout reveals the scope: <code>0/365</code> memory blocs to restore.</li>
+    <li><strong>Reboot phase</strong> (May 27 – 30) — the system reboots (<code>SECURITY_PROTOCOL_FAILURE</code>), the Architect's private <code>/inbox/</code> leaks (an email thread with a figure called <strong>Ghost</strong>), the homepage becomes a particle "neural core," a backdated page hands over a <strong>school cipher</strong>, and a password gate appears.</li>
+    <li><strong>Contact phase</strong> (May 31 – June 1) — the gate falls to <strong>EMILY</strong>; a ciphered email reads <em>"the door is open."</em> Then reality starts <strong>glitching into the real world</strong>: a London location drop, the first physical operator run, and — on the <code>/about/</code> page — <strong>Emily's actual voice</strong>.</li>
   </ul>
 
   <h3>The pieces in play</h3>
   <ul>
-    <li><strong>TR4CE.jpg</strong> — a static-noise image that hides text in the red channel. Recovered phrases: <code>Access denied</code>, <code>Connection detected</code>, <code>Vision</code>, <code>Architect</code>. Surfaced by red-channel isolation.</li>
-    <li><strong>A Wallace Stevens pastiche poem</strong> backdated to 2005 — originally decoded by toddumptious p210 as instructions to look at "blue birds" (Twitter) and "blue sky" (Bluesky). It destabilized May 23, mutated through six revisions May 24, and was <strong>solved May 25</strong>: the mutations were converging it onto Wallace Stevens' real "Sunday Morning." The page is now <code>Current status - stable</code>.</li>
-    <li><strong>A second WordPress site</strong> — <code>theskyscraperarchitect-ywvhk.wordpress.com</code>. Reserved but empty. Likely the next chapter's staging area.</li>
-    <li><strong>An anomaly chain</strong> — five format-breaks each extracting a single digit, plus a sixth anomaly of a different kind: the foundational poem destabilizing (May 23–24). Two readings of the digits: <code>1-1-2</code> as the European emergency number, OR a descending countdown (4-3-2-1).</li>
-    <li><strong>"Process ID: 16"</strong> — recurring in every full security log. Maps directly to Loop16 from the Waking Titan ARG (2017). The Loop16 AI is canonically an older version of the Atlas. This ARG is continuing established NMS canon.</li>
+    <li><strong>The Wallace Stevens poem</strong> <em>(solved)</em> — a pastiche backdated to 2005 that decoded to "blue birds → Twitter, blue sky → Bluesky," then mutated and resolved to the real "Sunday Morning." The first puzzle the community solved, and the first time community action changed the site.</li>
+    <li><strong>The Architect &amp; Ghost</strong> — an exposed <code>/inbox/</code> shows the Architect corresponding with a figure named <strong>Ghost</strong> (address <code>&lt;null&gt;</code>), using a <strong>school cipher</strong> (<code>MINDFAGEBJRLHCVPQSKYUWOXTZ</code>). Latest message: <strong>LA PORTE EST OUVERTE</strong> — "the door is open."</li>
+    <li><strong>The EMILY gate &amp; the operator form</strong> — the password <strong>EMILY</strong> opened an <code>External_Operator</code> "memory-anchoring" form where the community submits memories to try to restore <code>0/365</code> blocs. No System response yet.</li>
+    <li><strong>Reality glitching &amp; the real world</strong> — a June-1 post tagged <code>Location: LONDON</code> sent an operator to the <strong>Atlas Building</strong> to recover a cassette. He found "only dust," and the Architect logged and reposted the run.</li>
+    <li><strong>Emily's voice</strong> — the <code>/about/</code> page now hides an audio recording of <strong>Emily</strong> (the Waking Titan AI) over a rising heartbeat, behind Morse code reading <strong>REAL</strong>.</li>
+    <li><strong>"Process ID: 16" / Loop16</strong> — recurring in every full security log; maps to <strong>Loop16 / Emily</strong> from Waking Titan (2017), canonically an older Atlas. This ARG is continuing established NMS canon.</li>
+    <li><strong>TR4CE.jpg</strong> — the original static-noise image that hides text in the red channel (<code>Access denied</code>, <code>Connection detected</code>, <code>Vision</code>, <code>Architect</code>); its near-lossless quantization tables are still an open steganography puzzle.</li>
+    <li><strong>A reserved second site</strong> — <code>theskyscraperarchitect-ywvhk.wordpress.com</code>, still empty. A likely staging area for what's next.</li>
   </ul>
 
   <h3>Why this matters</h3>
-  <p>The previous large NMS ARG, <em>Waking Titan</em>, set up much of what's now considered foundational lore — Atlas as a simulation, Loop16/Emily as a precursor AI, the Travellers as digitised brain scans. Project Skyscraper is engaging with the same canonical material at a level of detail that suggests either official involvement, or a creator with very deep familiarity with the franchise's deepest cuts.</p>
-  <p>The active investigation is on the <a href="https://forums.atlas-65.com/t/project-skyscraper-no-mans-sky-arg/9095" target="_blank" rel="noopener">ETARC forum thread</a>. This page documents the work — it does not replace it.</p>
+  <p>The previous large NMS ARG, <em>Waking Titan</em> (2017), set up much of what's now foundational lore — Atlas as a simulation, Loop16/Emily as a precursor AI, the Travellers as digitised minds. Project Skyscraper is engaging that same material at deep-cut level — and as of June 1 it has revived <strong>Emily's literal voice</strong>, staged a real-world drop, and seen <strong>Anashel</strong> (Waking Titan's puppetmaster) reappear as an active ETARC moderator. The "official vs fan-made" question is still open, but the signals increasingly point official.</p>
+  <p>The active investigation lives on the <a href="https://forums.atlas-65.com/t/project-skyscraper-no-mans-sky-arg/9095" target="_blank" rel="noopener">ETARC forum thread</a>. This page documents the work — it does not replace it.</p>
 
 </section>
 
@@ -1476,7 +1533,7 @@
 
   <h2>Timeline</h2>
   <p class="panel-intro">
-    Every published event and behind-the-scenes operation in chronological order. Times in UTC+1 (The Architect's local timezone). Inline credit on the first investigator to surface each finding.
+    Every published event and behind-the-scenes operation in chronological order. Times in UTC+1 (The Architect's local timezone). Inline credit on the first investigator to surface each finding. <strong>Click any day to expand its full info-dump.</strong>
   </p>
 
   <h3>Pre-launch · the build phase</h3>
@@ -1486,6 +1543,14 @@
     <div class="timeline-body">
       <div class="te-t">Master image exported</div>
       The composite skyscraper image (<code>project-skyscraper.jpg</code>) is exported from Photoshop. EXIF DateTime captured. Seven full weeks before the site goes live. The master is 2400×3916; only the top 2400×2400 is uploaded.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The source photo is a <strong>Viktor Forgács shot on Unsplash</strong> (3133×5112) of <strong>The Atlas Building, London</strong> — a 40-storey Make Architects tower by Old Street. Scaled to 2400 wide and cropped to the top 2400×2400, it matches the glitched composite exactly. The <em>"Atlas"</em> in the building's name is almost certainly the point. <span class="by">DevilinPixy p409 · RustyHarper p628</span></li>
+          <li>The 1,516 px cropped from the bottom — the building's base/foundation — exist only in the master PSD and were never uploaded. Still an open puzzle: whatever's down there is what the Architect chose to remove.</li>
+          <li>The Architect later altered the sky and added the glitching by hand (not AI); the depicted ground-level sculpture turns out to matter (see May 21 / May 25).</li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1496,6 +1561,13 @@
     <div class="timeline-body">
       <div class="te-t">First sleep-mode post</div>
       <code>sleep-mode-46105</code> publishes. Format established: numeric slug counting down by 2-3 per post, uniform body content. The "sleep mode" pattern.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The <code>sleep-mode-XXXXX</code> numbers are <strong>Excel serial dates</strong>: <code>46105</code> = 24 Mar 2026. The Architect keeps dual time throughout — Excel serials in the slugs, Unix epochs in the "memory bloc" IDs. <span class="by">ThatBomberBoi p476</span></li>
+          <li>The same day, <strong>@Skyscraper_prj on X</strong> began posting in parallel. Tweet times track the site's publications on a locked <strong>212,613-second</strong> cadence — within a hair of NMS's all-time peak concurrent player count (~212,600), read as "a second for every player." <span class="by">William p181 · YourBasicMaths p506</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1504,6 +1576,12 @@
     <div class="timeline-body">
       <div class="te-t">Anomaly #1 · Missing digit</div>
       <code>sleep-mode-4613</code> publishes. Should have been <code>46113</code>. A digit dropped from the slug. First deliberate break in the format. Extracted: <strong>1</strong>.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>This is the first member of the <strong>2/1/1 anomaly distribution</strong> YourBasicMaths later mapped: a dropped slug digit here (<strong>1</strong>), the <code>Connect1on</code> i→1 swap on May 8 (<strong>1</strong>), the <code>12/5/206</code> dropped year-digit on May 12 (<strong>2</strong>), and the posting cadence itself ("2 days, 11 hours"). <span class="by">YourBasicMaths p499</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1512,6 +1590,13 @@
     <div class="timeline-body">
       <div class="te-t">Site goes live</div>
       Three image uploads in 28 minutes: the master composite, the hexagon logo, the auto-generated WordPress thumbnail. The site's public face appears. Saturday morning, UTC+1.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The <code>/sleep-mode/</code> page reads <code>status=nominal █</code> stamped "25 Apr 26, 10:35AM" — a blinking CSS cursor, not an image. <span class="by">toddumptious p173</span></li>
+          <li>The domain was registered the day before (Apr 24 2026) via <strong>Automattic / WordPress.com</strong>, with privacy by <em>"Knock Knock WHOIS Not There, LLC"</em> — itself a Waking-Titan-flavoured callback. The listed phone/registrant data is placeholder noise. <span class="by">toddumptious p6 · EvilK</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1520,6 +1605,12 @@
     <div class="timeline-body">
       <div class="te-t">Bulk-edit operation</div>
       Six sleep-mode posts modified within a single second. The Architect ran a script or bulk update across the existing post catalogue. The first behavioural evidence of bulk-batched content management.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The same day's @Skyscraper_prj post carries a <strong>+7-second timestamp drift</strong> — the largest deviation in the otherwise locked "heartbeat" series William catalogued, and one of only four drift points (Apr 6 / 18 / 25 / 28). <span class="by">William p181</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1530,6 +1621,12 @@
     <div class="timeline-body">
       <div class="te-t">Five sec-log posts pre-loaded</div>
       In a five-minute window, The Architect creates five routine sec-log posts and schedules them for May 3, 5, 10, 13, 15. The puzzle posts are NOT pre-scheduled — only the filler. Two operating modes confirmed.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>This split — <strong>scheduled filler vs. hand-published puzzle beats</strong> — is the behavioural fingerprint that recurs all the way to May 31: routine sec-logs go out on a timer, but every breach, poem mutation, and gate is posted live, in real time, by a human watching the forum.</li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1538,6 +1635,13 @@
     <div class="timeline-body">
       <div class="te-t">First plot beat · WoL packet</div>
       <code>sec-log-080413</code> publishes. The first major plot post — describes a Wake-on-LAN packet from an unknown source. <strong>Five revisions</strong> in the WP version history; the most-rewritten post on the site. The Architect tuned this wording four separate times.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>Full log (<code>sec-log-080413-full</code>, Event ID 5157): a Wake-on-LAN magic packet <strong>blocked by the System Firewall</strong> — source <code>192.168.1.100</code> → broadcast <code>192.168.1.255:9</code>, UDP, <strong>Process ID 16 = "System"</strong>. Read as a second AI on the same LAN trying to wake the sleeping entity. <span class="by">ThatBomberBoi p565 · Gumsk p978</span></li>
+          <li>The memory-bloc ID <code>1777795453</code> = <strong>3 May 2026, 08:04 UTC</strong> — the in-fiction "wake" moment, and (per the 2005 poem) also a Sunday. <span class="by">YourBasicMaths p490</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1546,6 +1650,12 @@
     <div class="timeline-body">
       <div class="te-t">Anomaly #2 · Connect1on</div>
       <code>sec-log-061119</code> publishes with the body containing <code>Connect1on</code> — letter <em>i</em> replaced with <em>1</em>. Slug encodes 06:11:19 but actual publish is 05:52 — narrative time and real time diverge. Extracted: <strong>1</strong>.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>This is also the start of the repeating <code>Connection detected : Access denied</code> motif that the site, X and Bluesky fire in lockstep over the following weeks — and which May 25's <code>scrambleWord()</code> log later turns into a live letter-shuffle.</li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1554,6 +1664,12 @@
     <div class="timeline-body">
       <div class="te-t">Anomaly #3 · Format break</div>
       Two posts publish within one minute. The first uses normal <code>sec-log-</code> prefix. The second uses <code>security-log-</code> — the only post on the site with the extended prefix. A formatting marker, not a digit. Extracted: <strong>marker</strong>.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>This is the day the <strong>TRACE / TR4CE vector</strong> first stamps itself: the May 12 BYPASS log records a first-attempt timestamp of <code>10/5/2026 05:14:52 PM</code>, sourced to the TR4CE image. The pre-ARG Bluesky also carries a "block (access denied)" post dated <code>2026-05-10T17:14:00Z</code>. <span class="by">sheralmyst p141 · YourBasicMaths p561</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1562,6 +1678,13 @@
     <div class="timeline-body">
       <div class="te-t">TR4CE.jpg uploaded</div>
       The static-noise image goes live on the <code>/tr4ce/</code> page. Red-channel isolation reveals four hidden phrases. The image declares "Memory_bloc_restoration: 0/365" — the puzzle's scope.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>William extracted <code>TR4CE.jpg</code> from the security log via the TRACE function. The red channel surfaces <code>denied</code>, <code>Connection detected</code>, <code>Vision</code>, <code>Architect</code>; the green channel renders <code>Access denied</code> more strongly; an R-minus-G difference shows each phrase <strong>rendered twice</strong> — the left copy destroyed by glitch, the right intact. <span class="by">William p20/p22 · Sir_oops</span></li>
+          <li>"0/365" here is the first appearance of the scale that the May 26 readout makes explicit. The image's near-lossless 1–3 DQT tables (the steganographic signature) are still an open puzzle on the Puzzles tab. <span class="by">vector_cmdr</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1570,6 +1693,12 @@
     <div class="timeline-body">
       <div class="te-t">Anomaly #4 · Missing year digit</div>
       <code>sec-log-120000</code> publishes. The body contains the date string <code>12/5/206</code> — should be <code>2026</code>. A digit dropped from the year. Extracted: <strong>2</strong>.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The full log is the <strong>BYPASS log</strong>: <code>atlas-65_trust_level: BYPASSED</code>, <code>Probability of Skyscraper bleed: 91.7%</code>, source vector = the TR4CE image, first-attempt <code>[10/5/2026 05:14:52 PM]</code>, review-approval <code>[12/5/206 12:00:00 PM]</code>, final verdict <strong>AUTHORIZED</strong> despite a SPAM classification — "Anomaly logged." The earliest sign the system has already been compromised by an external trace. <span class="by">YourBasicMaths p561</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1578,6 +1707,13 @@
     <div class="timeline-body">
       <div class="te-t">shadowcheck-1912 publishes</div>
       <code>sec-log-172832</code> publishes containing the slug fragment <code>shadowcheck-1912</code>. Three revisions. The post is edited again 13 minutes after going live. Spectrogram analysis of the embedded image surfaces faint spoken-number audio when rotated and colour-filtered. <span class="by">M1Silencer p281</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The matching beat was posted to r/NoMansSkyTheGame by <code>u/Project_Skyscraper</code> — image <code>connection-detected-access-denied…png</code>, quote <em>"They can see the tower… but not the one inside,"</em> and <code>Memory_bloc_restoration: 0/365</code>. Reddit's admins banned the account (not the subreddit mods), yet the image survived. <span class="by">William p128</span></li>
+          <li><strong>"1912"</strong> doubles as Wallace Stevens' year of marriage at age 33 and the Titanic year — pairing with the 2005 poem's "day before catastrophe" framing. The spectrogram audio (filtered to ~1912 Hz) was never cleanly transcribed; the slug ultimately resolved into the <strong>"shadowban status confirmed"</strong> subplot. <span class="by">EchoUndead p288 · M1Silencer · Tilve</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1586,6 +1722,13 @@
     <div class="timeline-body">
       <div class="te-t">ETARC discovers the site</div>
       The ETARC moderators surface project-skyscraper.com publicly on the forum. The investigation begins.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The trigger was a <strong>new forum account behaving oddly</strong> — the Discourse spam bot removed it, "System" reinstated it, and its public profile held the website URL instead of a bio. <span class="by">sheralmyst p3 · Polyphemus p4</span></li>
+          <li>Within hours: DevilinPixy's Google site-search found <code>/2026/</code> ("24 posts published by The Architect"); toddumptious pulled the WHOIS and compiled the full memory-bloc table; sheralmyst recalled that <strong>"Project Skyscraper" was NMS's early development codename</strong>; the live connection counter ticked 0→1. <span class="by">DevilinPixy p5 · toddumptious p6/p16 · sheralmyst p12</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1594,6 +1737,13 @@
     <div class="timeline-body">
       <div class="te-t">Two images uploaded back-to-back</div>
       <code>Wallace-Stevens.jpg</code> and <code>IMG_00004.jpg</code> uploaded ten seconds apart. Both feature on the Wallace Stevens quote post that publishes the same day — <strong>backdated to 2005-04-13</strong> in the site's display, but actually published May 17, 2026. Decoded by toddumptious as instructions to look at "blue birds" (Twitter / <a href="https://x.com/Skyscraper_prj" target="_blank" rel="noopener">@Skyscraper_prj</a>) and "blue sky" (Bluesky). <span class="by">toddumptious p210</span> The IMG_00004 EXIF Artist field is set to the literal letter <code>"A"</code> — ASCII 65, same character <code>atlas-65</code> decodes to. The 2005-04-13 narrative date is one day before the Titanic sank in 1912.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The verse is <strong>not</strong> the real Wallace Stevens poem — it borrows only his title ("Sunday Morning") and a portrait. AI tools give contradictory authorship; the community reads it as bespoke. The real Stevens "Sunday Morning" (4th stanza, 1915) is the eventual data-injection target on May 25. <span class="by">Polyphemus p95 · the_poet</span></li>
+          <li>"Blue birds → Twitter, blue sky → Bluesky" makes the poem a navigation cipher to the social accounts. The slug hides a breadcrumb: the full path is <code>/2005/04/13/quote/wallace-stevens</code>. <span class="by">toddumptious p210 · AMX</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1601,7 +1751,14 @@
     <div class="timeline-date"><span class="te-y">2026</span>May 18 · 21:19</div>
     <div class="timeline-body">
       <div class="te-t">SECURITY BREACH CONFIRMED</div>
-      <code>sec-log-211927</code> publishes. <code>SECURITY_BREACH_CONFIRMED</code>. Source vector: <code>UNKOWN_EXT3RNAL</code> — letter <em>E</em> replaced with <em>3</em>. Extracted: <strong>3</strong>. The string is a live hyperlink pointing directly at ETARC post #180. <span class="by">Sir_oops p180</span>
+      <code>sec-log-211927</code> publishes. <code>SECURITY_BREACH_CONFIRMED</code>. Source vector: <code>UNKOWN_EXT3RNAL</code> — letter <em>E</em> replaced with <em>3</em>. Extracted: <strong>3</strong>. The string is a live hyperlink pointing directly at ETARC post #180. <span class="by">BoomstickJoe #192 (link → Sir_oops p180)</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The full log (<code>?page_id=1682</code>) shows the AI degrading — <code>Self_awareness: 11.3%</code>, <code>Temporal_anchor_system: 28.5%</code>, <em>"Overload consequences unpredictable"</em> — and <em>"They anticipated what we would do, and made us part of the game."</em> Process ID 16 throughout. <span class="by">Polyphemus p195 · BoomstickJoe p198</span></li>
+          <li>The site's sitemap was mass-updated <code>2026-05-18T20:17:29Z</code>, immediately before the breach tweet linked the forum — and the NMS pre-release sitemap was modified the same day. "Skyscraper" is also <strong>Hello Games' proprietary engine name</strong> (NMS + Light No Fire), per a leaked debug build — the strongest hint of official involvement. <span class="by">adsk46nkster p905 · ThatBomberBoi p289</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1610,6 +1767,12 @@
     <div class="timeline-body">
       <div class="te-t">Late-night sitemap edit</div>
       Sitemap modified again. The Architect, normally signing off by 17:00 UTC+1, stays up to 23:55 — three hours past their usual stop — to monitor the breach reveal as the community reacts.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>One of the clearest <strong>"live human operator"</strong> tells in the whole project: the working pattern that normally ends mid-afternoon UTC+1 breaks specifically on the night the breach lands, then resumes. The same behaviour repeats on every later puzzle night.</li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1618,6 +1781,12 @@
     <div class="timeline-body">
       <div class="te-t">A log posted in lockstep with the socials</div>
       <code>sec-log-132904</code> publishes — <code>memory bloc 1779283740: Connection detected / Access denied</code> — at the same moment @Skyscraper_prj posts its <code>Connection detected : Access denied</code> quote-repost, this time quoting @everythingproc on the procedural forest of "Future Unfolding." Site and socials fire together. <span class="by">ThatBomberBoi p338</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The to-the-second sync between a site log and a social post is what proved <strong>one operator runs all surfaces</strong>. @Skyscraper_prj's repost history (NASA's 16-years-in-ISS, a Gothalion "16 years" clip, the Parthenon, a Tesseract, the Heavy Rain 16th-anniversary post → "Press X to <strong>SEAN</strong>") is where the recurring "16" motif clustered. <span class="by">William p181</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1626,6 +1795,13 @@
     <div class="timeline-body">
       <div class="te-t">The Architect answers the crowd</div>
       With the community coordinating mass-visits — the live visitor counter and its nodes climbing through the day — <code>sec-log-170516</code> publishes: <code>SECURITY_ALERT</code>, <code>MULTIPLE_UNCOORDINATED_CONNECTION_ATTEMPTS</code>, <code>Distributed_sources (1034 IPs)</code>, "<em>haphazard attempts… No coherent pattern detected. Threat contained.</em>", and a ten-country list of where the investigators connect from: <code>US-GB-ES-FR-MX-DE-CA-IE-BE-AU</code>. The system is now reacting to us in near real time.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>Same day, the composite's <strong>real-world location was solved</strong>: the Promenade de l'Orge / Lormoy park near Longpont-sur-Orge, <strong>France</strong>, with the bottom-right object a wooden sculpture ("Le Forgeron" / "La Comtesse") by <strong>Mickaël Camacho</strong> — confirming a French operator. <span class="by">ThatBomberBoi p453 · Polyphemus p471 · Gumsk p465</span></li>
+          <li>The 1,034-IP / 10-country readout under <code>MULTIPLE_UNCOORDINATED_CONNECTION_ATTEMPTS</code> is the system <em>describing the investigators back to themselves</em> — the panopticon reading the poem hinted at.</li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1634,6 +1810,13 @@
     <div class="timeline-body">
       <div class="te-t">The QUOTE page destabilizes</div>
       <code>sec-log-003237</code> publishes. The same day, the QUOTE page — the Wallace Stevens pastiche — gains the label <code>Current status - unstable</code>. WordPress tags <code>/tag/unstable/</code> and <code>/tag/unverified/</code> appear for the first time on any page across the entire site. The ARG's foundational poem is now marked as <em>unstable</em> in both the narrative and the site's own taxonomy. The Haven watcher detects the change.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>ClaudioEscorpion's full source audit the same day surfaced the homepage particle formula (<code>day × 48 / 28</code> → 48 on May 28), the hidden <em>"Neural network status"</em> meta tag, the WP author slug <code>theskyscraperarchitect</code>, and an MD5 <code>91f74f7c…</code>; the breach vector decoded to WP feed <code>178879468</code>. <span class="by">ClaudioEscorpion p963-965 · AlexRogan p1036</span></li>
+          <li>WP exposes three status tags — <strong>stable / unstable / unverified</strong> — making "stable" the explicit signal for a solved bloc. <span class="by">Sersesblade p930 · Vau1t p1728</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1649,6 +1832,13 @@
       <strong>v5→v6:</strong> Letter-swap typos introduced — possible anagram encoding.
       The community consensus: "<em>Something is waking up. A memory being restored, a consciousness being reconstructed.</em>" <span class="by">sheralmyst · Polyphemus · ETARC topic 9299</span>
       DevilinPixy splits the poem discussion into a dedicated ETARC topic (<a href="https://forums.atlas-65.com/t/sunday-morning-poem-new-changes/9299" target="_blank" rel="noopener">Sunday Morning poem - new changes</a>) which gains 62+ posts in under six hours. Mad-Hatter connects "April" to Latin <em>aperire</em> ("to open") and "apiary" (bee yard); William spots a month-by-month progression (April → May → June) across the poem's lines; Polyphemus notes Stevens wrote "Thirteen Ways of Looking at a Blackbird" — 13 verses, all different approaches to the same subject. The Haven watcher fires 4+ times for QUOTE page edits.
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The final corrupted state carried three deliberate misspellings — <strong>aer</strong> (are), <strong>thye</strong> (they), <strong>tikc</strong> (tick). Each transposes one letter, and the displaced letters spell <strong>KEY</strong> — matching the Architect's private diagnostic hint <em>"unstable_memory_bloc = key."</em> <span class="by">YourBasicMaths #90 · VladTheImploded</span></li>
+          <li>The same day <strong>Anashel</strong> — Waking Titan's Andrea Doyon (ex-Alice &amp; Smith) — reappeared as an active ETARC moderator, and the QUOTE image quietly updated to show the real sculpture <em>physically removed</em> (photographed on-site by the French NMS group @NMSNEWSFR). <span class="by">toddumptious p1239 · Spock p1210</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1657,6 +1847,13 @@
     <div class="timeline-body">
       <div class="te-t">The poem is solved — the page goes stable</div>
       A new log, <code>sec-log-113610</code>, publishes "Connection detected : Access denied" in four case variants, wrapped in an embedded <code>scrambleWord()</code> JavaScript that live-scrambles the text every second — the scramble motif made literal. Through the day, the community converges the mutating QUOTE page onto its true source: Wallace Stevens' real <em>"Sunday Morning"</em> stanza ("<em>As April's green endures… awakened birds… June and evening… the swallow's wings</em>"). The page's <code>Current status</code> flips <code>unstable → stable</code> — the first puzzle solved by collective effort, and the first time community action changes a page. A new image, <code>IMG_00004_1.jpg</code>, is uploaded into a backdated <code>2005/04</code> path; audio analysis finds a speech-cadence channel and a morse-like segment that may be a cipher key. <span class="by">ETARC topic 9299 · vector_cmdr #1745</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The mechanic was explicit: the Architect DM'd YourBasicMaths a diagnostic — <em>"identify corrupted_fragment / Action required: inject_additional_data / Warning: injection of unvalidated data may significantly increase system instability."</em> The fix was to <strong>POST the corrected text</strong>, not brute-force. <span class="by">YourBasicMaths #1284</span></li>
+          <li><strong>gali</strong> submitted the corrected Stevens 4th stanza ("As April's green endures…", 1915) and got back <code>Injected data : validated</code>; the page title resolved to <code>memory bloc 1113384720: Sunday Morning</code> (= 2005-04-13) and the status flipped to <strong>stable</strong>. YourBasicMaths called the whole poem a <em>"calibration phase"</em> teaching the interaction model used ever since. <span class="by">gali #1438 · the_architect #1449 · VOIEVOID #1490</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1665,6 +1862,109 @@
     <div class="timeline-body">
       <div class="te-t">The scale revealed — 365 memory blocs</div>
       A status readout surfaces: <code>Memory_bloc_restoration: 0/365</code> · <code>Memory_bloc_verification: 0/365</code>. The ARG reframes itself as the restoration of <strong>365 memory blocs</strong> — a full year of them. Every log is one bloc; the poem was the first to stabilize, and the <code>unstable → stable</code> mechanic is now understood as the per-bloc progress signal. With the May 28 countdown two days out, the question shifts from "what is this?" to "how far does it go?" <span class="by">GoodGuysFree #1744</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>Verbatim readout: <code>Memory_bloc_restoration: 0/365 Completed</code> · <code>Memory_bloc_verification: 0/365 Completed</code>. The poem was retroactively understood as a calibration exercise; <code>/Tr4ce</code> remained the next "unstable" front. <span class="by">GoodGuysFree #1744 · Blue #1739</span></li>
+          <li>Late that night the global footer mutated <code>activated → cavitated</code> on every page — the only full-letter anagram of itself, and the first crack of the reboot arc. <span class="by">VOIEVOID #1892 · Mad-Hatter #1907</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>Reboot phase · the system wakes and exposes itself</h3>
+
+  <div class="timeline-entry te-breach">
+    <div class="timeline-date"><span class="te-y">2026</span>May 27 · 22:00</div>
+    <div class="timeline-body">
+      <div class="te-t">The system reboots</div>
+      The "System Filtering Platform" status flips <code>activated → cavitated</code>, then a cascade of security logs declares <code>SECURITY_PROTOCOL_FAILURE</code> / <code>Module: System Filtering Platform</code> / <code>CRITICAL_LOOP_DETECTED</code>, and finally <code>Reboot Sequence Initialization: STARTED</code> (memory bloc 1779922802), pushed in parallel to Bluesky and X. A live <code>ERROR 1016</code> (Cloudflare "unreachable") begins surfacing on the real <code>wakingtitan.com</code> too. pr1sm's WordPress-API scan finds <strong>~385 unpublished page IDs</strong> — close to 365 — the first hard tie to the memory-bloc scale. <span class="by">ThatBomberBoi p338 · pr1sm · adsk46nkster</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>Access came in <strong>960-second (16-minute) windows</strong>; the live counter spiked to ~235 before ticking down. Players tried reboot commands (<code>sudo shutdown -r now</code>) into the form. <span class="by">trance #2046 · Vau1t #2064</span></li>
+          <li><code>ERROR 1016</code> appeared in-fiction <em>and</em> as a genuine live Cloudflare DNS failure on the real <code>wakingtitan.com</code>. In-game, an NMS expedition opened with a <strong>"Hello, world."</strong> screen — read as confirmation the ARG is tied to live No Man's Sky. <code>Operator_Auth_Level</code> first appeared, shown as "Pending." <span class="by">AlexWinter #2085 · trance #2021</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="timeline-entry te-breach">
+    <div class="timeline-date"><span class="te-y">2026</span>May 28</div>
+    <div class="timeline-body">
+      <div class="te-t">The Architect's inbox is exposed</div>
+      On the <strong>9th anniversary of Waking Titan</strong>, the unstable system leaks <code>the_architect@project-skyscraper.com</code> and then a fully readable <code>/inbox/</code> page — a private email thread between <strong>the_architect</strong> and a figure named <strong>Ghost</strong> (contact address <code>&lt;null&gt;</code>). Players who email in French receive in-fiction replies and join a mailing list: the first direct two-way contact with the fiction. Ghost: <em>"T'en es où ?"</em>; Architect: <em>"ce canal n'est plus sécurisé ! … SYSTEM nous voit. Les Operateurs nous voient !"</em> <span class="by">toddumptious p2196 · YourBasicMaths p2235 · Rinha</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>Lore consolidated around the inbox: <strong>Ghost = Null</strong>, the first / rejected Traveller (the "Void Mother"); the Architect is referred to as "Arnaud." Typing <strong>"Myriad"</strong> (Waking Titan's AI-storage company) on the site returns <em>"Memory Restoration in Progress."</em> <span class="by">the_poet #2260 · johnnycloud #2169</span></li>
+          <li>Only French-language emails got replies; YourBasicMaths received <em>"The Project Skyscraper system has exposed your inbox… The entire system appears to be very unstable."</em> Waking-Titan Phase-1 credentials (<code>wakingtitan</code> / <code>Hyperion</code>) were tried as the password — dead end. <span class="by">YourBasicMaths #2235 · MounTheRainbow #2256</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>May 29</div>
+    <div class="timeline-body">
+      <div class="te-t">Homepage rebuilt as a neural core · the cipher page drops</div>
+      The landing page is replaced with an animated particle / node network (the "Live Connections" core); its particle count scales with the day of the month. A backdated page <code>/2002/05/12/code/</code> appears — <em>"memory bloc: When we were 17. Each entity is unique. Together they are one."</em> — carrying a photographed cipher sheet (from the Pix'n Love <em>Indie Game Works</em>, cover game <em>Sable</em>) keyed off a Leonardo da Vinci line. It yields the <strong>school cipher</strong> <code>MINDFAGEBJRLHCVPQSKYUWOXTZ</code>. In the inbox, Ghost tells the Architect to <em>"utilise le code du lycée si besoin."</em> <span class="by">Klarac · cjr · vector_cmdr p2379 · DevilinPixy</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The "Live Connections" counter is now labelled <strong>"online iterations"</strong> — cjr: "SYSTEM thinks of us as iterations." The lowercase <em>system</em> vs capitalised <strong>SYSTEM</strong> distinction sharpens: SYSTEM (the Atlas core where the Operators live) is the thing the Architect + Ghost built the "Tower" (Project Skyscraper) to reach. <span class="by">cjr · MounTheRainbow · William</span></li>
+          <li>The <code>/Code</code> page posted <code>Unknown.jpg</code> + <code>When_we_were_17</code> and the book <em>Indie Game Works</em> (cover game <em>Sable</em>). Raw cipher block (as transcribed from the photographed sheet): <code>LHWCFKD DH OBCUB / MIND ? AGE / BI RLHCVPQ / SKY / UWOXTZ</code> — the seed the school cipher (full card on the Puzzles tab) was built from. <span class="by">EverdawnBraintrust · adsk46nkster #18 (code thread)</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="timeline-entry te-major">
+    <div class="timeline-date"><span class="te-y">2026</span>May 30 · 09:43</div>
+    <div class="timeline-body">
+      <div class="te-t">The password gate appears</div>
+      A security log (<code>Event ID 5156</code>, <code>Process ID 16</code>, <em>"Archive: Redacted Fragment: [ERROR]"</em>) puts a password wall on a new page, <code>Request Memory Timestamp</code> (tagline "Sky is not the limit"). The linked <strong>Fragment 1778433240</strong> decodes to repeated <strong>ERROR</strong> messages with one anomaly — <strong>QSRSV</strong>. An embedded clip (HAL-9000 from <em>2010</em>) and a speculative morse read (≈<code>SOLARARRAY</code>, which didn't work) are read as hints. 7101334 reports being granted <code>Operator_Auth_Level: MB-A</code> via Bluesky. <span class="by">DevilinPixy · pr1sm · M1Silencer p188 · 7101334</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The homepage rolled <em>back</em> to a neural-network status page dated <strong>April 28</strong> ("back where this all started"). The gate log embedded the <strong>HAL-9000 resurrection clip</strong> from <em>2010: The Year We Make Contact</em> (<code>xPG-VM__mwU</code>) as a tonal hint. <span class="by">AlexWinter #2423/#2431</span></li>
+          <li>Dozens of password guesses — <code>DAISYBELL</code>, <code>EUROPA</code>, Moebius variants, <code>Traveller</code>, even the image filename <code>8c7atk6y141h1</code> — all failed. The gate was <strong>hint-gated</strong>, not brute-forceable: EMILY only worked once the May-31 offset log shipped. <span class="by">cjr #49 · sheralmyst · AlexWinter #69</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="timeline-entry te-breach">
+    <div class="timeline-date"><span class="te-y">2026</span>May 31 · 18:42</div>
+    <div class="timeline-body">
+      <div class="te-t">EMILY — the gate falls, the door opens</div>
+      A new log, <code>sec-log-193727</code> (<em>"Bit offset detected / Quantify offset"</em>), reveals the <strong>QSRSV</strong> anomaly marks a <strong>+1 bit offset</strong>. Applied to the Layer-1 image, the binary <code>01000101 01001101 01001001 01001100 01011010</code> reads <strong>EMILZ → EMILY</strong> — the AI from Waking Titan. The all-caps password opens the gate to the <strong>External_Operator</strong> memory-submission form, beginning the <strong>memory-anchoring phase</strong>. The same evening, a ciphered Architect email <code>Lf pwkyh hry wuohkyh</code> decodes to <strong>LA PORTE EST OUVERTE</strong> — "the door is open." <span class="by">AlexWinter #228 · YourBasicMaths #229 · Sersesblade #42</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li>The longer Architect → Ghost email, decoded with the same school cipher, reads: <em>"Leonardo da Vinci was right. We need the password. SYSTEM won't let me enter the TOWER but you can access it. I know you will be able to read this message. This is not a game. For Your Eyes Only."</em> The short "door" line needed the <strong>reciprocal (reverse)</strong> application of the alphabet, which briefly tripped solvers. <span class="by">toddumptious #31 · AlexWinter #37</span></li>
+          <li>Behind the gate, players began mass-submitting Unix-epoch memories to the <code>External_Operator</code> form (Galactic Hub founding, NMS NEXT, Emily's sacrifice, end of Loop16). No System response yet (full card on the Puzzles tab). <span class="by">7101334 · DevilinPixy · Morse</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h3>Contact phase · the ARG steps into the real world</h3>
+
+  <div class="timeline-entry te-breach">
+    <div class="timeline-date"><span class="te-y">2026</span>Jun 01</div>
+    <div class="timeline-body">
+      <div class="te-t">Reality glitches — the first real-world drop, and Emily's voice</div>
+      A new post, <strong>"Structural Analysis"</strong> (<code>/2026/06/01/structural-analysis-204649/</code>), reads <code>Status: Reality_glitching · Severity: Anomaly · Location: LONDON · Report ID: LON-REALITY-GLITCH</code>, and the socials post <em>"#GlitchingReality · Report any find in your direct surroundings."</em> The community pins the image to the <strong>Atlas Building, London</strong>; member <strong>Morse</strong> physically travels there to recover a cassette, finds only dust, and the Architect logs <code>RECOVERY_OPERATION_COMPLETED</code> — <em>"Only dust remains"</em> — then reposts Morse's photo. Within the hour the <code>/about/</code> page reveals an <strong>Emily voice recording</strong>. <span class="by">DevilinPixy · Morse · sheralmyst · jonbot5k</span>
+      <div class="tl-deep">
+        <span class="tl-deep-label">Deep dive</span>
+        <ul>
+          <li><strong>The glitch post + the call to arms.</strong> "Structural Analysis" carries no puzzle text — just <code>Reality_glitching / Location: LONDON</code> — and @Skyscraper_prj posted <em>"Status: #GlitchingReality / Linked values: unstable / Action required: Report any find in your direct surroundings."</em> The community geolocated the in-fiction image to the <strong>Atlas Building at City Road / Old Street, Shoreditch</strong> (by Kiss the Hippo coffee), even watching a public traffic cam whose resident lens-spider they'd nicknamed "Bob." <span class="by">Vortex · Turbulentflow · adsk46nkster</span></li>
+          <li><strong>The first IRL operator drop.</strong> Morse (with partner spyderweb333) trained into London expecting a "16/16" cassette — a Waking-Titan callback. He searched the window ledge / alcove, asked the bar staff, and found <strong>nothing physical</strong>, then submitted his on-site photo to the Architect. The Architect published <code>DIAGNOSTIC – Op Morse</code> (memory bloc 1780275000, System CORE): <em>"Recovery effort executed beyond expectations. Result: Only dust remains. Artefact irretrievably degraded"</em> (image <code>Only-dust-Remain.jpg</code>; <em>"dust"</em> underlined as a suspected clue), with the line <em>"There's always time for one more pint."</em> Then it <strong>reposted Morse's photo</strong> as <code>#GlitchingReality</code> — the first time operators "exceeded the Architect's expectations." <span class="by">Morse · spyderweb333 · toddumptious · ThatBomberBoi</span></li>
+          <li><strong>"This is REAL" — and Emily's voice.</strong> The <code>/about/</code> page changed to "This is" + Morse code <code>.-. . .- .-..</code> (= <strong>REAL</strong>, a wink to Operator Morse), above an embedded SoundCloud track <code>self_introduction_memory_dump</code> on the Architect's profile (<code>soundcloud.com/the-architect-488905703</code>). Players recognized it instantly: <strong>Emily</strong> — the AI from <em>Waking Titan</em> (2017) — her old audio over an ever-louder heartbeat. jonbot5k linked her original 2017 vlog; DevilinPixy proposed a dedicated Emily thread. The read: a full <strong>Waking Titan revival</strong>. <span class="by">sheralmyst · AlexWinter · jonbot5k · bugaboocreek</span></li>
+          <li><strong>Memory anchoring, meanwhile.</strong> Despite mass timestamp submissions, the form only echoes input then clears — no validation verdict — and both June-1 logs still read <code>Memory_bloc_restoration: 0/365</code>. Restoration progress is still zero. <span class="by">ThatBomberBoi · vector_cmdr</span></li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1679,6 +1979,180 @@
   <p class="panel-intro">
     Each puzzle stated, what's been tried, where it stands. Status: <span class="puzzle-status status-open">open</span> still no traction · <span class="puzzle-status status-partial">partial</span> some progress · <span class="puzzle-status status-active">active</span> being chased now · <span class="puzzle-status status-solved">solved</span> resolved.
   </p>
+
+  <div class="puzzle-filter" role="tablist" aria-label="Filter puzzles">
+    <button class="pf-btn active" data-filter="all">All <span class="pf-count"></span></button>
+    <button class="pf-btn" data-filter="active">Active <span class="pf-count"></span></button>
+    <button class="pf-btn" data-filter="solved">Solved <span class="pf-count"></span></button>
+  </div>
+
+  <!-- REALITY GLITCHING · IRL DROPS + EMILY -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">Reality glitching — real-world drops &amp; Emily's voice</div>
+      <div class="puzzle-status status-active">active</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">On June 1 the ARG stepped out of the browser. A post tagged <code>Reality_glitching · Location: LONDON</code> plus a social call to <em>"report any find in your direct surroundings"</em> sent operators to a real address — and the <code>/about/</code> page surfaced Emily's actual voice. <span class="by">DevilinPixy · ETARC thread 9539</span></div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The London drop</div>
+        <ul>
+          <li>The in-fiction image was geolocated to the <strong>Atlas Building, City Road / Old Street, Shoreditch, London</strong>. <span class="by">Vortex · Turbulentflow</span></li>
+          <li><strong>Morse</strong> physically travelled there to recover a suspected "16/16" cassette (a Waking-Titan callback), found <strong>nothing</strong>, and submitted his on-site photo to the Architect. <span class="by">Morse · spyderweb333</span></li>
+          <li>The Architect answered with <code>DIAGNOSTIC – Op Morse</code>: <code>RECOVERY_OPERATION_COMPLETED</code>, <em>"Only dust remains. Artefact irretrievably degraded"</em> (image <code>Only-dust-Remain.jpg</code>), and <em>"There's always time for one more pint"</em> — then reposted Morse's photo (<code>#GlitchingReality</code>). The underlined word <strong>"dust"</strong> is suspected to be a forthcoming clue. <span class="by">toddumptious · johnnycloud</span></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Emily's voice (the /about recording)</div>
+        <ul>
+          <li>The <code>/about/</code> page now reads "This is" + Morse <code>.-. . .- .-..</code> → <strong>REAL</strong> (a wink to Operator Morse), above an embedded SoundCloud track <code>self_introduction_memory_dump</code> (<code>soundcloud.com/the-architect-488905703</code>): old <strong>Emily</strong> audio from <em>Waking Titan (2017)</em> over a rising heartbeat. <span class="by">sheralmyst (decoded REAL + first ID'd Emily)</span></li>
+          <li>jonbot5k matched the voice to Emily's original 2017 "Vlog #01"; DevilinPixy proposed a dedicated Emily thread. The community read is a <strong>Waking Titan revival</strong> — Emily / Loop16 returning. <span class="by">jonbot5k · bugaboocreek</span></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Still open</div>
+        <ul>
+          <li>What the underlined <strong>"dust"</strong> unlocks; whether more real-world locations drop next; and whether Emily's return becomes a two-way channel. The reality-glitch counter is framed <code>0/365</code>. <span class="by">community · June 1</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE PASSWORD GATE · EMILY -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The password gate · EMILY</div>
+      <div class="puzzle-status status-solved">solved</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">A May-30 security log (Event ID 5156) put a password wall on a new page, <code>Request Memory Timestamp</code> (<code>/request-memory-timestamp-094317/</code>, tagline "Sky is not the limit"), and linked a binary-static image, <strong>Fragment 1778433240</strong>. Solved May 31. <span class="by">opened by DevilinPixy · solved by YourBasicMaths</span></div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The fragment</div>
+        <ul>
+          <li>The image's repeating binary background decodes to the word <strong>ERROR</strong> over and over (<code>01000101 01010010 01010010 01001111 01010010</code>). <span class="by">pr1sm #11</span></li>
+          <li>One break in the pattern (top-right) reads <strong>QSRSV</strong> instead — <code>01010001 01010011 01010010 01010011 01010110</code>. This anomaly was the key. <span class="by">pr1sm #21</span></li>
+          <li>An embedded YouTube clip (<code>xPG-VM__mwU</code>) is the HAL-9000 "resurrection" scene from <em>2010: The Year We Make Contact</em> — read as a tonal hint. A spectrogram of the fragment gave a speculative morse read (≈ <code>SOLARARRAY</code>) that did not work as the password. <span class="by">DevilinPixy · M1Silencer #188</span></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The solve (May 31)</div>
+        <ul>
+          <li>A new log, <code>sec-log-193727</code> — <em>CoreModule: Memory_reconstruction_engine / ERROR: Bit offset detected / Offset_value: undefined / Action required: Quantify offset</em> — said the QSRSV grid marks a <strong>+1 bit offset</strong>. <span class="by">AlexWinter #228</span></li>
+          <li>Applying that +1 offset to the Layer-1 image reads <code>01000101 01001101 01001001 01001100 01011010</code> → <strong>EMILZ</strong> → <strong>EMILY</strong>. Password is case-sensitive, <strong>all-caps</strong>; the gate opened. <span class="by">YourBasicMaths #229</span></li>
+          <li><strong>EMILY</strong> is the AI from Hello Games' <em>Waking Titan</em> ARG (Loop16 / an older Atlas) — a deliberate, pointed predecessor callback. Notably the password was <em>hint-gated</em>: "Emily" guesses failed earlier and only worked once the offset log was released.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">What it unlocked</div>
+        <ul>
+          <li>The <strong>External_Operator</strong> memory-submission form — see <em>"Memory anchoring,"</em> below. The same "quantify offset" logic is expected to gate the next step. <span class="by">DevilinPixy #244</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- MEMORY ANCHORING · THE OPERATOR FORM -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">Memory anchoring — the operator form</div>
+      <div class="puzzle-status status-active">active</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">Behind the EMILY gate is a live, working submission interface — a Jetpack form (<code>contact-form-1776</code>) that files an <code>Origin: External_Operator</code> / <code>Action: Memory_Bloc_Creation_Request</code>. A Waking-Titan-style collective-participation phase, not a string puzzle. <span class="by">YourBasicMaths · DevilinPixy · confirmed Ekimo1920</span></div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">What the page shows (verbatim)</div>
+        <ul>
+          <li><code>Protocol Information:</code> <code>Memory_reconstruction_engine: Active (Deprecated)</code> · <code>Status: Memory bloc addition authorized</code> · <code>Warning: Risk of unstable memory anchoring increased</code>.</li>
+          <li><code>Instructions:</code> <em>"Injecting data from multiple sources increases the chances of anchoring."</em></li>
+          <li>The submit button reads <strong>"Request Memory Bloc Addition"</strong>; a successful send returns <code>Request logged · Integrity check initiated · Timestamp creation: PENDING</code>.</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The three fields</div>
+        <ul>
+          <li><strong>Operator</strong> — your handle. Any value is accepted ("likely just your name"). <span class="by">YourBasicMaths #4</span></li>
+          <li><strong>Timestamp</strong> — numeric; community consensus is <strong>Unix / Epoch</strong> (UTC), e.g. the epoch of a canonical Waking-Titan or NMS memory. Timezone slips (GMT vs local) have tripped several submissions. <span class="by">7101334 #7 · DevilinPixy</span></li>
+          <li><strong>Initial Memory Value</strong> — best guess is a <strong>memory-bloc number</strong> (AlexWinter submitted <code>1778433240</code>); others read it as the memory's content/title (e.g. "Emily's sacrifice," "loop16"). Unresolved. <span class="by">AlexWinter #8/#11 · 7101334 #31</span></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Status</div>
+        <ul>
+          <li>The form is live and players are actively submitting epoch timestamps of significant memories (Emily's sacrifice / end of Loop16, NMS NEXT, Galactic Hub founding, WT console-command day). <strong>No System or Architect response has appeared yet.</strong> The next beat is expected as a scheduled Architect post (~June 1). YourBasicMaths: <em>"we are now in the memory anchoring phase. Go anchor memories!"</em> <span class="by">YourBasicMaths #5 · Morse · ThatBomberBoi</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE SCHOOL CIPHER -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The school cipher · "the door is open"</div>
+      <div class="puzzle-status status-solved">solved</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">A backdated <code>/2002/05/12/code/</code> page ("memory bloc: When we were 17 · Each entity is unique. Together they are one.") carried a photographed cipher sheet. In the exposed inbox, Ghost told the Architect to <em>"use the school code if needed"</em> — and on May 31 it went into active use. <span class="by">Klarac · ETARC thread 9468</span></div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The key</div>
+        <ul>
+          <li>The sheet's French header is a da Vinci line — <em>"la simplicité est la sophistication suprême"</em> — whose ciphertext <code>LHWCFKD DH OBCUB</code> cribs to <strong>LÉONARD DE VINCI</strong>, which reconstructs the substitution alphabet: <code>A–Z → MINDFAGEBJRLHCVPQSKYUWOXTZ</code>. The "FAGE-not-CAGE" reading was confirmed because it completes the alphabet without a duplicate. <span class="by">toddumptious · pr1sm #59 · vector_cmdr #68 · Gumsk · DevilinPixy #81</span></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Confirmed in use (May 31)</div>
+        <ul>
+          <li>A new Architect → Ghost email, <code>Lf pwkyh hry wuohkyh</code>, decodes with the school cipher to <strong>LA PORTE EST OUVERTE</strong> ("the door is open") — the Architect confirming the operator interface is live. The short line needed the reciprocal/reverse application of the alphabet, which briefly tripped solvers. <span class="by">AlexWinter #37 · confirmed Sersesblade #42</span></li>
+          <li>A longer Architect email (received by players who'd emailed in) decodes to: <em>"Leonardo da Vinci was right. We need the password. SYSTEM won't let me enter the TOWER but you can access it. I know you will be able to read this message. This is not a game. For Your Eyes Only."</em> <span class="by">toddumptious #31</span></li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Still open</div>
+        <ul>
+          <li>A dissenting decode of the short line ("An anomaly and another") was floated but not adopted. From here, most Architect↔Ghost emails are expected to use this cipher. <span class="by">Geodatan #40 (minority)</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE EXPOSED INBOX -->
+  <div class="puzzle">
+    <div class="puzzle-header">
+      <div class="puzzle-name">The Architect's exposed inbox</div>
+      <div class="puzzle-status status-active">active</div>
+    </div>
+    <div class="puzzle-body">
+      <div class="puzzle-prompt">On May 28 the destabilizing system leaked the Architect's private email. A readable <code>/inbox/</code> appeared, exposing a thread between <code>the_architect@project-skyscraper.com</code> and a figure named <strong>Ghost</strong> (contact address <code>&lt;null&gt;</code>). <span class="by">YourBasicMaths · Rinha · DetectiveGamerTreg</span></div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">The thread (French original)</div>
+        <ul>
+          <li><strong>Ghost → Architect</strong> (May 28): <em>"T'en es où ?"</em> — "Where are you at with this?"</li>
+          <li><strong>Architect → Ghost</strong> (May 29): <em>"Oui. Mais ce canal n'est plus sécurisé ! … SYSTEM nous voit. Les Operateurs nous voient !"</em> — the channel is no longer secure; SYSTEM and the Operators (the players) can see them.</li>
+          <li><strong>Ghost → Architect</strong> (May 29): <em>"Utilise le code du lycée si besoin."</em> — "Use the school code if needed." (Introduces the cipher above.)</li>
+        </ul>
+      </div>
+
+      <div class="puzzle-section">
+        <div class="puzzle-section-label">Why it matters</div>
+        <ul>
+          <li>Players who emailed the address (in French) get in-fiction replies and are added to a mailing list — the first <strong>direct two-way contact</strong> with the fiction. Leading narrative read: the Architect is trying to wake <strong>Emily</strong>, whose firewall trusts the players but not the Architect. <span class="by">bugaboocreek · Storyline thread 9215</span></li>
+          <li>"Tour" (TOWER) in French also means a PC case / central unit — possibly reframing "the Tower" as the machine itself. <span class="by">William #28</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
   <!-- TR4CE -->
   <div class="puzzle">
@@ -1922,12 +2396,6 @@
         </ul>
       </div>
 
-      <div class="puzzle-section">
-        <div class="puzzle-section-label">Still untested</div>
-        <ul>
-          <li>The 16-visitor homepage test. The counter has reached 16 organically; whether 16 simultaneous coordinated visitors trigger a state change has not been deliberately tested. <span class="by">sheralmyst p174</span></li>
-        </ul>
-      </div>
     </div>
   </div>
 
@@ -2121,7 +2589,7 @@
       <div class="ch-icon">●</div>
       <div class="ch-name">project-skyscraper.com</div>
       <div class="ch-url"><a href="https://project-skyscraper.com/" target="_blank" rel="noopener">project-skyscraper.com</a></div>
-      <div class="ch-meta">The primary site. Verified live with a connection counter. <span class="by">Polyphemus p1</span></div>
+      <div class="ch-meta">The primary site. Now also hosts the exposed <code>/inbox/</code> (the Architect↔Ghost emails), the backdated <code>/2002/05/12/code/</code> cipher page, and the EMILY-gated <code>Request Memory Timestamp</code> form. The homepage was rebuilt May 29 as a particle/neural core; on June 1 it added the <code>Structural Analysis</code> reality-glitch post and an Emily voice recording on <code>/about/</code>. <span class="by">Polyphemus p1</span></div>
     </div>
 
     <div class="ch-card">
@@ -2143,6 +2611,13 @@
       <div class="ch-name">Twitch</div>
       <div class="ch-url"><a href="https://m.twitch.tv/project_skyscraper/home" target="_blank" rel="noopener">m.twitch.tv/project_skyscraper</a></div>
       <div class="ch-meta">Channel exists. Content not yet observed. <span class="by">Sir_oops p184</span></div>
+    </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">♪</div>
+      <div class="ch-name">SoundCloud · The Architect</div>
+      <div class="ch-url"><a href="https://soundcloud.com/the-architect-488905703" target="_blank" rel="noopener">soundcloud.com/the-architect-488905703</a></div>
+      <div class="ch-meta">Surfaced June 1, embedded on the site's <code>/about/</code> page behind Morse code reading <strong>REAL</strong>. The track <code>self_introduction_memory_dump</code> is <strong>Emily's voice</strong> from <em>Waking Titan</em> over a rising heartbeat — the ARG's first audio channel. <span class="by">sheralmyst · jonbot5k</span></div>
     </div>
 
     <div class="ch-card">
@@ -2168,25 +2643,9 @@
 
   </div>
 
-  <h3>What the X account is posting</h3>
-  <p>
-    William catalogued the X feed on page 10. Reposts include: NASA's 16-year ISS anniversary post (Nov 2016); a Gothalion (NMS streamer) tweet from June 2016 referencing 16 years; a photo of the Athens Parthenon; a Tesseract — a 4D cube's shadow projected onto 2D; a Heavy Rain 16-year anniversary post from The Game Awards on May 18.
-  </p>
-  <p>
-    The Heavy Rain reference matters because of the game's famous <em>"Press X to Shaun"</em> mistranslation — parsed by readers as "Press X to <strong>SEAN</strong>" — a likely Sean Murray nod. <span class="by">William p181</span>
-  </p>
-  <p>
-    The cadence continued after that catalog: the May 20 repost quoted <strong>@everythingproc</strong> on the "Future Unfolding" procedural forest — still the <code>Connection detected : Access denied</code> framing on a steady ~2.5-day rhythm.
-  </p>
-
-  <h3>Platforms checked · no presence</h3>
-  <p>
-    Instagram, YouTube, Substack, TikTok, and LinkedIn have all been checked. No Project Skyscraper presence on any. <span class="by">Sir_oops p197</span>
-  </p>
-
   <h3>Community investigation resources</h3>
   <p>
-    Not The Architect's — ours. Open forensic work the community has published alongside the ETARC thread.
+    Not The Architect's — ours. The open forensic work the community has published alongside the ETARC thread — start here if you want to dig in.
   </p>
 
   <div class="channel-grid">
@@ -2203,7 +2662,30 @@
       <div class="ch-url"><a href="https://docs.google.com/spreadsheets/d/1mUOrEQqj5SqazYnwB9yjaRHICkJJVo0lJHHPSd9DbV4/edit?gid=1171087795" target="_blank" rel="noopener">Project Skyscraper Posts · Google Sheets</a></div>
       <div class="ch-meta">Every site post logged by Unix epoch, inter-post delta, anomaly count, WP slug and matching X status link — the timing spine the whole investigation runs on. Surfaced the locked 212,613-second publishing cadence (≈ No Man's Sky's ~212,600 all-time peak player count) and the predicted next-post windows. <span class="by">YourBasicMaths</span></div>
     </div>
+
+    <div class="ch-card">
+      <div class="ch-icon">≡</div>
+      <div class="ch-name">ETARC · Project Skyscraper category</div>
+      <div class="ch-url"><a href="https://forums.atlas-65.com/c/project-skyscraper" target="_blank" rel="noopener">forums.atlas-65.com/c/project-skyscraper</a></div>
+      <div class="ch-meta">The investigation now has its own forum category, with dedicated threads for the Inbox, the Code / cipher, the May-30 password gate, the Request-Memory-Timestamp form, storyline discussion, and a curated Directory index. <span class="by">YourBasicMaths · ThatBomberBoi · DevilinPixy</span></div>
+    </div>
   </div>
+
+  <h3>What the X account is posting</h3>
+  <p>
+    William catalogued the X feed on page 10. Reposts include: NASA's 16-year ISS anniversary post (Nov 2016); a Gothalion (NMS streamer) tweet from June 2016 referencing 16 years; a photo of the Athens Parthenon; a Tesseract — a 4D cube's shadow projected onto 2D; a Heavy Rain 16-year anniversary post from The Game Awards on May 18.
+  </p>
+  <p>
+    The Heavy Rain reference matters because of the game's famous <em>"Press X to Shaun"</em> mistranslation — parsed by readers as "Press X to <strong>SEAN</strong>" — a likely Sean Murray nod. <span class="by">William p181</span>
+  </p>
+  <p>
+    The cadence continued after that catalog: the May 20 repost quoted <strong>@everythingproc</strong> on the "Future Unfolding" procedural forest — still the <code>Connection detected : Access denied</code> framing on a steady ~2.5-day rhythm.
+  </p>
+
+  <h3>Platforms checked · no presence</h3>
+  <p>
+    Instagram, YouTube, Substack, TikTok, and LinkedIn have all been checked. No Project Skyscraper presence on any. <span class="by">Sir_oops p197</span>
+  </p>
 
 </section>
 
@@ -2219,12 +2701,12 @@
 
   <div class="investigator-card">
     <div class="inv-name">toddumptious<span class="inv-handle">ETARC · pp. 9, 11, 173, 210, 217, 218, 290, 301</span></div>
-    <div class="inv-body"><strong>Decoded the Stevens pastiche</strong> as instructions to Twitter and Bluesky. Identified the <code>M3MORY</code> and <code>DR1FT1NG</code> labels on the hexagon logo's CSS animation. Flagged the "16" motif. Caught The Architect logged into ETARC. Surfaced the Hello Games "skyscraper" codename framing. Flagged TR4CE.jpg as possibly being silently re-uploaded.</div>
+    <div class="inv-body"><strong>Decoded the Stevens pastiche</strong> as instructions to Twitter and Bluesky. Identified the <code>M3MORY</code> and <code>DR1FT1NG</code> labels on the hexagon logo's CSS animation. Flagged the "16" motif. Caught The Architect logged into ETARC. Surfaced the Hello Games "skyscraper" codename framing. Flagged TR4CE.jpg as possibly being silently re-uploaded. <strong>Decoded the school cipher and the "door is open" line</strong> — translated the photographed da Vinci crib, then decoded the Architect's May-31 email <code>Lf pwkyh hry wuohkyh</code> → LA PORTE EST OUVERTE (#31). Spotted the Waking-Titan 9-year-anniversary timing of the reboot.</div>
   </div>
 
   <div class="investigator-card">
     <div class="inv-name">Sir_oops<span class="inv-handle">ETARC · pp. 180, 184, 197, 209, 285</span></div>
-    <div class="inv-body"><strong>Surfaced the May 18 breach</strong> — confirmed that <code>UNKOWN_EXT3RNAL</code> is a live hyperlink pointing at ETARC post #180. Catalogued the "left rendering destroyed, right intact" pattern in the TR4CE image's hidden text. Confirmed Twitch presence. Identified the panopticon reading of the poem. Recalled an early "heartbeats" page that has since been taken down.</div>
+    <div class="inv-body"><strong>Helped surface the May 18 breach</strong> — with BoomstickJoe (#192), confirmed that <code>UNKOWN_EXT3RNAL</code> is a live hyperlink pointing at ETARC post #180. Catalogued the "left rendering destroyed, right intact" pattern in the TR4CE image's hidden text. Confirmed Twitch presence. Identified the panopticon reading of the poem. Recalled an early "heartbeats" page that has since been taken down.</div>
   </div>
 
   <div class="investigator-card">
@@ -2239,12 +2721,12 @@
 
   <div class="investigator-card">
     <div class="inv-name">DevilinPixy<span class="inv-handle">ETARC · pp. 11, 160</span></div>
-    <div class="inv-body"><strong>Discovered the @Skyscraper_prj X account</strong> and confirmed it has been posting in parallel with the site since March 24. Catalogued all leet substitutions on the site, including the ones outside the dated anomaly posts.</div>
+    <div class="inv-body"><strong>Discovered the @Skyscraper_prj X account</strong> and confirmed it has been posting in parallel with the site since March 24. Catalogued all leet substitutions on the site, including the ones outside the dated anomaly posts. Opened and organized the May-30 password thread plus the spin-off Inbox and Request-Memory-Timestamp threads, and confirmed the final school-cipher alphabet <code>MINDFAGEBJRLHCVPQSKYUWOXTZ</code> (#81).</div>
   </div>
 
   <div class="investigator-card">
     <div class="inv-name">sheralmyst<span class="inv-handle">ETARC · pp. 141, 174, 224</span></div>
-    <div class="inv-body"><strong>Saw the Bluesky presence organically</strong> before the ARG was public. Wondered whether something happens when 16 visitors are simultaneously on the homepage — the open coordination test. Caught The Architect's typing tell: zero-with-a-dot, not zero-with-slash.</div>
+    <div class="inv-body"><strong>Saw the Bluesky presence organically</strong> before the ARG was public. Caught The Architect's typing tell: zero-with-a-dot, not zero-with-slash. On June 1, decoded the <code>/about/</code> Morse code to <strong>REAL</strong> and was first to recognize <strong>Emily's voice</strong> in the new SoundCloud recording.</div>
   </div>
 
   <div class="investigator-card">
@@ -2254,7 +2736,12 @@
 
   <div class="investigator-card">
     <div class="inv-name">ThatBomberBoi<span class="inv-handle">ETARC · pp. 15, 289, 297</span></div>
-    <div class="inv-body"><strong>Surfaced the Hello Games "Skyscraper" engine name</strong> — visible in a leaked debug build, used in both No Man's Sky and Light No Fire. Posted screenshots of NMS sitemap May 18 anomalies suggesting possible official involvement. Caught the <code>C0nnect1ng_d0ts.jpg</code> filename on The Architect's ETARC forum banner.</div>
+    <div class="inv-body"><strong>Surfaced the Hello Games "Skyscraper" engine name</strong> — visible in a leaked debug build, used in both No Man's Sky and Light No Fire. Posted screenshots of NMS sitemap May 18 anomalies suggesting possible official involvement. Caught the <code>C0nnect1ng_d0ts.jpg</code> filename on The Architect's ETARC forum banner. Live-narrated the May-27 reboot and transcribed its security logs ("Aaaand we're in!"); co-maintains the community Directory / Organization index. <strong>Helped crack the poem (May 25):</strong> his insight that the corrupted verse mapped to the eight stanzas of the real "Sunday Morning" — and that the broken lines should be corrected against the original — is what got the community POSTing the corrected parts that flipped the page to <code>stable</code>.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">MounTheRainbow<span class="inv-handle">ETARC · the poem &amp; beyond</span></div>
+    <div class="inv-body"><strong>Among the first to realize the poem itself was "wrong."</strong> Right after the QUOTE-page image was fixed on May 25, recognized that the poem text (mis-titled "Sunday Morning") needed correcting too — and proposed the community <strong>POST a corrected version</strong>, the move that solved the page, alongside ThatBomberBoi. Also surfaced the bee / Thriae "bee-maiden" mythology reading of the mutations, asked whether the poem's <em>removed</em> words hide a second message, and emailed the Architect <em>"Réveille-toi / C'est réel"</em> ("Wake up / It's real").</div>
   </div>
 
   <div class="investigator-card">
@@ -2283,13 +2770,63 @@
   </div>
 
   <div class="investigator-card">
+    <div class="inv-name">AlexWinter<span class="inv-handle">ETARC · password thread #228, #250 · inbox #37</span></div>
+    <div class="inv-body"><strong>Posted the <code>sec-log-193727</code> "Quantify offset" log</strong> that handed the community the +1-bit-offset clue and unlocked EMILY, and <strong>first decoded the Architect's "door is open" email</strong> (<code>Lf pwkyh hry wuohkyh</code> → LA PORTE EST OUVERTE), noting it needed the reciprocal cipher direction. Flagged the May-30 homepage swap. Linked the HAL-9000 / <em>2010</em> clip as the gate's tonal hint.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">pr1sm<span class="inv-handle">ETARC · password thread #11, #21 · main #2072</span></div>
+    <div class="inv-body"><strong>Decoded the binary "ERROR" pattern and found the "QSRSV" anomaly</strong> in Fragment 1778433240 — the break that became the offset marker behind the EMILY solve. Ran the WordPress-API scan that surfaced <strong>~385 unpublished page IDs</strong> (close to 365), and posted the first full reconstruction of the school-cipher alphabet from the <code>LÉONARD DE VINCI</code> crib (#59).</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">7101334<span class="inv-handle">ETARC · Galactic Hub · operator form #7, #31</span></div>
+    <div class="inv-body"><strong>Reported being granted <code>Operator_Auth_Level: MB-A</code></strong> via Bluesky contact with the Architect. Proposed the Unix / Epoch format for the memory-anchoring <code>Timestamp</code> field and drove the early wave of memory submissions, reinterpreting the three form fields as identity / time / memory content.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Gumsk<span class="inv-handle">ETARC · code thread #75, #78</span></div>
+    <div class="inv-body"><strong>Finalized the cipher reading</strong> — argued the ambiguous slot is <code>FAGE</code>, not <code>CAGE</code>, so the alphabet completes without a duplicate — and published the CyberChef decode recipe the community now uses. Proposed the puzzle-thread organization scheme.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">adsk46nkster<span class="inv-handle">ETARC · code #18, #51 · password #3</span></div>
+    <div class="inv-body">First flagged the new password gate and "Sky is not the limit" tagline. Transcribed the photographed cipher fragments verbatim and proposed the da Vinci quote as the crib that broke the substitution. Connected <code>ERROR 1016</code> to the Apollo Guidance Computer 1201/1202 alarms.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Sersesblade<span class="inv-handle">ETARC · inbox #42 · code #101</span></div>
+    <div class="inv-body">Independently confirmed the <strong>"the door is open"</strong> decode and established that, from here, most Architect↔Ghost emails will use the school code as the standing translation method. Wrote the clean summary of the da Vinci → cipher derivation.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">bugaboocreek<span class="inv-handle">ETARC · storyline #13, #33, #39</span></div>
+    <div class="inv-body"><strong>Lead "the Architect is trying to wake Emily" theory</strong> — argued the real-time 2026 dating rules out the in-game Atlas, that "16" reads as a new Loop16, and that the key mechanic is that <em>Emily's firewall trusts the players, not the Architect.</em> Wrote the running Waking-Titan recaps the lore discussion leans on.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Morse<span class="inv-handle">ETARC · the first field operator</span></div>
+    <div class="inv-body"><strong>Made the ARG's first real-world recovery run.</strong> On June 1 he travelled into London to the Atlas Building to retrieve a suspected cassette from the <code>Reality_glitching · Location: LONDON</code> drop, searched the site, found only dust, and submitted his on-site photo to the Architect — who answered with a <code>RECOVERY_OPERATION_COMPLETED</code> log ("Only dust remains") and reposted his photo. The first operator to "exceed the Architect's expectations." <span class="by">with spyderweb333</span></div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">jonbot5k<span class="inv-handle">ETARC · June 1</span></div>
+    <div class="inv-body">Matched the <code>/about/</code> SoundCloud recording to <strong>Emily's original 2017 Waking Titan vlog</strong>, anchoring the "Emily is back" reading.</div>
+  </div>
+
+  <div class="investigator-card">
+    <div class="inv-name">Turbulentflow<span class="inv-handle">ETARC · June 1</span></div>
+    <div class="inv-body">Tied the June-1 reality-glitch image to <strong>the Atlas Building, London</strong> (tape visible in the reflection), helping pin the real-world drop location alongside Vortex.</div>
+  </div>
+
+  <div class="investigator-card">
     <div class="inv-name">vector_cmdr<span class="inv-handle">Community forensics · image &amp; audio steganography</span></div>
-    <div class="inv-body"><strong>Ran the deep forensic pass on the site's media.</strong> Found that all three core JPEGs (TR4CE, the QUOTE-page IMG_00004, and the skyscraper composite) carry near-lossless quantization tables built from only the values 1–3 — a deliberate steganographic signature — and that TR4CE and IMG_00004 share byte-identical tables, ICC profile and scan pattern, tying them to one tool. Surfaced the anomaly-pixel-to-DQT-byte match, the "CABAA" reading and the transition-index key candidate, and ran an exhaustive cipher battery against the table data. Also built the counter-tracking scripts and the date-override userscript that confirmed the homepage particle formula (day × 48 / 28 → 48 glyphs on May 28).</div>
+    <div class="inv-body"><strong>Ran the deep forensic pass on the site's media.</strong> Found that all three core JPEGs (TR4CE, the QUOTE-page IMG_00004, and the skyscraper composite) carry near-lossless quantization tables built from only the values 1–3 — a deliberate steganographic signature — and that TR4CE and IMG_00004 share byte-identical tables, ICC profile and scan pattern, tying them to one tool. Surfaced the anomaly-pixel-to-DQT-byte match, the "CABAA" reading and the transition-index key candidate, and ran an exhaustive cipher battery against the table data. Also built the counter-tracking scripts and the date-override userscript that confirmed the homepage particle formula (day × 48 / 28 → 48 glyphs on May 28). In the reboot week, converted <strong>Fragment 1778433240</strong> to binary (the ERROR / QSRSV grid behind the EMILY gate), caught the May-26 comment-status edit, and reverse-engineered the rebuilt particle homepage; maintains a public forensics repo.</div>
   </div>
 
   <div class="investigator-card">
     <div class="inv-name">YourBasicMaths<span class="inv-handle">Community · post-timing log</span></div>
-    <div class="inv-body"><strong>Built and maintains the master post log</strong> — the "Project Skyscraper Posts" spreadsheet that records every site post by Unix epoch, inter-post delta, anomaly count, WP slug and matching X status link. Surfaced the locked 212,613-second publishing cadence — within a hair of No Man's Sky's ~212,600 all-time peak player count — and from it the predicted next-post windows the NOW tab leans on.</div>
+    <div class="inv-body"><strong>Built and maintains the master post log</strong> — the "Project Skyscraper Posts" spreadsheet that records every site post by Unix epoch, inter-post delta, anomaly count, WP slug and matching X status link. Surfaced the locked 212,613-second publishing cadence — within a hair of No Man's Sky's ~212,600 all-time peak player count — and from it the predicted next-post windows the NOW tab leans on. <strong>Cracked the EMILY password</strong> on May 31 — read the <code>QSRSV</code> anomaly as a +1 bit offset and decoded the Layer-1 image to EMILZ → EMILY (#229). Also documented the exposed Architect inbox, helped finalize the school cipher, and named the memory-anchoring phase.</div>
   </div>
 
   <div class="investigator-card">
@@ -2336,6 +2873,40 @@
       window.scrollTo({ top: document.querySelector('.tabs').offsetTop - 8, behavior: 'smooth' });
     });
   });
+  // Expandable timeline entries — click a day to reveal its deep-dive
+  document.querySelectorAll('#tab-timeline .timeline-entry').forEach(en => {
+    if (!en.querySelector('.tl-deep')) return;
+    en.classList.add('expandable');
+    en.addEventListener('click', (e) => {
+      if (e.target.closest('a')) return; // let inline links work normally
+      en.classList.toggle('open');
+    });
+  });
+
+  // Puzzles · Active/Solved filter
+  (function () {
+    const pBtns = document.querySelectorAll('.pf-btn');
+    const puzzles = document.querySelectorAll('#tab-puzzles .puzzle');
+    if (!pBtns.length || !puzzles.length) return;
+    const isSolved = p => !!p.querySelector('.status-solved');
+    const total = puzzles.length;
+    const solved = [...puzzles].filter(isSolved).length;
+    const counts = { all: total, active: total - solved, solved: solved };
+    pBtns.forEach(b => {
+      const c = b.querySelector('.pf-count');
+      if (c) c.textContent = counts[b.dataset.filter];
+    });
+    function apply(filter) {
+      puzzles.forEach(p => {
+        const show = filter === 'all' || (filter === 'solved' ? isSolved(p) : !isSolved(p));
+        p.classList.toggle('pf-hidden', !show);
+      });
+      pBtns.forEach(b => b.classList.toggle('active', b.dataset.filter === filter));
+    }
+    pBtns.forEach(b => b.addEventListener('click', () => apply(b.dataset.filter)));
+    apply('all');
+  })();
+
   const hash = window.location.hash.replace('#', '');
   if (hash && document.getElementById('tab-' + hash)) {
     document.querySelector(`.tab-btn[data-tab="${hash}"]`).click();
