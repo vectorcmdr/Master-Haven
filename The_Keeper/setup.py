@@ -281,14 +281,16 @@ class ChannelPicker(discord.ui.ChannelSelect):
     async def callback(self, interaction):
         self.view.channels = list(self.values)
 
-        await interaction.response.edit_message(
-            content="Channels selected.",
-            view=PostChannelView(
-                self.view.command_name,
-                self.view.channels
-            )
+        await interaction.response.defer()
+        
+        await interaction.message.edit(
+        content="Channels selected.",
+        view=PostChannelView(
+            self.view.command_name,
+            self.view.channels
         )
-
+    )
+            
 
 class PostChannelView(discord.ui.View):
     def __init__(self, command_name, channels):
@@ -299,9 +301,8 @@ class PostChannelView(discord.ui.View):
 
         self.add_item(SaveButton())
         self.add_item(RoleSetupButton())
-    
-    
-
+        
+            
 
 class SaveButton(discord.ui.Button):
     def __init__(self):
