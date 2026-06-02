@@ -987,13 +987,15 @@ body.fly-mode #canvas-host {
   .map-breadcrumb { display: none !important; }
   /* Hide focus-chip on mobile — overlaps search */
   .focus-chip { top: auto !important; bottom: 180px !important; left: 12px !important; transform: none !important; max-width: calc(100vw - 24px); }
-  /* Search: same row as ORBIT/LIVE, right of them, NOT full-width */
+  /* Search: full-width row BELOW the (wrapped) topbar controls so it never
+     overlaps the color-mode chips. The topbar wraps to ~77px tall at >=360px
+     (brand+brightness on row 1, chips+ORBIT+status on row 2). */
   #carto-search {
-    top: 46px; left: 140px; right: 12px;
+    top: 88px; left: 12px; right: 12px;
     width: auto; max-width: none;
     transform: none;
   }
-  #carto-pills { top: 86px; left: 12px; right: 12px; max-width: none; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+  #carto-pills { top: 136px; left: 12px; right: 12px; max-width: none; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
   #carto-search-results { max-height: 50vh; }
   /* Gear button well above the stats box */
   #carto-filter-toggle { top: auto; bottom: 170px; left: 12px; width: 44px; height: 44px; font-size: 18px; }
@@ -1010,6 +1012,12 @@ body.fly-mode #canvas-host {
   /* Hide legend + hint on mobile */
   .legend { display: none !important; }
   .hint { display: none !important; }
+}
+
+/* Very narrow phones: drop the SNAPSHOT/LIVE status pill so the topbar stays a
+   stable 2 rows (it would otherwise wrap to a 3rd row and push under search). */
+@media (max-width: 359px) {
+  .src-pill { display: none; }
 }
 </style>
 </head>
