@@ -1,6 +1,7 @@
 import React from 'react'
 import { StarIcon } from '@heroicons/react/24/solid'
 import { getThumbnailUrl } from '../../utils/api'
+import { formatCoords } from '../LatLngInput'
 
 /** Renders a discovery card with thumbnail, type badge, location breadcrumb, and featured star. Props: discovery, onClick. */
 
@@ -39,9 +40,12 @@ export default function DiscoveryCard({
     moon_name,
     system_is_stub,
     location_type,
+    latitude,
+    longitude,
     is_featured,
   } = discovery
 
+  const coordText = formatCoords(latitude, longitude)
   const slug = type_slug || 'other'
   const photoSrc = getThumbnailUrl(photo_url)
   const placeholderBg = TYPE_PLACEHOLDERS[slug] || TYPE_PLACEHOLDERS.other
@@ -111,6 +115,11 @@ export default function DiscoveryCard({
             {location_type === 'space' && !planet_name && !moon_name && <><span className="text-gray-600 mx-0.5">&rsaquo;</span><span className="text-cyan-400">Space</span></>}
             {system_galaxy && <><span className="mx-1">&bull;</span><span>{system_galaxy}</span></>}
           </div>
+        )}
+
+        {/* Surface coordinates */}
+        {coordText && (
+          <div className="mt-1 text-gray-500 text-xs font-mono">📍 {coordText}</div>
         )}
 
         {/* Discoverer */}

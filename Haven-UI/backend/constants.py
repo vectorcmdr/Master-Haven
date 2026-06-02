@@ -229,6 +229,28 @@ DISCOVERY_TYPE_FIELDS = {
     'other':    [],
 }
 
+def normalize_discovery_coords(latitude, longitude):
+    """Validate and coerce a discovery's surface lat/long pair.
+
+    Returns (lat_or_None, lng_or_None). Either value is coerced to float and
+    range-checked: latitude must be in [-90, 90], longitude in [-180, 180].
+    Anything non-numeric or out of range becomes None (the pair is independent
+    — one bad value doesn't void the other). Used by every discovery INSERT
+    path so a malformed coordinate can never land in the DB.
+    """
+    def _one(value, limit):
+        if value is None or value == '':
+            return None
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return None
+        if f != f or f < -limit or f > limit:  # f != f rejects NaN
+            return None
+        return f
+    return _one(latitude, 90.0), _one(longitude, 180.0)
+
+
 # ============================================================================
 # Data Restriction Field Groups
 # ============================================================================

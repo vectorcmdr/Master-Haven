@@ -13,6 +13,7 @@ from constants import (
     DISCOVERY_TYPE_SLUGS, DISCOVERY_TYPE_INFO, DISCOVERY_TYPE_FIELDS,
     get_discovery_type_slug,
     resolve_source, SOURCE_MANUAL,
+    normalize_discovery_coords,
 )
 from db import get_db_connection, get_db_path, add_activity_log, archived_civ_filter
 from services.auth_service import (
@@ -196,14 +197,23 @@ async def create_discovery(
             if m_row:
                 moon_name = m_row['name']
 
+        api_location_type = payload.get('location_type') or 'space'
+        api_lat, api_lng = normalize_discovery_coords(
+            payload.get('latitude'), payload.get('longitude')
+        )
+        if api_location_type == 'space':
+            api_lat, api_lng = None, None
+        payload['latitude'] = api_lat
+        payload['longitude'] = api_lng
+
         cursor.execute('''
             INSERT INTO pending_discoveries (
                 discovery_data, discovery_name, discovery_type, type_slug,
                 system_id, system_name, planet_name, moon_name, location_type,
                 discord_tag, submitted_by, submitted_by_ip,
                 submitter_account_id, submitter_account_type, submitter_profile_id,
-                submission_date, photo_url, source, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                submission_date, photo_url, source, latitude, longitude, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         ''', (
             json.dumps(payload),
             discovery_name,
@@ -213,7 +223,7 @@ async def create_discovery(
             system_name,
             planet_name,
             moon_name,
-            payload.get('location_type') or 'space',
+            api_location_type,
             discord_tag,
             discord_username,
             client_ip,
@@ -223,6 +233,8 @@ async def create_discovery(
             datetime.now(timezone.utc).isoformat(),
             payload.get('photo_url'),
             source,
+            api_lat,
+            api_lng,
         ))
         conn.commit()
         submission_id = cursor.lastrowid
@@ -732,6 +744,19 @@ async def submit_discovery(payload: dict, request: Request, session: Optional[st
             if m_row:
                 moon_name = m_row['name']
 
+        # Surface coordinates — only meaningful for planet/moon discoveries.
+        # Normalize + range-check, null them for space discoveries, and write
+        # the cleaned values back into the payload blob so the approval path
+        # (which reads from discovery_data) promotes the validated values.
+        location_type = payload.get('location_type') or 'space'
+        latitude, longitude = normalize_discovery_coords(
+            payload.get('latitude'), payload.get('longitude')
+        )
+        if location_type == 'space':
+            latitude, longitude = None, None
+        payload['latitude'] = latitude
+        payload['longitude'] = longitude
+
         # Store entire payload as JSON
         discovery_data = json.dumps(payload)
 
@@ -741,8 +766,8 @@ async def submit_discovery(payload: dict, request: Request, session: Optional[st
                 system_id, system_name, planet_name, moon_name, location_type,
                 discord_tag, submitted_by, submitted_by_ip,
                 submitter_account_id, submitter_account_type, submitter_profile_id,
-                submission_date, photo_url, source, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                submission_date, photo_url, source, latitude, longitude, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
         ''', (
             discovery_data,
             discovery_name,
@@ -752,7 +777,7 @@ async def submit_discovery(payload: dict, request: Request, session: Optional[st
             system_name,
             planet_name,
             moon_name,
-            payload.get('location_type') or 'space',
+            location_type,
             discord_tag,
             discord_username,
             client_ip,
@@ -762,6 +787,8 @@ async def submit_discovery(payload: dict, request: Request, session: Optional[st
             datetime.now(timezone.utc).isoformat(),
             payload.get('photo_url'),
             SOURCE_MANUAL,
+            latitude,
+            longitude,
         ))
         conn.commit()
         submission_id = cursor.lastrowid
@@ -815,6 +842,7 @@ async def get_pending_discoveries(session: Optional[str] = Cookie(None)):
         select_cols = '''
             id, discovery_name, discovery_type, type_slug,
             system_name, planet_name, moon_name, location_type,
+            latitude, longitude,
             discord_tag, submitted_by, submission_date, photo_url,
             status, reviewed_by, review_date, rejection_reason,
             submitter_account_id, submitter_account_type
@@ -986,6 +1014,16 @@ async def approve_discovery(submission_id: int, session: Optional[str] = Cookie(
         type_metadata_raw = discovery_data.get('type_metadata')
         type_metadata_json = json.dumps(type_metadata_raw) if type_metadata_raw and isinstance(type_metadata_raw, dict) else None
 
+        # Surface coordinates — prefer the dedicated pending columns, fall back
+        # to the JSON blob (covers rows queued before the columns existed).
+        location_type = discovery_data.get('location_type') or 'space'
+        latitude, longitude = normalize_discovery_coords(
+            submission.get('latitude') if submission.get('latitude') is not None else discovery_data.get('latitude'),
+            submission.get('longitude') if submission.get('longitude') is not None else discovery_data.get('longitude'),
+        )
+        if location_type == 'space':
+            latitude, longitude = None, None
+
         cursor.execute('''
             INSERT INTO discoveries (
                 discovery_type, discovery_name, system_id, planet_id, moon_id,
@@ -993,15 +1031,16 @@ async def approve_discovery(submission_id: int, session: Optional[str] = Cookie(
                 discovered_by, submission_timestamp,
                 mystery_tier, analysis_status, pattern_matches,
                 discord_user_id, discord_guild_id,
-                photo_url, evidence_url, type_slug, discord_tag, type_metadata, profile_id, source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                photo_url, evidence_url, type_slug, discord_tag, type_metadata, profile_id, source,
+                latitude, longitude
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             discovery_type,
             discovery_name,
             discovery_data.get('system_id'),
             discovery_data.get('planet_id'),
             discovery_data.get('moon_id'),
-            discovery_data.get('location_type') or 'space',
+            location_type,
             discovery_data.get('location_name') or '',
             discovery_data.get('description') or '',
             discovery_data.get('significance') or 'Notable',
@@ -1019,6 +1058,8 @@ async def approve_discovery(submission_id: int, session: Optional[str] = Cookie(
             type_metadata_json,
             submission.get('submitter_profile_id'),
             submission.get('source') or SOURCE_MANUAL,
+            latitude,
+            longitude,
         ))
         discovery_id = cursor.lastrowid
 

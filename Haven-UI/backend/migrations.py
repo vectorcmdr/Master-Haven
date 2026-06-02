@@ -6516,3 +6516,27 @@ def migration_1_84_0(conn):
         updated += 1
 
     logger.info(f"Migration 1.84.0: role-aware re-sync of enabled_features for {updated} profiles with active civ memberships")
+
+
+@register_migration("1.85.0", "Add latitude/longitude columns to discoveries + pending_discoveries")
+def migration_1_85_0(conn):
+    """Discoveries can now carry a precise surface coordinate (the lat/long
+    NMS shows in the analysis visor) in addition to the existing free-text
+    location_name and the planet/moon FK links.
+
+    Two nullable REAL columns on each of the live `discoveries` table and the
+    `pending_discoveries` queue. Only meaningful for planet/moon discoveries
+    (space discoveries leave them NULL). No backfill — existing rows stay NULL.
+
+    Idempotent: each ADD COLUMN is column-presence guarded.
+    """
+    cursor = conn.cursor()
+    for table in ('discoveries', 'pending_discoveries'):
+        cursor.execute(f"PRAGMA table_info({table})")
+        cols = {row[1] for row in cursor.fetchall()}
+        for col in ('latitude', 'longitude'):
+            if col not in cols:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} REAL")
+                logger.info(f"Migration 1.85.0: added {table}.{col} column")
+            else:
+                logger.info(f"Migration 1.85.0: {table}.{col} already present")

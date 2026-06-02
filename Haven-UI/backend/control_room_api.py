@@ -2284,9 +2284,9 @@ async def get_system(system_id: str, session: Optional[str] = Cookie(None)):
                 cursor.execute("""
                     SELECT d.id, d.discovery_name, d.discovery_type, d.type_slug,
                            d.description, d.discovered_by, d.discord_tag,
-                           d.submission_timestamp, d.photos, d.featured,
+                           d.submission_timestamp, d.photo_url AS photos, d.is_featured AS featured,
                            d.view_count, d.type_metadata, d.location_name,
-                           d.location_type, d.planet_id, d.moon_id,
+                           d.location_type, d.latitude, d.longitude, d.planet_id, d.moon_id,
                            p.name AS planet_name,
                            m.name AS moon_name
                     FROM discoveries d
@@ -2301,7 +2301,7 @@ async def get_system(system_id: str, session: Optional[str] = Cookie(None)):
                 for row in discoveries_rows:
                     d_dict = dict(row)
                     # Parse JSON-ish fields so the frontend doesn't have to
-                    for json_field in ('photos', 'type_metadata'):
+                    for json_field in ('type_metadata',):
                         raw = d_dict.get(json_field)
                         if isinstance(raw, str) and raw:
                             try:
@@ -3409,7 +3409,9 @@ async def get_map():
     2. Data is pre-aggregated by region on the server
     3. Map only loads summary data, not individual systems
     """
-    mapfile = HAVEN_UI_DIR / 'dist' / 'VH-Map-ThreeJS.html'
+    mapfile = HAVEN_UI_DIR / 'dist' / 'VH-Cartographer.html'
+    if not mapfile.exists():
+        mapfile = HAVEN_UI_DIR / 'public' / 'VH-Cartographer.html'
 
     if not mapfile.exists():
         return HTMLResponse('<h1>Map Not Available</h1>')

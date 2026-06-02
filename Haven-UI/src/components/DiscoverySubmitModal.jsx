@@ -3,6 +3,7 @@ import Modal from './Modal'
 import Button from './Button'
 import FormField from './FormField'
 import GlyphPicker from './GlyphPicker'
+import LatLngInput, { coordToFloat } from './LatLngInput'
 import { TYPE_INFO } from '../data/discoveryTypes'
 import { AuthContext } from '../utils/AuthContext'
 
@@ -84,6 +85,8 @@ export default function DiscoverySubmitModal({ isOpen, onClose, onSuccess }) {
     moon_id: '',
     location_type: 'planet',
     location_name: '',
+    latitude: '',
+    longitude: '',
     discord_username: '',
     discord_tag: '',
     evidence_urls: ''
@@ -130,6 +133,8 @@ export default function DiscoverySubmitModal({ isOpen, onClose, onSuccess }) {
         moon_id: '',
         location_type: 'planet',
         location_name: '',
+        latitude: '',
+        longitude: '',
         discord_username: user?.username || '',
         discord_tag: user?.defaultCivTag || '',
         evidence_urls: ''
@@ -364,6 +369,8 @@ export default function DiscoverySubmitModal({ isOpen, onClose, onSuccess }) {
         moon_id: form.moon_id ? parseInt(form.moon_id) : null,
         location_type: form.location_type,
         location_name: form.location_name.trim() || null,
+        latitude: form.location_type === 'space' ? null : coordToFloat(form.latitude),
+        longitude: form.location_type === 'space' ? null : coordToFloat(form.longitude),
         discord_username: form.discord_username.trim(),
         discord_tag: form.discord_tag,
         photo_url: primaryPhoto || null,
@@ -661,14 +668,24 @@ export default function DiscoverySubmitModal({ isOpen, onClose, onSuccess }) {
               )}
 
               {form.location_type !== 'space' && !isStubSystem && (
-                <FormField label="Specific Location" hint="Optional: coordinates, landmark, etc.">
+                <FormField label="Specific Location" hint="Optional: landmark, point of interest, etc.">
                   <input
                     type="text"
                     className="w-full p-2 rounded"
                     style={{ backgroundColor: 'var(--app-bg)', border: '1px solid var(--app-accent-3)' }}
                     value={form.location_name}
                     onChange={e => setField('location_name', e.target.value)}
-                    placeholder="e.g., Trading Post, Near portal, Coordinates +45.2, -12.8"
+                    placeholder="e.g., Trading Post, Near portal, abandoned building"
+                  />
+                </FormField>
+              )}
+
+              {form.location_type !== 'space' && (
+                <FormField label="Surface Coordinates">
+                  <LatLngInput
+                    latitude={form.latitude}
+                    longitude={form.longitude}
+                    onChange={(lat, lng) => setForm(f => ({ ...f, latitude: lat, longitude: lng }))}
                   />
                 </FormField>
               )}

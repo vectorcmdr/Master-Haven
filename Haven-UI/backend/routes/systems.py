@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import re
@@ -383,6 +384,31 @@ async def api_map_regions_aggregated(
 # integration dispatch — see docs/cartographer-integration-notes.md.
 _SNAPSHOT_CACHE: dict = {}
 
+
+def _spread_star(rx: int, ry: int, rz: int, sss: int) -> tuple:
+    """Deterministic intra-region spread — mirrors glyph_decoder.calculate_star_position_in_region.
+
+    Systems within the same NMS region share identical (x, y, z) glyph coordinates.
+    The SSS (solar system index) has no spatial meaning, so we hash it against the
+    region address to spread systems WITHIN their own voxel.
+
+    TRUE SCALE: world unit = 1 region voxel (= ~400 ly in NMS). A region is a
+    single 400 ly cube, so its systems must stay inside ±0.5 voxel — otherwise
+    they smear across neighbouring regions and destroy all spatial locality.
+    (The previous ±64-voxel spread was ~128× too large: it scattered one
+    region's systems across ~25,600 ly of space.) We use ±0.45 so stars fill
+    the voxel without sitting exactly on its faces.
+    """
+    h = hashlib.sha256(f"NMS:{rx}:{ry}:{rz}:{sss}".encode()).digest()
+    ox = (int.from_bytes(h[0:4], 'big') / 0xFFFFFFFF - 0.5) * 0.9
+    oy = (int.from_bytes(h[4:8], 'big') / 0xFFFFFFFF - 0.5) * 0.9
+    oz = (int.from_bytes(h[8:12], 'big') / 0xFFFFFFFF - 0.5) * 0.9
+    bx = rx if rx <= 0x7FF else rx - 0x1000
+    by = ry if ry <= 0x7F  else ry - 0x100
+    bz = rz if rz <= 0x7FF else rz - 0x1000
+    return bx + ox, by + oy, bz + oz
+
+
 # Canonical star-type order — matches the mockup's `star_types` pool and the
 # in-page legend / shader palette. NULL or unmapped star types fall into an
 # 'Unknown' bucket appended on demand so unscanned systems still render.
@@ -450,12 +476,17 @@ async def api_map_snapshot(reality: str = None, galaxy: str = None):
             where.append("s.galaxy = ?")
             params.append(galaxy)
         where.append(archived_civ_filter('s'))
+        where.append("s.glyph_code IS NOT NULL AND LENGTH(s.glyph_code) = 12")
         where_sql = " AND ".join(where)
 
         # --- Systems in stable id order. The row position IS the snapshot
         #     index that every per-system array and planets_by_idx key uses. ---
         cursor.execute(f"""
-            SELECT s.id, s.name, s.x, s.y, s.z, s.star_type, s.discord_tag,
+            SELECT s.id,
+                   COALESCE(NULLIF(TRIM(s.name), ''),
+                            NULLIF(TRIM(s.description), ''),
+                            'System ' || s.glyph_code) AS name,
+                   s.x, s.y, s.z, s.star_type, s.discord_tag,
                    s.glyph_code, s.region_x, s.region_y, s.region_z
             FROM systems s
             WHERE {where_sql}
@@ -491,9 +522,19 @@ async def api_map_snapshot(reality: str = None, galaxy: str = None):
         for i, s in enumerate(systems):
             sid = s['id']
             id_to_idx[sid] = i
-            positions[i * 3]     = s['x'] or 0.0
-            positions[i * 3 + 1] = s['y'] or 0.0
-            positions[i * 3 + 2] = s['z'] or 0.0
+            glyph = s['glyph_code'] or ''
+            rx = s['region_x']
+            if len(glyph) == 12 and rx is not None:
+                # Spread systems within their region using the same deterministic
+                # hash as glyph_decoder.calculate_star_position_in_region so every
+                # system has a unique visible position when the camera zooms in.
+                sss = int(glyph[1:4], 16)
+                px, py, pz = _spread_star(rx, s['region_y'] or 0, s['region_z'] or 0, sss)
+            else:
+                px, py, pz = (s['x'] or 0.0), (s['y'] or 0.0), (s['z'] or 0.0)
+            positions[i * 3]     = px
+            positions[i * 3 + 1] = py
+            positions[i * 3 + 2] = pz
 
             stype = s['star_type']
             if stype in star_index:

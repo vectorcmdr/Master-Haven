@@ -4,6 +4,7 @@ import Button from '../Button'
 import Modal from '../Modal'
 import { TYPE_INFO } from '../../data/discoveryTypes'
 import { getPhotoUrl, getThumbnailUrl } from '../../utils/api'
+import { formatCoords } from '../LatLngInput'
 
 /**
  * DiscoveryApprovalTab - Discovery submission approval content
@@ -331,6 +332,16 @@ export default function DiscoveryApprovalTab({
                 {selectedDiscoveryApproval.moon_name && (
                   <p><strong>Moon:</strong> {selectedDiscoveryApproval.moon_name}</p>
                 )}
+                {(selectedDiscoveryApproval.location_name || selectedDiscoveryApproval.discovery_data?.location_name) && (
+                  <p><strong>Specific Location:</strong> {selectedDiscoveryApproval.location_name || selectedDiscoveryApproval.discovery_data?.location_name}</p>
+                )}
+                {(() => {
+                  const coords = formatCoords(
+                    selectedDiscoveryApproval.latitude ?? selectedDiscoveryApproval.discovery_data?.latitude,
+                    selectedDiscoveryApproval.longitude ?? selectedDiscoveryApproval.discovery_data?.longitude,
+                  )
+                  return coords ? <p><strong>Surface Coords:</strong> <span className="font-mono">{coords}</span> <span className="text-gray-500">(lat, long)</span></p> : null
+                })()}
               </div>
             </div>
 

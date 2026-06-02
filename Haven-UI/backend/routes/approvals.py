@@ -18,6 +18,7 @@ from constants import (
     GALAXY_BY_INDEX,
     resolve_source,
     get_discovery_type_slug,
+    normalize_discovery_coords,
 )
 from db import (
     get_db_path,
@@ -124,6 +125,12 @@ def _sanitize_discoveries_draft(raw) -> tuple[Optional[list], Optional[str]]:
         type_metadata = entry.get('type_metadata')
         if type_metadata is not None and not isinstance(type_metadata, dict):
             return None, f"discoveries_draft[{i}].type_metadata must be an object"
+        # Surface coordinates — normalized/range-checked, nulled for space.
+        latitude, longitude = normalize_discovery_coords(
+            entry.get('latitude'), entry.get('longitude')
+        )
+        if loc == 'space':
+            latitude, longitude = None, None
         out.append({
             'discovery_name': dname[:200],
             'discovery_type': dtype[:50],
@@ -132,6 +139,8 @@ def _sanitize_discoveries_draft(raw) -> tuple[Optional[list], Optional[str]]:
             'moon_name': moon_name,
             'location_type': loc,
             'location_name': (entry.get('location_name') or '') or None,
+            'latitude': latitude,
+            'longitude': longitude,
             'photo_url': entry.get('photo_url') or None,
             'evidence_urls': entry.get('evidence_urls') or None,
             'type_metadata': type_metadata if type_metadata else None,
@@ -266,6 +275,15 @@ def _promote_draft_discoveries(cursor, system_id, submission, current_username,
             # handful of other columns) — coalesce to empty string here so a
             # draft with no description doesn't trip the constraint and get
             # silently swallowed by the outer try/except (Parker 2026-05-13).
+            # Surface coordinates (sanitizer already range-checked + nulled
+            # for space; re-normalize defensively in case an unsanitized
+            # legacy draft blob is replayed).
+            d_lat, d_lng = normalize_discovery_coords(
+                entry.get('latitude'), entry.get('longitude')
+            )
+            if loc == 'space':
+                d_lat, d_lng = None, None
+
             cursor.execute('''
                 INSERT INTO discoveries (
                     discovery_type, discovery_name, system_id, planet_id, moon_id,
@@ -274,8 +292,8 @@ def _promote_draft_discoveries(cursor, system_id, submission, current_username,
                     mystery_tier, analysis_status, pattern_matches,
                     discord_user_id, discord_guild_id,
                     photo_url, evidence_url, type_slug, discord_tag, type_metadata,
-                    profile_id, source
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    profile_id, source, latitude, longitude
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 entry.get('discovery_type') or 'Unknown',
                 entry.get('discovery_name'),
@@ -300,6 +318,8 @@ def _promote_draft_discoveries(cursor, system_id, submission, current_username,
                 type_metadata_json,
                 profile_id,
                 source,
+                d_lat,
+                d_lng,
             ))
             discovery_id = cursor.lastrowid
             promoted += 1

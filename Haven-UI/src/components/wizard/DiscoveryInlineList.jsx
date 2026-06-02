@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Button from '../Button'
 import PhotoUploader from './PhotoUploader'
 import LocationTypePicker from './LocationTypePicker'
+import LatLngInput from '../LatLngInput'
 import HelpChip from './HelpChip'
 import { TYPE_INFO } from '../../data/discoveryTypes'
 import {
@@ -46,6 +47,8 @@ const EMPTY_DISCOVERY = {
   planet_id: null,
   moon_id: null,
   location_name: '',
+  latitude: '',
+  longitude: '',
   type_metadata: {},
   evidence_urls: '',
   game_version: '',
@@ -289,6 +292,15 @@ function DiscoveryCard({
               onChange={(e) => onChange({ location_name: e.target.value })}
               placeholder="Specific location (optional, e.g. 'near the trading post')"
             />
+            {discovery.location_type !== 'space' && (
+              <div className="mt-2">
+                <LatLngInput
+                  latitude={discovery.latitude}
+                  longitude={discovery.longitude}
+                  onChange={(lat, lng) => onChange({ latitude: lat, longitude: lng })}
+                />
+              </div>
+            )}
           </div>
 
           {/* Type-specific metadata fields */}

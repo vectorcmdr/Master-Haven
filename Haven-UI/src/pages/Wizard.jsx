@@ -847,6 +847,14 @@ export default function Wizard() {
       .split('\n').map((s) => s.trim()).filter(Boolean)
     const allEvidence = [...photos.slice(1).map((p) => p.path), ...externalUrls]
 
+    // Surface coordinates — float-or-null, nulled for space discoveries.
+    const toCoord = (v) => {
+      if (v === '' || v == null) return null
+      const f = parseFloat(v)
+      return Number.isNaN(f) ? null : f
+    }
+    const isSpace = (d.location_type || 'planet') === 'space'
+
     return {
       discovery_name: d.discovery_name.trim(),
       discovery_type: d.discovery_type,
@@ -855,6 +863,8 @@ export default function Wizard() {
       moon_name,
       location_type: d.location_type || 'planet',
       location_name: d.location_name?.trim() || null,
+      latitude: isSpace ? null : toCoord(d.latitude),
+      longitude: isSpace ? null : toCoord(d.longitude),
       photo_url: photoUrl,
       evidence_urls: allEvidence.length ? allEvidence.join(',') : null,
       type_metadata: d.type_metadata && Object.keys(d.type_metadata).length ? d.type_metadata : null,

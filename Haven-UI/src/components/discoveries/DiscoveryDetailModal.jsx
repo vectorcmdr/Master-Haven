@@ -4,6 +4,7 @@ import { XMarkIcon, StarIcon, MapPinIcon, CalendarIcon, UserIcon } from '@heroic
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { AuthContext } from '../../utils/AuthContext'
 import { getPhotoUrl, getThumbnailUrl } from '../../utils/api'
+import { formatCoords } from '../LatLngInput'
 
 /**
  * Renders a full-screen modal with hero image, photo gallery, location links,
@@ -70,10 +71,13 @@ export default function DiscoveryDetailModal({
     system_is_stub,
     location_type,
     location_name,
+    latitude,
+    longitude,
     type_metadata,
     is_featured,
     view_count,
   } = discovery
+  const coordText = formatCoords(latitude, longitude)
 
   const mainPhoto = getPhotoUrl(photo_url)
   const evidencePhotos = parseEvidenceUrls(evidence_url)
@@ -255,6 +259,13 @@ export default function DiscoveryDetailModal({
                 </span>
               )}
             </div>
+            {coordText && (
+              <div className="mt-2 flex items-center gap-1.5 text-sm text-gray-300">
+                <MapPinIcon className="w-4 h-4 text-cyan-400" />
+                <span className="font-mono">{coordText}</span>
+                <span className="text-gray-500 text-xs">lat, long</span>
+              </div>
+            )}
           </div>
 
           {/* Type Details (metadata) */}

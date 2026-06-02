@@ -152,6 +152,9 @@ NMS-Save-Watcher/logs/
 # Be specific to avoid excluding required data files
 Haven-UI/data/*.db
 Haven-UI/data/*.db.backup
+Haven-UI/data/*.db.old
+Haven-UI/data/*.db.corrupted
+Haven-UI/data/.fuse_hidden*
 Haven-UI/data/backups/
 Haven-UI/data/data.json
 Haven-UI/backend/data/*.db
@@ -6345,3 +6348,6 @@ SkyScraper/watch/config.env
 SkyScraper/watch/state.json
 SkyScraper/watch/discourse_priv.pem
 AUDIT_REPORT_2026-05-21.md
+concept_c.html
+concept_a.html
+concept_b.html

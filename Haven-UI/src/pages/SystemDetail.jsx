@@ -36,6 +36,7 @@ import { AuthContext } from '../utils/AuthContext'
 import { getThumbnailUrl, getPhotoUrl } from '../utils/api'
 import { getFaunaColor, getFloraColor, getSentinelColor } from '../utils/adjectiveColors'
 import Lightbox from '../components/Lightbox'
+import { formatCoords } from '../components/LatLngInput'
 import FromMapBanner from '../components/FromMapBanner'
 import ActivityFeed from '../components/ActivityFeed'
 import PlanetSphere from '../components/shared/PlanetSphere'
@@ -1153,6 +1154,9 @@ function SystemDiscoveriesList({ discoveries }) {
                   {d.discovery_type && (
                     <span className="ml-1.5 text-[10px]" style={{ color: 'var(--muted)' }}>· {d.discovery_type}</span>
                   )}
+                  {formatCoords(d.latitude, d.longitude) && (
+                    <span className="ml-1.5 text-[10px] font-mono" style={{ color: 'var(--muted)' }}>📍 {formatCoords(d.latitude, d.longitude)}</span>
+                  )}
                 </Link>
               ))}
             </div>
@@ -1183,6 +1187,9 @@ function DiscoveryGroup({ label, sublabel, icon, items }) {
             <span className="font-medium">{d.discovery_name}</span>
             {d.discovery_type && (
               <span className="ml-1.5 text-[10px]" style={{ color: 'var(--muted)' }}>· {d.discovery_type}</span>
+            )}
+            {formatCoords(d.latitude, d.longitude) && (
+              <span className="ml-1.5 text-[10px] font-mono" style={{ color: 'var(--muted)' }}>📍 {formatCoords(d.latitude, d.longitude)}</span>
             )}
             {d.featured && <span className="ml-1.5">★</span>}
           </Link>

@@ -105,6 +105,20 @@ if _ng is not None:
 else:
     NMS_NAMEGEN_AVAILABLE = False
 
+# Pure data-transform layer (no pymhf/nmspy deps) - galaxy resolution + payload build.
+# Kept in a separate import-safe module so the data handling can be smoke-tested
+# outside the game. See extraction_core.py.
+try:
+    from .extraction_core import (
+        decide_galaxy, build_planet_entry, build_planet_list,
+        build_system_payload, galaxy_is_known,
+    )
+except ImportError:
+    from extraction_core import (
+        decide_galaxy, build_planet_entry, build_planet_list,
+        build_system_payload, galaxy_is_known,
+    )
+
 # =============================================================================
 # API CONFIGURATION
 # =============================================================================
@@ -391,7 +405,7 @@ class ConflictDataOffsets:
 # GcPlanetGenerationInputData offsets (size 0x53 per planet = 83 bytes)
 class PlanetGenInputOffsets:
     """Offsets within GcPlanetGenerationInputData struct."""
-    STRUCT_SIZE = 0x53            # Size of each planet gen input entry (83 bytes verified from nmspy)
+    STRUCT_SIZE = 0x58            # Size of each planet gen input entry (88 bytes; array spans 0x1EA0..0x2160 = 0x2C0 / 8 = 0x58 per nmspy cGcSolarSystemData). Prior 0x53 mis-strided slots 1-5.
     COMMON_SUBSTANCE = 0x00       # NMSString0x10
     RARE_SUBSTANCE = 0x10         # NMSString0x10
     SEED = 0x20                   # GcSeed
@@ -888,7 +902,7 @@ GAME_MODE_TO_DIFFICULTY_INDEX = {
 
 class HavenExtractorMod(Mod):
     __author__ = "Voyagers Haven"
-    __version__ = "1.9.8"
+    __version__ = "1.10.1"
     __description__ = "Fixes a long-standing config bug where pymhf's DearPyGUI sometimes round-tripped the RealityMode / CommunityTag enum gui_variables back as their Python repr string (\"RealityMode.Normal\") instead of as enum instances. The old setter fallback `str(value)` persisted that bad string verbatim into config.json and into every submission's `reality` field, which produced a phantom \"RealityMode.Normal\" reality on the Haven dashboard (50 prod rows as of 2026-05-12). Adds `_normalize_reality()` / `_normalize_community_tag()` helpers, applies them in both setters, and scrubs the values at module-init when loading config.json so any pre-existing bad config self-heals."
 
     # ==========================================================================
@@ -1495,184 +1509,89 @@ class HavenExtractorMod(Mod):
     # =========================================================================
 
     def _save_current_system_to_batch(self, force_update=False):
+        """Freeze the current system into the batch as an immutable payload dict.
+
+        v1.10.0: This is now a PURE freeze of data already captured WHILE THE SYSTEM WAS
+        LIVE. It reads NOTHING from game memory. The three live accumulators —
+        _current_system_snapshot (system props), _current_system_coords (glyph/galaxy/
+        region/name) and _captured_planets (per-planet data) — are all populated by the
+        Generate / GenerateCreatureRoles hooks while the system is the active one. The
+        payload is assembled by the pure extraction_core.build_system_payload().
+
+        Why this fixes the batch data-loss bug: the old code called _auto_refresh_for_export()
+        and _get_current_coordinates() at save time. When the save ran from the NEXT warp's
+        on_system_generate, NMS had already recycled the single solar-system object, so those
+        live re-reads pulled the NEXT system's star/economy/lifeform/glyph/galaxy into the
+        outgoing system. Freezing from cache makes that impossible: a system is finalized
+        only from its own captured data, and a frozen entry can never be mutated by a later
+        warp (the smoke test asserts this).
         """
-        Save the current system's captured data to batch storage.
-        Called automatically when warping to a new system.
-        If force_update=True, updates the existing batch entry instead of skipping duplicates.
-        """
-        # Skip if batch mode disabled
         if not self._batch_mode_enabled:
             return
         if not self._captured_planets and not force_update:
             logger.debug("[BATCH] No captured planets to save")
             return
-        if not self._cached_solar_system:
-            logger.debug("[BATCH] No cached solar system to save")
+
+        coords = self._current_system_coords
+        if not coords:
+            logger.warning("[BATCH] No cached coordinates for current system - cannot freeze")
             return
 
-        # v1.6.12: Safety-net refresh. If memory still contains this system's planets,
-        # this populates flora/fauna/sentinel/weather display strings. If memory has already
-        # transitioned to a new system, the name-match inside _auto_refresh_for_export
-        # silently skips (won't corrupt anything).
         try:
-            self._auto_refresh_for_export()
-        except Exception as e:
-            logger.debug(f"[BATCH] Pre-save refresh skipped: {e}")
-
-        try:
-            # Get coordinates for the system we're leaving
-            coords = self._get_current_coordinates()
-            if not coords:
-                logger.warning("[BATCH] Could not get coordinates for batch save")
-                return
-
-            # v1.4.4: Preserve manual system name from _current_system_coords
-            # _get_current_coordinates() builds a fresh dict from memory and loses the manual name
-            if self._current_system_coords:
-                manual = self._current_system_coords.get('system_name', '')
-                if manual and not manual.startswith('System_'):
-                    coords['system_name'] = manual
-                    logger.debug(f"[BATCH] Preserving manual system name: '{manual}'")
-
-            # Check if this system is already in batch (by glyph code)
+            coords = dict(coords)  # defensive copy so later warps can't mutate the frozen entry
             glyph_code = coords.get('glyph_code', '')
-            existing_entry = None
-            for existing in self._batch_systems:
-                if existing.get('glyph_code') == glyph_code:
-                    existing_entry = existing
-                    break
 
-            if existing_entry is not None:
-                if not force_update:
-                    logger.debug(f"[BATCH] System {glyph_code} already in batch, skipping duplicate")
-                    return
-                else:
-                    # Force-update: refresh planets and system name in existing batch entry
-                    # v1.9.7: Use captured-only planets (same reason as below).
-                    existing_entry['planets'] = self._planets_from_captured()
-                    existing_entry['planet_count'] = len(existing_entry['planets'])
-                    # Update system name from coords (includes manual name if set)
-                    name = coords.get('system_name', '')
-                    if name and not name.startswith('System_'):
-                        existing_entry['system_name'] = name
-                        logger.debug(f"[BATCH] Updated system name to: '{name}'")
-                    logger.debug(f"[BATCH] Updated {glyph_code} with refreshed adjectives and name")
-                    return
+            snapshot = dict(self._current_system_snapshot) if self._current_system_snapshot else None
+            if snapshot is None:
+                logger.warning("[BATCH] No system-props snapshot for current system - star/economy/lifeform may be missing")
 
-            # v1.9.7: System-level properties come from the snapshot taken WHILE this
-            # system was live (in on_system_generate / on_creature_roles_generate /
-            # _auto_refresh_for_export). DO NOT re-read sys_data here because by save time
-            # NMS has begun populating the next system's data at the same memory pool -
-            # re-reading would pull the wrong system's lifeform/star_type/economy.
-            data_source = "captured_hook" if len(self._captured_planets) > 0 else "memory_read"
+            planets = self._planets_from_captured()
+            has_captured = len(self._captured_planets) > 0
 
-            if self._current_system_snapshot is not None:
-                # Strip private bookkeeping keys before spreading into system_data
-                sys_props = {k: v for k, v in self._current_system_snapshot.items()
-                             if not k.startswith('_')}
-                logger.info(f"[BATCH] Using snapshot for system_props (lifeform={sys_props.get('dominant_lifeform')}, star={sys_props.get('star_color')})")
-            else:
-                # Fallback: snapshot missed for some reason - re-read with the usual caveat
-                logger.warning("[BATCH] No system_props snapshot available - falling back to live sys_data read (may capture next system's data)")
-                sys_data = self._cached_solar_system.mSolarSystemData
-                sys_props = self._extract_system_properties(sys_data)
-
-            # Cache sys_data address for any code that still reads direct memory
-            # (single-extraction code paths). The batch save itself no longer relies on this.
-            try:
-                self._cached_sys_data_addr = get_addressof(self._cached_solar_system.mSolarSystemData)
-            except Exception:
-                self._cached_sys_data_addr = None
-
-            # Also cache coordinates for deterministic weather hash
-            self._cached_coords = coords
-
-            # Preserve manual system name from coords if set (takes priority over memory read)
-            manual_name = coords.get('system_name', '')
-            has_manual_name = manual_name and not manual_name.startswith('System_')
-
-            # v1.9.7: Planets come from _planets_from_captured(), NOT from re-reading
-            # cached_solar_system.maPlanets. The hook captured each planet's data
-            # (biome/size/is_moon/flora/fauna/sentinel/weather/resources/etc.) WHILE the
-            # system was active. Re-reading maPlanets at save time pulls the next system's
-            # planet names through the now-recycled memory, causing name-match failures
-            # in _extract_single_planet that drop moons and mix up planets/sizes/biomes.
-            system_data = {
-                "extraction_time": datetime.now().isoformat(),
-                "extractor_version": self.__version__,
-                "trigger": "batch_auto_save",
-                "source": "live_extraction",
-                "data_source": data_source,
-                "captured_planet_count": len(self._captured_planets),
-                "discoverer_name": "HavenExtractor",
-                "discovery_timestamp": int(datetime.now().timestamp()),
-                **sys_props,  # System properties from snapshot
-                **coords,     # Coords AFTER so manual name overwrites
-                "planets": self._planets_from_captured(),
-            }
-            system_data["planet_count"] = len(system_data["planets"])
-
-            # If we have a manual name, use it and skip other lookups
-            if has_manual_name:
-                system_data['system_name'] = manual_name
-                logger.debug(f"[BATCH] Using manual system name: '{manual_name}'")
-            # Otherwise try to get actual system name (might be populated by batch save time)
-            elif not system_data.get('system_name') or system_data['system_name'].startswith('System_'):
-                # Try reading from Name field (might be populated now)
-                actual_name = self._get_actual_system_name()
-                if actual_name:
-                    system_data['system_name'] = actual_name
-                    logger.debug(f"[BATCH] Got actual system name: '{actual_name}'")
-                else:
-                    # Try game state notification string
-                    try:
-                        game_state = gameData.game_state
-                        if game_state:
-                            gs_addr = get_addressof(game_state)
-                            if gs_addr:
-                                notif = self._read_string(gs_addr, 0x38, max_len=256)
-                                if notif:
-                                    match = re.match(r"In the (.+) system", notif)
-                                    if match:
-                                        system_data['system_name'] = match.group(1).strip()
-                                        logger.debug(f"[BATCH] Got name from game state: '{system_data['system_name']}'")
-                    except Exception:
-                        pass
-
-            # Always compute the procgen name — used as fallback AND preserved in description
-            # whenever the user overrides with a custom name (renamed systems).
+            # Procedural name (pure namegen, no game memory). galaxy_index may be None when the
+            # galaxy is still unknown - use 0 only as a naming seed (the system won't upload
+            # until the galaxy resolves; see the export hard-stop).
             procgen_name = self._generate_system_name(
-                glyph_code, coords.get('galaxy_index', 0),
+                glyph_code, coords.get('galaxy_index') or 0,
                 system_idx=coords.get('solar_system_index'),
                 x=coords.get('voxel_x'), y=coords.get('voxel_y'), z=coords.get('voxel_z')
             )
-            system_data['procedural_name'] = procgen_name
 
-            # Use procedural name as fallback if system_name is still empty
-            if not system_data.get('system_name') or system_data['system_name'].startswith('System_'):
-                system_data['system_name'] = procgen_name
+            system_data = build_system_payload(
+                snapshot=snapshot,
+                coords=coords,
+                planets=planets,
+                extractor_version=self.__version__,
+                procedural_name=procgen_name,
+                has_captured=has_captured,
+                now_iso=datetime.now().isoformat(),
+                now_ts=int(datetime.now().timestamp()),
+            )
 
-            # Whenever the final name differs from procgen (GUI custom name, in-game rename
-            # read from memory, or game-state notification string), stash the procgen name
-            # in description so the canonical name isn't lost on the archive side.
-            final_name = system_data.get('system_name', '')
-            if procgen_name and final_name and final_name != procgen_name:
-                existing_desc = system_data.get('description', '') or ''
-                marker = f"Procedural name: {procgen_name}"
-                if marker not in existing_desc:
-                    system_data['description'] = (existing_desc + ("\n" if existing_desc else "") + marker).strip()
-                if has_manual_name or coords.get('custom_name_applied'):
-                    system_data['custom_name_applied'] = True
+            # Dedup by glyph. force_update replaces the existing frozen entry in place.
+            existing_index = None
+            for i, existing in enumerate(self._batch_systems):
+                if existing.get('glyph_code') == glyph_code:
+                    existing_index = i
+                    break
 
-            # Add to batch
-            self._batch_systems.append(system_data)
+            if existing_index is not None:
+                existing = self._batch_systems[existing_index]
+                # Skip a true duplicate, BUT always refresh an entry whose galaxy was still
+                # unknown when it was first frozen — a re-warp may now resolve it.
+                if not force_update and galaxy_is_known(existing):
+                    logger.debug(f"[BATCH] System {glyph_code} already in batch, skipping duplicate")
+                    return
+                self._batch_systems[existing_index] = system_data
+                logger.debug(f"[BATCH] Updated frozen entry for {glyph_code}")
+            else:
+                self._batch_systems.append(system_data)
 
-            # Clean summary block
             self._log_system_summary(system_data)
             self._status_display = f"Batch: {len(self._batch_systems)} system(s)"
 
         except Exception as e:
-            logger.error(f"[BATCH] Failed to save system to batch: {e}")
+            logger.error(f"[BATCH] Failed to freeze system to batch: {e}")
             import traceback
             logger.error(traceback.format_exc())
 
@@ -2694,11 +2613,37 @@ class HavenExtractorMod(Mod):
             logger.error(f"[EXPORT] Try warping to another system and back, then retry. If it persists, check extractor logs for coord errors.")
             for bad in bad_glyph_systems:
                 logger.error(f"[EXPORT]   Dropping: {bad.get('system_name', '?')} (glyph: '{bad.get('glyph_code', '')}')")
+            # Drop bad-glyph entries from the persistent batch too — a 000000000000 glyph
+            # never dedup-matches a real re-warp, so leaving them in would leak forever.
+            _bad_ids = {id(s) for s in bad_glyph_systems}
+            self._batch_systems[:] = [s for s in self._batch_systems if id(s) not in _bad_ids]
             systems_to_export = [s for s in systems_to_export
                                  if s.get('glyph_code') and s.get('glyph_code') != '000000000000']
             total_systems = len(systems_to_export)
             if total_systems == 0:
                 logger.error("[EXPORT] No valid systems remain after filtering — aborting.")
+                return
+
+        # Hard stop: HOLD systems whose galaxy could not be resolved. The backend defaults a
+        # missing galaxy to Euclid, so uploading a galaxy-unknown system would silently
+        # mislabel it. Holding it (not uploading) is the only place this can be prevented.
+        # _held_systems survives the post-upload batch cleanup so the user can re-export
+        # once the galaxy resolves (warp out/in).
+        galaxy_unknown_systems = [s for s in systems_to_export if not galaxy_is_known(s)]
+        self._held_systems = list(galaxy_unknown_systems)
+        if galaxy_unknown_systems:
+            n_held = len(galaxy_unknown_systems)
+            logger.error(f"[EXPORT] HELD: {n_held} system(s) have an unresolved galaxy — NOT uploading them as Euclid.")
+            logger.error(f"[EXPORT] Warp out and back into each, or move around the system so NMS populates the galaxy, then re-export.")
+            for held in galaxy_unknown_systems:
+                logger.error(f"[EXPORT]   Holding: {held.get('system_name', '?')} (glyph: {held.get('glyph_code', '')})")
+            # Make the hold OBVIOUS in the GUI Status field — never a silent disappearance.
+            self._status_display = f"HELD {n_held}: galaxy unknown - re-warp & re-export (NOT uploaded)"
+            held_glyphs = {id(s) for s in galaxy_unknown_systems}
+            systems_to_export = [s for s in systems_to_export if id(s) not in held_glyphs]
+            total_systems = len(systems_to_export)
+            if total_systems == 0:
+                logger.error("[EXPORT] No systems with a known galaxy remain — held systems stay in the batch for re-export.")
                 return
 
         # Step 1: Pre-flight duplicate check
@@ -2839,8 +2784,18 @@ class HavenExtractorMod(Mod):
         # Submit procedural region names for any new regions
         if results["submitted"] > 0:
             self._submit_region_names(systems)
-            self._batch_systems.clear()
-            logger.info("Batch cleared. Submissions pending admin review.")
+            # Keep ONLY held-back entries (galaxy still unknown) so they survive for a later
+            # re-export; everything that was a candidate this run (uploaded / charted / failed)
+            # is dropped, matching the prior clear-on-submit behaviour.
+            held = list(getattr(self, '_held_systems', []))
+            self._batch_systems[:] = held
+            if held:
+                logger.info(f"Uploaded systems cleared; {len(held)} held system(s) remain (resolve their galaxy and re-export).")
+                # Keep the hold visible in the GUI even when some systems uploaded fine.
+                if results["failed"] == 0:
+                    self._status_display = f"Uploaded {results['submitted']}; HELD {len(held)} (galaxy unknown)"
+            else:
+                logger.info("Batch cleared. Submissions pending admin review.")
         logger.info("")
 
     def _submit_region_names(self, systems: list):
@@ -3266,62 +3221,28 @@ class HavenExtractorMod(Mod):
             logger.warning(f"  [SNAPSHOT] system_props snapshot failed: {e}")
 
     def _planet_from_captured(self, captured: dict, index: int) -> dict:
-        """v1.9.7: Build a planet result dict from captured hook data only.
+        """Build one planet payload entry from captured hook data only.
 
-        Used in batch mode where reading from cached_solar_system.maPlanets[i] returns
-        the NEXT system's planet data (memory recycled). Captured data was gathered while
-        the actual system was active in memory, so it's authoritative for the batched
-        system's planets.
-
-        Mirrors the shape produced by _extract_single_planet for the fields Haven UI cares
-        about. Fields we don't have in captured (planet_seed, has_rings, late-bound
-        extraction-time flags) are omitted - the backend treats missing fields as
-        unknown/null, which is honest given we couldn't read them with a fresh system.
+        Thin wrapper over the pure extraction_core.build_planet_entry() (which the smoke
+        test exercises directly). Captured data was gathered while the system was active in
+        memory, so it's authoritative for the batched system's planets; no live read here.
+        Resource translation, hidden-substance fix and plant-resource derivation are carried
+        over verbatim by the core function.
         """
-        result = {
-            "planet_index": index,
-            "planet_name": captured.get('planet_name') or f"Planet_{index + 1}",
-            "biome": captured.get('biome', 'Unknown'),
-            "biome_subtype": captured.get('biome_subtype', 'Unknown'),
-            "weather": captured.get('weather', 'Unknown'),
-            "sentinel_level": captured.get('sentinel', 'Unknown'),
-            "flora_level": captured.get('flora', 'Unknown'),
-            "fauna_level": captured.get('fauna', 'Unknown'),
-            "common_resource": captured.get('common_resource', '') or 'Unknown',
-            "uncommon_resource": captured.get('uncommon_resource', '') or 'Unknown',
-            "rare_resource": captured.get('rare_resource', '') or 'Unknown',
-            "is_moon": bool(captured.get('is_moon', False)),
-            "planet_size": captured.get('planet_size', 'Unknown'),
-        }
-        # Optional flags set during hook processing - only include if truthy
-        for flag in ("ancient_bones", "salvageable_scrap", "storm_crystals",
-                     "gravitino_balls", "vile_brood", "infested"):
-            if captured.get(flag):
-                result[flag] = captured[flag]
-        # Translate resource names from internal IDs to display strings
-        for res_key in ("common_resource", "uncommon_resource", "rare_resource"):
-            val = result.get(res_key)
-            if val and val != "Unknown":
-                result[res_key] = translate_resource(val)
-        # Hidden substance fix (matches _extract_single_planet behavior)
-        for res_key in ("common_resource", "uncommon_resource", "rare_resource"):
-            if result[res_key] in HIDDEN_SUBSTANCE_NAMES or result[res_key] in HIDDEN_SUBSTANCE_IDS:
-                result[res_key] = "Rusted Metal"
-        # Derive plant_resource from biome (only if flora > 0)
-        biome = result.get("biome", "Unknown")
-        biome_subtype = result.get("biome_subtype", "Unknown")
-        plant_resource = BIOME_SUBTYPE_PLANT_OVERRIDE.get(biome_subtype, "") or BIOME_PLANT_RESOURCE.get(biome, "")
-        if plant_resource and captured.get('flora_raw', -1) > 0:
-            result["plant_resource"] = plant_resource
-        return result
+        return build_planet_entry(
+            captured, index,
+            translate_resource=translate_resource,
+            biome_plant_resource=BIOME_PLANT_RESOURCE,
+            biome_subtype_plant_override=BIOME_SUBTYPE_PLANT_OVERRIDE,
+            hidden_substance_names=HIDDEN_SUBSTANCE_NAMES,
+            hidden_substance_ids=HIDDEN_SUBSTANCE_IDS,
+        )
 
     def _planets_from_captured(self) -> list:
-        """v1.9.7: Build the full planet list from _captured_planets, preserving insertion
-        order (= slot order at capture time). Used by _save_current_system_to_batch.
+        """Build the full planet list from _captured_planets, preserving insertion order
+        (= slot order at capture time). Used by _save_current_system_to_batch.
         """
-        planets = []
-        for i, (name, captured) in enumerate(self._captured_planets.items()):
-            planets.append(self._planet_from_captured(captured, i))
+        planets = build_planet_list(self._captured_planets, planet_builder=self._planet_from_captured)
         moon_count = sum(1 for p in planets if p.get('is_moon', False))
         planet_count = len(planets) - moon_count
         logger.info(f"  [CAPTURED-ONLY] {planet_count} planets + {moon_count} moons from {len(self._captured_planets)} captures")
@@ -3951,101 +3872,108 @@ class HavenExtractorMod(Mod):
     # is a single packed uint64 on mPlanetDiscoveryData — one offset vs. five, so
     # far more resilient to NMS updates.
 
-    def _read_galaxy_from_solar_system_direct(self) -> Optional[int]:
-        """Read galaxy index from per-planet GenInput RealityIndex via direct memory.
+    def _galaxy_in_range(self, raw) -> Optional[int]:
+        """Return raw if it's a plausible galaxy index (0..255), else None.
 
-        v1.9.5: PRIMARY galaxy source — replaces the broken player_state path.
-
-        IMPORTANT (v1.9.5 fix): computes sys_data_addr FRESH from self._cached_solar_system
-        every call. The previous v1.9.4 implementation used self._cached_sys_data_addr which
-        is only set inside _save_current_system_to_batch / _do_extraction — both of which run
-        AFTER coord resolution. So during on_system_generate's _maybe_upgrade_coords() call,
-        the cached attr was either None (first warp ever) or pointing at the previously-saved
-        system (whose memory may have been freed). The whole reason _read_galaxy_from_player_state
-        kept getting hit (and returning 0 = Euclid) was that this gate failed every time.
-
-        cGcPlanetGenerationInputData.RealityIndex sits at offset 0x44 within each per-planet
-        entry of the PLANET_GEN_INPUTS array on cGcSolarSystemData (sys_data + 0x1EA0).
-        cGcSolarSystem.mSolarSystemData is at offset 0x0 of the solar system, so the addresses
-        coincide. Reading via the same path used for biome/size/resources, which produce correct
-        values in production — so this is guaranteed-stable.
-
-        Slot 0 only — v1.6.11 noted slots 1-5 have shifted stride post-Voyagers and produce
-        garbage values, but slot 0 is canonical.
-
-        Returns the galaxy index, or None if the read failed (caller should fall back).
+        0 is a VALID, positively-read value (Euclid) — only out-of-range / unreadable
+        values become None. None means 'this source could not be read', which is a
+        different fact from 'galaxy 0', and decide_galaxy() treats them differently.
         """
-        # Resolve sys_data_addr fresh from the cached solar system. This is the one piece of
-        # state we KNOW is set before _maybe_upgrade_coords runs (on_system_generate sets it
-        # at line 1630 before calling _maybe_upgrade_coords at line 1641).
+        try:
+            v = int(raw)
+        except (TypeError, ValueError):
+            return None
+        return v if 0 <= v <= 255 else None
+
+    def _read_galaxy_from_location(self) -> Optional[int]:
+        """Galaxy candidate 1 (most authoritative): the player's current location.
+
+        player_state.mLocation is a full cGcUniverseAddressData (nmspy: cGcPlayerState
+        @0x180) whose RealityIndex (@0x14) is the canonical 'what galaxy is the player
+        in' field. Read via the nmspy struct accessor so it stays correct if the game
+        struct shifts (nmspy is rebuilt per game version). Returns None on any failure.
+        """
+        try:
+            player_state = gameData.player_state
+            if not player_state:
+                return None
+            raw = self._safe_int(player_state.mLocation.RealityIndex)
+            return self._galaxy_in_range(raw)
+        except Exception as e:
+            logger.debug(f"  [GALAXY] location read failed: {e}")
+            return None
+
+    def _read_galaxy_from_planet_geninput(self) -> Optional[int]:
+        """Galaxy candidate 2: the per-planet generation input on the live planet.
+
+        cGcPlanet.mPlanetGenerationInputData (nmspy @0x3A60) -> RealityIndex (@0x44).
+        This is the per-planet copy, distinct from the solar-system-data scratch copy
+        read by _read_galaxy_from_solar_system_direct. Read via nmspy accessor (offset
+        safe). Returns None on any failure.
+        """
+        try:
+            if self._cached_solar_system is None:
+                return None
+            planets = self._cached_solar_system.maPlanets
+            gen_input = planets[0].mPlanetGenerationInputData
+            raw = self._safe_int(gen_input.RealityIndex)
+            return self._galaxy_in_range(raw)
+        except Exception as e:
+            logger.debug(f"  [GALAXY] planet geninput read failed: {e}")
+            return None
+
+    def _read_galaxy_from_solar_system_direct(self) -> Optional[int]:
+        """Galaxy candidate 3: the solar-system-data PlanetGenerationInputs[0] scratch copy.
+
+        Raw read of sys_data + 0x1EA0 (PLANET_GEN_INPUTS) + 0x44 (REALITY_INDEX), slot 0.
+        Offsets are nmspy-confirmed (PlanetGenerationInputs @0x1EA0, RealityIndex @0x44).
+        This is a generation-input scratch buffer; historically it has read 0 even in
+        non-Euclid galaxies, which is exactly why it is now only ONE of several voting
+        candidates and never authoritative on its own. Returns None on failure/out-of-range
+        (0 is returned as 0 — a positively-read value).
+        """
         sys_data_addr = None
         try:
             if self._cached_solar_system is not None:
                 sys_data = self._cached_solar_system.mSolarSystemData
                 sys_data_addr = get_addressof(sys_data)
         except Exception as e:
-            logger.info(f"  [GALAXY] direct: failed to get sys_data addr from cached solar system: {e}")
-
-        # Fall back to the lazily-cached address if the fresh read failed (covers the rare
-        # case where _do_extraction set it but _cached_solar_system was cleared).
+            logger.debug(f"  [GALAXY] sysdata: failed to get addr: {e}")
         if not sys_data_addr:
             sys_data_addr = self._cached_sys_data_addr
-
         if not sys_data_addr:
-            logger.info("  [GALAXY] direct: no sys_data address available (cached_solar_system is None and no fallback addr)")
             return None
-
         try:
-            # PLANET_GEN_INPUTS array starts at sys_data + 0x1EA0; slot 0 = +0; REALITY_INDEX = +0x44
             reality_addr_offset = SolarSystemDataOffsets.PLANET_GEN_INPUTS + PlanetGenInputOffsets.REALITY_INDEX
             raw_reality = self._read_int32(sys_data_addr, reality_addr_offset)
-            # v1.9.5: log the address being read so we can verify it changed across warps —
-            # if the address stays the same across galaxies, the cached_solar_system isn't
-            # being updated correctly. If the value at that address is wrong, the offset is wrong.
-            logger.info(
-                f"  [GALAXY] direct: sys_data=0x{sys_data_addr:X} +0x{reality_addr_offset:X} "
-                f"-> raw={raw_reality} ({get_galaxy_name(raw_reality) if 0 <= raw_reality <= 255 else 'OUT OF RANGE'})"
-            )
-            if 0 <= raw_reality <= 255:
-                return raw_reality
-            return None
+            return self._galaxy_in_range(raw_reality)
         except Exception as e:
-            logger.info(f"  [GALAXY] direct read failed: {e}")
+            logger.debug(f"  [GALAXY] sysdata read failed: {e}")
             return None
 
-    def _read_galaxy_from_player_state(self) -> int:
-        """SECONDARY galaxy source: player_state.mLocation.RealityIndex.
+    def _resolve_galaxy_index(self) -> Optional[int]:
+        """Resolve the current galaxy index from all independent sources.
 
-        Post-Voyagers this returns 0 (Euclid) consistently because the nmspy mLocation
-        offset (0x180) shifted — kept as a fallback only for cases where _cached_sys_data_addr
-        is unavailable (e.g., extraction without a cached solar system). Direct GenInput
-        read is the v1.9.4 primary path; this should rarely fire.
+        Gathers candidates in trust order and lets the pure decide_galaxy() arbitrate.
+        Returns the galaxy index (0..255), or None == UNKNOWN. Callers MUST NOT turn a
+        None into Euclid — a galaxy-unknown system is held back from upload instead.
 
-        Returns 0 (Euclid) if the read fails.
+        Fixes the long-standing 'always Euclid' bug: previously a single zeroed scratch
+        read was accepted as a definitive Euclid (0 is not None) and the authoritative
+        player-location source was never even consulted.
         """
-        try:
-            player_state = gameData.player_state
-            if not player_state:
-                return 0
-            location = player_state.mLocation
-            raw_reality = self._safe_int(location.RealityIndex)
-            logger.info(f"  [GALAXY] player_state RealityIndex={raw_reality} -> {get_galaxy_name(raw_reality) if 0 <= raw_reality <= 255 else 'OUT OF RANGE'}")
-            if 0 <= raw_reality <= 255:
-                return raw_reality
-            return 0
-        except Exception as e:
-            logger.info(f"  [GALAXY] Failed to read RealityIndex: {e}")
-            return 0
-
-    def _resolve_galaxy_index(self) -> int:
-        """Resolve current galaxy index. Primary: direct sys_data read. Fallback: player_state.
-
-        Centralizes the v1.9.4 fallback ordering so all callers stay in sync.
-        """
-        direct = self._read_galaxy_from_solar_system_direct()
-        if direct is not None:
-            return direct
-        return self._read_galaxy_from_player_state()
+        candidates = [
+            (self._read_galaxy_from_location(), "location"),
+            (self._read_galaxy_from_planet_geninput(), "planet_geninput"),
+            (self._read_galaxy_from_solar_system_direct(), "sysdata"),
+        ]
+        idx, source = decide_galaxy(candidates)
+        raw_summary = ", ".join(f"{s}={v}" for v, s in candidates)
+        if idx is None:
+            logger.info(f"  [GALAXY] UNKNOWN (no source readable) | candidates: {raw_summary}")
+        else:
+            logger.info(f"  [GALAXY] resolved={idx} ({get_galaxy_name(idx)}) via={source} | candidates: {raw_summary}")
+        return idx
 
     def _coords_look_valid(self, voxel_x, voxel_y, voxel_z, system_idx, galaxy_idx):
         """Reject all-zero (impossible universe origin) and out-of-range galaxy."""
@@ -4065,8 +3993,7 @@ class HavenExtractorMod(Mod):
 
         NOTE: Galaxy is NOT in this field. mUniverseAddress is a uint64 containing
         only the packed GalacticAddress. The galaxy (RealityIndex) is a separate
-        int32 in the full cGcUniverseAddressData struct — read it from player_state
-        via _read_galaxy_from_player_state() instead.
+        int32 read by _resolve_galaxy_index() (multi-source voter) instead.
         """
         if universe_addr == 0 or universe_addr == 0xFFFFFFFFFFFFFFFF:
             return None
@@ -4104,26 +4031,25 @@ class HavenExtractorMod(Mod):
                 logger.debug(f"  [{source_label}] invalid decode (addr=0x{universe_addr:016X})")
                 return None
 
-            # v1.9.0: Galaxy is NOT in mUniverseAddress (it's only the packed GalacticAddress).
-            # v1.9.4: Use _resolve_galaxy_index() which reads from per-planet GenInput direct
-            # memory (primary) and falls back to player_state.mLocation.RealityIndex (broken
-            # post-Voyagers — returns 0 — kept only for the no-cached-sys-data edge case).
+            # Galaxy is NOT in mUniverseAddress (only the packed GalacticAddress). Resolve it
+            # from the multi-source voter. None == UNKNOWN: we keep coords (glyph/region are
+            # valid) but flag galaxy_unknown so the export step holds the system back rather
+            # than mislabelling it Euclid. namegen needs an index, so use 0 only as a naming
+            # seed when unknown (the system won't upload until the galaxy resolves anyway).
             galaxy_idx = self._resolve_galaxy_index()
-            galaxy_name = get_galaxy_name(galaxy_idx)
+            galaxy_unknown = galaxy_idx is None
+            galaxy_name = None if galaxy_unknown else get_galaxy_name(galaxy_idx)
 
-            system_name = self._get_actual_system_name() or self._generate_system_name(
+            # Procedural names are galaxy-DEPENDENT. Never seed them with a fallback galaxy
+            # (that produced wrong/Euclid system + region names). When the galaxy is unknown
+            # we leave the region name EMPTY and the system name as a placeholder; both are
+            # regenerated by _refresh_galaxy_on_current_coords once the galaxy resolves. A
+            # held (galaxy-unknown) system never uploads, so these placeholders never submit.
+            system_name, region_name = self._make_proc_names(
                 decoded['glyph_code'], galaxy_idx,
-                system_idx=decoded['solar_system_index'],
-                x=decoded['voxel_x'], y=decoded['voxel_y'], z=decoded['voxel_z']
+                decoded['solar_system_index'], decoded['voxel_x'], decoded['voxel_y'], decoded['voxel_z']
             )
-            region_name = self._generate_region_name(
-                decoded['glyph_code'], galaxy_idx,
-                system_idx=decoded['solar_system_index'],
-                x=decoded['voxel_x'], y=decoded['voxel_y'], z=decoded['voxel_z']
-            )
-            # v1.9.3: INFO-level so we can correlate raw universe_addr + resolved galaxy in
-            # production logs without needing debug mode.
-            logger.info(f"  [COORDS] '{system_name}' @ {decoded['glyph_code']} ({galaxy_name}) raw=0x{universe_addr:016X}")
+            logger.info(f"  [COORDS] '{system_name}' @ {decoded['glyph_code']} ({galaxy_name or 'GALAXY UNKNOWN'}) raw=0x{universe_addr:016X}")
             logger.debug(f"  [NAMEGEN] Region: '{region_name}'")
             return {
                 "system_name": system_name,
@@ -4131,6 +4057,7 @@ class HavenExtractorMod(Mod):
                 "glyph_code": decoded["glyph_code"],
                 "galaxy_name": galaxy_name,
                 "galaxy_index": galaxy_idx,
+                "galaxy_unknown": galaxy_unknown,
                 "voxel_x": decoded["voxel_x"],
                 "voxel_y": decoded["voxel_y"],
                 "voxel_z": decoded["voxel_z"],
@@ -4159,29 +4086,25 @@ class HavenExtractorMod(Mod):
             voxel_z = self._safe_int(galactic_addr.VoxelZ)
             system_idx = self._safe_int(galactic_addr.SolarSystemIndex)
             planet_idx = self._safe_int(galactic_addr.PlanetIndex)
-            # v1.9.4: Prefer the direct GenInput read (which works post-Voyagers) over the
-            # broken player_state.mLocation.RealityIndex chain. _resolve_galaxy_index() falls
-            # through to player_state if sys_data isn't cached.
-            raw_reality_ps = self._safe_int(location.RealityIndex)
+            # Galaxy via the multi-source voter. None == UNKNOWN — keep the coords (voxel
+            # sanity still applies) but flag galaxy_unknown so export holds it rather than
+            # mislabelling Euclid. Coord sanity uses 0 as a stand-in galaxy for the all-zero
+            # origin check only.
             galaxy_idx = self._resolve_galaxy_index()
-            logger.info(f"  [{source_label}] player_state RealityIndex={raw_reality_ps}, resolved galaxy_idx={galaxy_idx}, voxel=[{voxel_x},{voxel_y},{voxel_z}], sys={system_idx}")
-            if galaxy_idx < 0 or galaxy_idx > 255:
-                logger.info(f"  [{source_label}] rejected: galaxy_idx={galaxy_idx} out of range (0-255) — not fabricating Euclid")
-                return None
-            if not self._coords_look_valid(voxel_x, voxel_y, voxel_z, system_idx, galaxy_idx):
+            galaxy_unknown = galaxy_idx is None
+            logger.info(f"  [{source_label}] resolved galaxy_idx={galaxy_idx}, voxel=[{voxel_x},{voxel_y},{voxel_z}], sys={system_idx}")
+            if not self._coords_look_valid(voxel_x, voxel_y, voxel_z, system_idx, galaxy_idx if galaxy_idx is not None else 0):
                 logger.debug(f"  [{source_label}] failed sanity: X={voxel_x},Y={voxel_y},Z={voxel_z},Sys={system_idx},Galaxy={galaxy_idx}")
                 return None
             glyph_code = self._coords_to_glyphs(planet_idx, system_idx, voxel_x, voxel_y, voxel_z)
-            galaxy_name = get_galaxy_name(galaxy_idx)
-            system_name = self._get_actual_system_name() or self._generate_system_name(
-                glyph_code, galaxy_idx,
-                system_idx=system_idx, x=voxel_x, y=voxel_y, z=voxel_z
+            galaxy_name = None if galaxy_unknown else get_galaxy_name(galaxy_idx)
+            # Galaxy-dependent proc names: never seed with a fallback galaxy (see
+            # _get_coords_from_universe_address). Empty/placeholder when unknown; regenerated
+            # by _refresh_galaxy_on_current_coords once the galaxy resolves.
+            system_name, region_name = self._make_proc_names(
+                glyph_code, galaxy_idx, system_idx, voxel_x, voxel_y, voxel_z
             )
-            region_name = self._generate_region_name(
-                glyph_code, galaxy_idx,
-                system_idx=system_idx, x=voxel_x, y=voxel_y, z=voxel_z
-            )
-            logger.debug(f"  [SUCCESS via {source_label}] '{system_name}' @ {glyph_code} ({galaxy_name}) [FALLBACK]")
+            logger.debug(f"  [SUCCESS via {source_label}] '{system_name}' @ {glyph_code} ({galaxy_name or 'GALAXY UNKNOWN'}) [FALLBACK]")
             logger.debug(f"  [NAMEGEN] Region: '{region_name}'")
             return {
                 "system_name": system_name,
@@ -4189,6 +4112,7 @@ class HavenExtractorMod(Mod):
                 "glyph_code": glyph_code,
                 "galaxy_name": galaxy_name,
                 "galaxy_index": galaxy_idx,
+                "galaxy_unknown": galaxy_unknown,
                 "voxel_x": voxel_x,
                 "voxel_y": voxel_y,
                 "voxel_z": voxel_z,
@@ -4220,7 +4144,12 @@ class HavenExtractorMod(Mod):
         """
         existing = self._current_system_coords
         if existing is not None and not existing.get('from_fallback', False):
-            return  # already have a solid primary result — nothing to do
+            # Coords are solid, BUT galaxy is a separate read that may have been empty/0 at
+            # first resolution (the per-planet/sysdata RealityIndex can populate late). Keep
+            # re-resolving the galaxy while the system is live so an early miss self-corrects
+            # before we freeze the system. This is the fix for galaxy locking to Euclid.
+            self._refresh_galaxy_on_current_coords()
+            return  # coords themselves are solid — nothing else to do
 
         new_coords = self._resolve_current_coordinates()
         if not new_coords:
@@ -4241,6 +4170,62 @@ class HavenExtractorMod(Mod):
                 f"with '{new_coords.get('galaxy_name')}'"
             )
         self._current_system_coords = new_coords
+
+    def _make_proc_names(self, glyph_code, galaxy_idx, system_idx, x, y, z):
+        """Build (system_name, region_name) for the given galaxy.
+
+        Procedural names are galaxy-dependent, so we refuse to seed them with a fallback
+        galaxy: when galaxy_idx is None (UNKNOWN) the region name is left EMPTY and the
+        system name is a placeholder. An in-game / renamed system name (read from memory)
+        always wins over procgen and is galaxy-independent, so it's kept either way.
+        Returns ("System_<glyph>"/actual, "") when unknown; real procgen names when known.
+        """
+        actual = self._get_actual_system_name()
+        if galaxy_idx is None:
+            return (actual or f"System_{glyph_code}", "")
+        system_name = actual or self._generate_system_name(
+            glyph_code, galaxy_idx, system_idx=system_idx, x=x, y=y, z=z)
+        region_name = self._generate_region_name(
+            glyph_code, galaxy_idx, system_idx=system_idx, x=x, y=y, z=z)
+        return (system_name, region_name)
+
+    def _refresh_galaxy_on_current_coords(self):
+        """Re-resolve the galaxy for the CURRENT (live) system and update cached coords.
+
+        Only ever UPGRADES: if no source is readable (resolver returns None) we keep
+        whatever we already had rather than downgrading a known galaxy to unknown. This
+        runs on every creature-roles fire while the system is live, so an early empty
+        RealityIndex read gets corrected once the field populates — well before the
+        system is frozen on warp/export.
+
+        When the galaxy changes/resolves, the galaxy-DEPENDENT procedural region + system
+        names are REGENERATED so a stale Euclid-seeded (or empty) name can never be the one
+        that gets submitted — the wrong-region-name problem.
+        """
+        coords = self._current_system_coords
+        if not coords:
+            return
+        try:
+            g = self._resolve_galaxy_index()
+        except Exception:
+            return
+        if g is None:
+            return  # not readable right now — don't clobber a previously-known galaxy
+        prev = coords.get('galaxy_index')
+        if prev == g and not coords.get('galaxy_unknown'):
+            return  # already correct and known — nothing to do
+        coords['galaxy_index'] = g
+        coords['galaxy_name'] = get_galaxy_name(g)
+        coords['galaxy_unknown'] = False
+        system_name, region_name = self._make_proc_names(
+            coords.get('glyph_code', ''), g,
+            coords.get('solar_system_index'), coords.get('voxel_x'),
+            coords.get('voxel_y'), coords.get('voxel_z'))
+        coords['region_name'] = region_name
+        # Don't clobber a user-applied custom name; otherwise refresh the (proc/actual) name.
+        if not coords.get('custom_name_applied'):
+            coords['system_name'] = system_name
+        logger.info(f"  [GALAXY] current-coords galaxy {prev} -> {g} ({get_galaxy_name(g)}); regenerated region/system proc names")
 
     def _log_system_summary(self, system_data: dict):
         """Print a clean, aligned summary block for a saved system."""

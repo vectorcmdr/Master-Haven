@@ -2,7 +2,7 @@
 
 PyMHF-based mod that extracts system and planet data from No Man's Sky in real-time.
 
-> **Version**: 1.6.7 | **Updated**: 2026-03-01
+> **Version**: 1.10.1 | **Updated**: 2026-05-25
 >
 > **After making changes to this component:**
 > 1. Bump `__version__` in `dist/HavenExtractor/mod/haven_extractor.py` (PATCH: bug fix, MINOR: feature, MAJOR: breaking)
@@ -13,7 +13,7 @@ PyMHF-based mod that extracts system and planet data from No Man's Sky in real-t
 ## Quick Reference
 
 - **Framework**: PyMHF (Python Modding Hook Framework) + NMS.py
-- **Version**: 1.6.7
+- **Version**: 1.10.1
 - **Python**: 3.11-3.12 (NOT 3.14, NOT Windows Store)
 - **Output**: `~/Documents/Haven-Extractor/`
 
@@ -21,7 +21,8 @@ PyMHF-based mod that extracts system and planet data from No Man's Sky in real-t
 
 | File | Purpose |
 |------|---------|
-| `dist/HavenExtractor/mod/haven_extractor.py` | Main mod (4,057 lines) |
+| `dist/HavenExtractor/mod/haven_extractor.py` | Main mod (game hooks, memory reads, GUI, upload) |
+| `dist/HavenExtractor/mod/extraction_core.py` | **Pure data-transform layer (no pymhf/nmspy): galaxy voter `decide_galaxy()`, payload builders. Smoke-tested by `tests/test_extraction_core.py`.** |
 | `dist/HavenExtractor/mod/nms_language.py` | PSARC/PAK reader, language MBIN parser, adjective cache (429 lines) |
 | `dist/HavenExtractor/mod/structs.py` | Data structures and enum mappings |
 | `dist/HavenExtractor/mod/__init__.py` | Package init |
