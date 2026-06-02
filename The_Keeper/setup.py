@@ -318,7 +318,7 @@ class RoleSetupButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
             label="Select Role",
-            style=discord.ButtonStyle.primary
+            style=discord.ButtonStyle.primary,
             row=1
         )
 
