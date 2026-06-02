@@ -266,14 +266,14 @@ class ChannelSetupView(discord.ui.View):
         self.command_name = command_name
         self.channels = []
         
-        self.add_item(ChannelSelect())
+        self.add_item(ChannelPicker())
         self.add_item(SaveButton())
         self.add_item(RoleSetupButton())
 
        
         
 
-class ChannelSelect(discord.ui.ChannelSelect):
+class ChannelPicker(discord.ui.ChannelSelect):
     def __init__(self, row: int = 0):
         super().__init__(
             placeholder="Select channels...",
@@ -295,7 +295,8 @@ class SaveButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
             label="Save",
-            style=discord.ButtonStyle.success
+            style=discord.ButtonStyle.success,
+            row=1
         )
     async def callback(self, interaction):
         view = self.view
@@ -318,6 +319,7 @@ class RoleSetupButton(discord.ui.Button):
         super().__init__(
             label="Select Role",
             style=discord.ButtonStyle.primary
+            row=1
         )
 
     async def callback(self, interaction):
