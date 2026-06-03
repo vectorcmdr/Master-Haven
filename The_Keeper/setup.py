@@ -4,6 +4,8 @@ from discord.ext import commands
 import aiosqlite
 import os
 
+SESSIONS = {}
+
 # ---------------- DATABASE CONFIG ----------------
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "Data", "guild.db")
@@ -362,7 +364,7 @@ class RoleSetupButton(discord.ui.Button):
         )
 
 class RoleSelect(discord.ui.RoleSelect):
-    def __init__(self, command_name):
+    def __init__(self, command_name, channels):
         self.command_name = command_name
         super().__init__(placeholder="Optional role restriction...", max_values=1)
 
