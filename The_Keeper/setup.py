@@ -170,7 +170,7 @@ class CommandSelect(discord.ui.Select):
         await interaction.response.edit_message(
             content=f"🔧 Configuring `{selected_command}`",
             view=ChannelSetupView(selected_command)
-)
+        )
             
 class NextPageButton(discord.ui.Button):
     def __init__(
@@ -364,7 +364,7 @@ class RoleSetupButton(discord.ui.Button):
         )
 
 class RoleSelect(discord.ui.RoleSelect):
-    def __init__(self, command_name, channels):
+    def __init__(self, command_name):
         self.command_name = command_name
         super().__init__(placeholder="Optional role restriction...", max_values=1)
 
@@ -399,14 +399,15 @@ class RoleSelect(discord.ui.RoleSelect):
         )
         
 class RoleSetupView(discord.ui.View):
-    def __init__(self, command_name, channels):
+    def __init__(self, command_name):
         super().__init__(timeout=180)
 
         self.command_name = command_name
-        self.channels = channels
         
-        self.add_item(RoleSelect(command_name, channels))
         
+        self.add_item(RoleSelect(command_name))
+        
+
 
 async def is_command_allowed(
     guild_id: int,
